@@ -98,3 +98,4 @@ dkms.conf
 *.code-workspace
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#C,C++,PlatformIO
+.vscode/launch.json
