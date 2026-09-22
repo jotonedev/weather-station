@@ -1,12 +1,14 @@
-#include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
-#include "sdkconfig.h"
+#include <Arduino.h>
+#include <ARQ.h>
 
+CC1101::Radio radio(5);
+ARQ::ARQ arq(radio, 2);
 
-/* the app_main entry point **must** have C linkage. Thus extern "C". */
-extern "C" void app_main()
-{
-    printf("Entry point\n");
+void setup() {
+    arq.initializeCC1101();
 }
+
+void loop() {
+    
+}
+
