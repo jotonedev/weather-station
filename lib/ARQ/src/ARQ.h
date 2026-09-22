@@ -70,7 +70,7 @@ class ARQ {
         ARQ(const ARQ&) = delete;
         ARQ& operator=(const ARQ&) = delete;
 
-        Status initializeCC1101(uint8_t packetLength = 64);
+        Status initializeCC1101(uint8_t packetLength = 60);
 
         void setLocalAddress(address_t addr) { localAddress = addr; }
         address_t getLocalAddress() const { return localAddress; }
@@ -78,22 +78,42 @@ class ARQ {
         Status startSendData(const byte* data, length_t length, address_t target);
         Status startReceiveData(address_t localAddress);
         Status startReceiveData();
+        Status enterRxMode();
 
         // Main unified polling loop called inside void loop()
-        Status poll(uint32_t ackTimeoutMs = 500);
+        Status poll(uint32_t ackTimeoutMs = 1000);
 
         // Internal received message access
         bool available() const { return hasNewMessage; }
         Status readMessage(Message& outMessage, byte* outPayloadBuffer = nullptr, length_t maxLen = 0);
 
+        // Signal quality and link metrics
+        int8_t getLastRSSI() const { return lastRssi; }
+        uint8_t getLastLQI() const { return lastLqi; }
+
+        // Transmission statistics
+        uint32_t getTxSuccessCount() const { return txSuccessCount; }
+        uint32_t getTxTimeoutCount() const { return txTimeoutCount; }
+        uint32_t getTxRetryCount() const { return totalRetries; }
+        uint32_t getLastRTT() const { return lastRTT; }
+
         RadioState getState() const { return currentState; }
     protected:
         CC1101::Radio radio;
-        uint8_t packetLength = 63;
+        uint8_t packetLength = 59;
         address_t localAddress = 0;
         volatile RadioState currentState = RadioState::IDLE;
         volatile bool packetDone = false;
         uint32_t opStartTime = 0;
+
+        // Performance & signal metrics
+        int8_t lastRssi = 0;
+        uint8_t lastLqi = 0;
+        uint32_t txStartTime = 0;
+        uint32_t lastRTT = 0;
+        uint32_t txSuccessCount = 0;
+        uint32_t txTimeoutCount = 0;
+        uint32_t totalRetries = 0;
 
         // TX state
         uint8_t retryCount = 0;

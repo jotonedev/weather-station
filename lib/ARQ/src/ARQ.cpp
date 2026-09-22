@@ -41,7 +41,7 @@ Status ARQ::initializeCC1101(uint8_t packetLength) {
     status = radio.setFrequencyDeviation(5.0);
     if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
 
-    status = radio.setRxBandwidth(58);
+    status = radio.setRxBandwidth(100);
     if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
     status = radio.setDataRate(2.0);  // 2 kBaud
     if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
@@ -63,8 +63,8 @@ Status ARQ::initializeCC1101(uint8_t packetLength) {
     status = radio.setFEC(true);
     if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
 
-    radio.setTransmitAction(isrHandler, CC1101::GDO0);
     radio.setReceiveAction(isrHandler, CC1101::GDO0);
+    radio.writeReg(CC1101_REG_IOCFG0, 0x07);
 
     currentState = RadioState::IDLE;
 
@@ -87,6 +87,7 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
     }
 
     currentTxSeq++;
+    txStartTime = millis();
     Message message {
         .version = PROTOCOL_VERSION,
         .source = this->localAddress,
@@ -96,6 +97,12 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
         .payload = data
     };
     return this->sendMessage(message, target);
+}
+
+Status ARQ::enterRxMode() {
+    packetDone = false;
+    auto status = radio.startReceive(this->localAddress);
+    return (status == CC1101::STATUS_OK) ? STATUS_OK : STATUS_ERROR;
 }
 
 Status ARQ::startReceiveData(address_t localAddress) {
@@ -111,8 +118,9 @@ Status ARQ::startReceiveData() {
     packetDone = false;
     opStartTime = millis();
 
-    auto status = radio.startReceive(this->localAddress);
-    if (status != CC1101::STATUS_OK) {
+    radio.setReceiveAction(isrHandler, CC1101::GDO0);
+    auto status = enterRxMode();
+    if (status != STATUS_OK) {
         return STATUS_ERROR;
     }
 
@@ -124,57 +132,22 @@ Status ARQ::poll(uint32_t ackTimeoutMs) {
     switch (currentState) {
         case RadioState::IDLE:
             return STATUS_OK;
-        case RadioState::TRANSMITTING:
-            return handleStateTransmitting();
         case RadioState::WAITING_ACK:
             return handleStateWaitingAck(ackTimeoutMs);
-        case RadioState::SENDING_ACK:
-            return handleStateSendingAck();
         case RadioState::RECEIVING:
             return handleStateReceiving();
         default:
-            return STATUS_ERROR;
+            return STATUS_OK;
     }
 }
 
 Status ARQ::handleStateTransmitting() {
-    if (packetDone) {
-        radio.finishTransmit();
-        packetDone = false;
-
-        // An ACK or NACK doesn't expect an ACK back
-        if (currentTxType != DATA_FRAME) {
-            radio.idle();
-            currentState = RadioState::IDLE;
-            return STATUS_OK;
-        }
-
-        // Switch to RX mode to wait for ACK
-        auto rxStatus = radio.startReceive(this->localAddress);
-        if (rxStatus != CC1101::STATUS_OK) {
-            radio.idle();
-            currentState = RadioState::IDLE;
-            return STATUS_ERROR;
-        }
-
-        currentState = RadioState::WAITING_ACK;
-        opStartTime = millis();
-        return STATUS_BUSY;
-    }
-
-    // Hardware watchdog guard (e.g. 500 ms at 2 kBaud)
-    if (millis() - opStartTime > 500) {
-        radio.finishTransmit();
-        radio.idle();
-        currentState = RadioState::IDLE;
-        return STATUS_TIMEOUT;
-    }
-
-    return STATUS_BUSY;
+    return STATUS_OK;
 }
 
 Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
-    if (packetDone) {
+    uint8_t rxBytes = radio.readRegField(CC1101_REG_RXBYTES, 6, 0);
+    if (packetDone || rxBytes >= (this->packetLength + 1)) {
         packetDone = false;
         uint8_t buffer[64];
         size_t bytesRead = 0;
@@ -187,6 +160,8 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
             seq_t seq = static_cast<seq_t>(buffer[3]) | (static_cast<seq_t>(buffer[4]) << 8);
 
             if (ver == PROTOCOL_VERSION && type == ACK && src == currentTarget && seq == currentTxSeq) {
+                lastRTT = millis() - txStartTime;
+                txSuccessCount++;
                 radio.idle();
                 currentState = RadioState::IDLE;
                 return STATUS_OK;
@@ -194,26 +169,29 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
         }
 
         // Not our ACK or packet corrupt; keep listening in RX mode
-        radio.startReceive(this->localAddress);
+        enterRxMode();
     }
 
     // Check if timeout for this attempt expired
     if (millis() - opStartTime >= ackTimeoutMs) {
         retryCount++;
+        totalRetries++;
         if (retryCount < MAX_RETRIES) {
-            // Retransmit saved txBuffer
-            packetDone = false;
-            opStartTime = millis();
-            auto status = radio.startTransmit(txBuffer, this->packetLength, currentTarget);
+            // Retransmit saved txBuffer synchronously
+            auto status = radio.transmit(txBuffer, this->packetLength, currentTarget);
             if (status != CC1101::STATUS_OK) {
                 radio.idle();
                 currentState = RadioState::IDLE;
                 return STATUS_ERROR;
             }
-            currentState = RadioState::TRANSMITTING;
+            packetDone = false;
+            opStartTime = millis();
+            enterRxMode();
+            currentState = RadioState::WAITING_ACK;
             return STATUS_BUSY;
         } else {
             // All 3 attempts exhausted
+            txTimeoutCount++;
             radio.idle();
             currentState = RadioState::IDLE;
             return STATUS_TIMEOUT;
@@ -224,29 +202,12 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
 }
 
 Status ARQ::handleStateSendingAck() {
-    if (packetDone) {
-        radio.finishTransmit();
-        packetDone = false;
-
-        // Return back to listening
-        radio.startReceive(this->localAddress);
-        currentState = RadioState::RECEIVING;
-        return STATUS_OK;
-    }
-
-    // Watchdog for ACK transmission
-    if (millis() - opStartTime > 500) {
-        radio.finishTransmit();
-        radio.startReceive(this->localAddress);
-        currentState = RadioState::RECEIVING;
-        return STATUS_ERROR;
-    }
-
-    return STATUS_BUSY;
+    return STATUS_OK;
 }
 
 Status ARQ::handleStateReceiving() {
-    if (!packetDone) {
+    uint8_t rxBytes = radio.readRegField(CC1101_REG_RXBYTES, 6, 0);
+    if (!packetDone && rxBytes < (this->packetLength + 1)) {
         return STATUS_BUSY;
     }
 
@@ -256,9 +217,12 @@ Status ARQ::handleStateReceiving() {
 
     auto status = radio.readData(buffer, this->packetLength, &bytesRead);
     if (status != CC1101::STATUS_OK || bytesRead < HEADER_SIZE) {
-        radio.startReceive(this->localAddress);
+        enterRxMode();
         return STATUS_ERROR;
     }
+
+    lastRssi = radio.getRSSI();
+    lastLqi = radio.getLQI();
 
     version_t ver = buffer[0];
     address_t src = buffer[1];
@@ -267,13 +231,13 @@ Status ARQ::handleStateReceiving() {
     length_t len = static_cast<length_t>(buffer[5]) | (static_cast<length_t>(buffer[6]) << 8);
 
     if (ver != PROTOCOL_VERSION) {
-        radio.startReceive(this->localAddress);
+        enterRxMode();
         return STATUS_ERROR;
     }
 
     if (type == DATA_FRAME) {
         if (len > (this->packetLength - HEADER_SIZE)) {
-            radio.startReceive(this->localAddress);
+            enterRxMode();
             return STATUS_INVALID_SIZE;
         }
 
@@ -302,7 +266,7 @@ Status ARQ::handleStateReceiving() {
     }
 
     // Other packet types: ignore and keep receiving
-    radio.startReceive(this->localAddress);
+    enterRxMode();
     return STATUS_BUSY;
 }
 
@@ -382,18 +346,30 @@ Status ARQ::sendMessage(Message& message, address_t target) {
         retryCount = 0;
     }
 
-    auto status = radio.startTransmit(txBuffer, this->packetLength, target);
+    auto status = radio.transmit(txBuffer, this->packetLength, target);
     if (status != CC1101::STATUS_OK) {
+        radio.idle();
+        currentState = RadioState::IDLE;
         return STATUS_ERROR;
     }
 
     if (message.type == ACK || message.type == NACK) {
-        currentState = RadioState::SENDING_ACK;
+        packetDone = false;
+        enterRxMode();
+        currentState = RadioState::RECEIVING;
+        return STATUS_OK;
     } else {
-        currentState = RadioState::TRANSMITTING;
+        packetDone = false;
+        opStartTime = millis();
+        auto rxStatus = enterRxMode();
+        if (rxStatus != STATUS_OK) {
+            radio.idle();
+            currentState = RadioState::IDLE;
+            return STATUS_ERROR;
+        }
+        currentState = RadioState::WAITING_ACK;
+        return STATUS_OK;
     }
-
-    return STATUS_OK;
 }
 
 void ARQ::isrHandler() {
