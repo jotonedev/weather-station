@@ -70,7 +70,7 @@ class ARQ {
         ARQ(const ARQ&) = delete;
         ARQ& operator=(const ARQ&) = delete;
 
-        Status initializeCC1101(uint8_t packetLength = 32);
+        Status initializeCC1101(uint8_t packetLength = 48);
 
         void setLocalAddress(address_t addr) { localAddress = addr; }
         address_t getLocalAddress() const { return localAddress; }

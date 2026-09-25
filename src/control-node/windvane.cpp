@@ -8,60 +8,225 @@ WindVane::WindVane(TwoWire& wire, float calibrationOffset)
     : wire(wire), as5600(&wire), calibrationOffset(calibrationOffset) {
 }
 
+WindVane::~WindVane() {
+    stopTask();
+}
+
 void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.begin(directionPin);
     as5600.setDirection(direction);
+    // Enable 3 LSB hysteresis to suppress angle jitter
+    as5600.setHysteresis(AS5600_HYST_LSB3);
+    // Slow filter 16x for maximum noise rejection
+    as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
+    // Disable fast filter so noise spikes don't bypass slow filter
+    as5600.setFastFilter(AS5600_FAST_FILT_NONE);
+
+    portENTER_CRITICAL(&spinlock);
+    initialized = true;
+    currentAngle = 0.0f;
+    rawAngleDegrees = 0.0f;
+    vecX = 1.0f;
+    vecY = 0.0f;
+    hasFirstSample = false;
+    glitchCount = 0;
+    agcCount = 0;
+    agcMean = 0.0;
+    agcM2 = 0.0;
+    portEXIT_CRITICAL(&spinlock);
 }
 
 bool WindVane::ready() {
     return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() && !as5600.magnetTooWeak();
 }
 
+bool WindVane::isConnected() {
+    return as5600.isConnected();
+}
+
+bool WindVane::magnetDetected() {
+    return as5600.magnetDetected();
+}
+
+bool WindVane::magnetTooStrong() {
+    return as5600.magnetTooStrong();
+}
+
+bool WindVane::magnetTooWeak() {
+    return as5600.magnetTooWeak();
+}
+
+int WindVane::getLastError() {
+    return as5600.lastError();
+}
+
+void WindVane::taskTrampoline(void* arg) {
+    auto* self = static_cast<WindVane*>(arg);
+    self->taskLoop(10);
+}
+
+bool WindVane::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseType_t core) {
+    if (taskHandle != nullptr) {
+        return true;
+    }
+    BaseType_t res = xTaskCreatePinnedToCore(
+        taskTrampoline,
+        "WindVaneTask",
+        4096,
+        this,
+        priority,
+        &taskHandle,
+        core
+    );
+    return res == pdPASS;
+}
+
+void WindVane::stopTask() {
+    if (taskHandle != nullptr) {
+        vTaskDelete(taskHandle);
+        taskHandle = nullptr;
+    }
+}
+
+void WindVane::taskLoop(uint32_t samplePeriodMs) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(samplePeriodMs);
+    while (true) {
+        update();
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+void WindVane::update() {
+    if (!as5600.isConnected()) {
+        return;
+    }
+
+    uint16_t raw = as5600.readAngle();
+    bool i2cOk = (as5600.lastError() == AS5600_OK);
+    uint8_t status = as5600.readStatus();
+    uint8_t agc = as5600.readAGC();
+
+    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10)
+    bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
+
+    portENTER_CRITICAL(&spinlock);
+    lastStatus = status;
+    lastAgc = agc;
+
+    // Accumulate AGC stats on detected magnet
+    if (i2cOk && (status & 0x20)) {
+        agcCount++;
+        double deltaAgc = static_cast<double>(agc) - agcMean;
+        agcMean += deltaAgc / agcCount;
+        double deltaAgc2 = static_cast<double>(agc) - agcMean;
+        agcM2 += deltaAgc * deltaAgc2;
+    }
+
+    if (!hwMagnetOk) {
+        glitchCount++;
+        portEXIT_CRITICAL(&spinlock);
+        return;
+    }
+
+    // Convert raw 12-bit to degrees [0.0, 360.0)
+    float deg = static_cast<float>(raw) * AS5600_RAW_TO_DEGREES;
+    rawAngleDegrees = deg;
+
+    // Apply calibration offset
+    float calibratedDeg = deg + calibrationOffset;
+    while (calibratedDeg < 0.0f) calibratedDeg += 360.0f;
+    while (calibratedDeg >= 360.0f) calibratedDeg -= 360.0f;
+
+    // Circular vector smoothing (alpha = 0.20): handles 0/360 wrap seamlessly and dampens flutter
+    float rad = calibratedDeg * (PI / 180.0f);
+    float cosVal = cosf(rad);
+    float sinVal = sinf(rad);
+
+    if (!hasFirstSample) {
+        vecX = cosVal;
+        vecY = sinVal;
+        hasFirstSample = true;
+    } else {
+        vecX = 0.20f * cosVal + 0.80f * vecX;
+        vecY = 0.20f * sinVal + 0.80f * vecY;
+    }
+
+    float filteredRad = atan2f(vecY, vecX);
+    float filteredDeg = filteredRad * (180.0f / PI);
+    if (filteredDeg < 0.0f) {
+        filteredDeg += 360.0f;
+    }
+    currentAngle = filteredDeg;
+
+    portEXIT_CRITICAL(&spinlock);
+}
+
+float WindVane::getAngle() {
+    portENTER_CRITICAL(&spinlock);
+    float val = currentAngle;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
+float WindVane::getRawAngle() {
+    portENTER_CRITICAL(&spinlock);
+    float val = rawAngleDegrees;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
+void WindVane::setCalibrationOffset(float offset) {
+    portENTER_CRITICAL(&spinlock);
+    calibrationOffset = offset;
+    hasFirstSample = false; // re-sync vector filter on offset change
+    portEXIT_CRITICAL(&spinlock);
+}
+
+float WindVane::getCalibrationOffset() const {
+    return calibrationOffset;
+}
+
+void WindVane::resetStats() {
+    portENTER_CRITICAL(&spinlock);
+    agcCount = 0;
+    agcMean = 0.0;
+    agcM2 = 0.0;
+    portEXIT_CRITICAL(&spinlock);
+}
+
+uint8_t WindVane::getLastStatus() {
+    portENTER_CRITICAL(&spinlock);
+    uint8_t val = lastStatus;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
+uint8_t WindVane::getLastAGC() {
+    portENTER_CRITICAL(&spinlock);
+    uint8_t val = lastAgc;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
+uint16_t WindVane::getAGCVariance() {
+    portENTER_CRITICAL(&spinlock);
+    uint16_t var = (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
+    portEXIT_CRITICAL(&spinlock);
+    return var;
+}
+
+uint32_t WindVane::getGlitchCount() {
+    portENTER_CRITICAL(&spinlock);
+    uint32_t val = glitchCount;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
 float WindVane::readAngle() {
-    if (!ready()) {
-        return -1.0f;
+    if (taskHandle == nullptr) {
+        update();
     }
-
-    float sumX = 0.0f;
-    float sumY = 0.0f;
-    constexpr int SAMPLES = 3;
-
-    for (int i = 0; i < SAMPLES; i++) {
-        uint16_t raw = as5600.readAngle();
-        if (as5600.lastError() != AS5600_OK) {
-            return -1.0f;
-        }
-        float deg = static_cast<float>(raw) * AS5600_RAW_TO_DEGREES;
-        float rad = deg * (PI / 180.0f);
-        sumX += cosf(rad);
-        sumY += sinf(rad);
-        if (i < SAMPLES - 1) {
-            delayMicroseconds(500);
-        }
-    }
-
-    float avgRad = atan2f(sumY, sumX);
-    float avgDeg = avgRad * (180.0f / PI);
-    if (avgDeg < 0.0f) {
-        avgDeg += 360.0f;
-    }
-    return avgDeg;
+    return getAngle();
 }
 
-WindDirection WindVane::readWindDirection() {
-    float angle = readAngle();
-
-    if (angle < 0.0f || isnan(angle)) {
-        return UNKNOWN;
-    }
-
-    // Apply calibration offset and normalize to [0.0, 360.0)
-    float calibratedAngle = fmodf(angle + calibrationOffset, 360.0f);
-    if (calibratedAngle < 0.0f) {
-        calibratedAngle += 360.0f;
-    }
-
-    // 8 sectors of 45 degrees, centered around 0, 45, 90, ... (+22.5 offset)
-    int sector = static_cast<int>(floorf((calibratedAngle + 22.5f) / 45.0f)) % 8;
-    return static_cast<WindDirection>(sector);
-}
