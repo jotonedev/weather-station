@@ -97,7 +97,6 @@ void RainMeter::stopTask() {
         vTaskDelete(taskHandle);
         taskHandle = nullptr;
     }
-    commitNvsTips();
 }
 
 void RainMeter::taskLoop(uint32_t samplePeriodMs) {
@@ -296,9 +295,6 @@ void RainMeter::update() {
 }
 
 void RainMeter::recordTip(uint32_t nowMs) {
-    totalTips++;
-    uncommittedTips++;
-
     float rawRate = 0.0f;
     if (lastTipMs > 0) {
         float dtSeconds = (nowMs - lastTipMs) / 1000.0f;
@@ -320,11 +316,6 @@ void RainMeter::recordTip(uint32_t nowMs) {
 
     prevTipMs = lastTipMs;
     lastTipMs = nowMs;
-
-    // Periodically commit lifetime count to NVS
-    if (uncommittedTips >= 25) {
-        commitNvsTips();
-    }
 }
 
 void RainMeter::updateRollingWindows(uint32_t nowMs) {
@@ -348,10 +339,6 @@ void RainMeter::updateRollingWindows(uint32_t nowMs) {
         currentHourIdx = (currentHourIdx + 1) % 24;
         hourBins[currentHourIdx] = 0.0f;
         lastHourTickMs = nowMs;
-
-        if (uncommittedTips > 0) {
-            commitNvsTips();
-        }
     }
 }
 
@@ -404,13 +391,6 @@ float RainMeter::getRainRate() {
     return val;
 }
 
-uint32_t RainMeter::getTotalTips() {
-    portENTER_CRITICAL(&spinlock);
-    uint32_t val = totalTips;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
-}
-
 RainData RainMeter::getRainData() {
     portENTER_CRITICAL(&spinlock);
     RainData data = {};
@@ -422,18 +402,9 @@ RainData RainMeter::getRainData() {
     data.rainfall_1h = static_cast<uint16_t>(r1h * 100.0f);   // 0.01 mm resolution
     data.rainfall_24h = static_cast<uint16_t>(r24h * 100.0f); // 0.01 mm resolution
     data.rainRate = static_cast<uint16_t>(currentRainRate * 10.0f); // 0.1 mm/h
-    data.totalTips = totalTips;
     data.magnetStatus.status = lastStatus;
     data.magnetStatus.agc = lastAgc;
     data.magnetStatus.agcVariance = (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
-
-    data.flags = 0;
-    if (calibrated)   data.flags |= RAIN_FLAG_CALIBRATED;
-    if (tiltWarning)  data.flags |= RAIN_FLAG_TILT_WARNING;
-    if (jammed)       data.flags |= RAIN_FLAG_JAMMED;
-    if ((lastStatus & 0x20) && !(lastStatus & 0x10) && !(lastStatus & 0x08)) {
-        data.flags |= RAIN_FLAG_MAGNET_OK;
-    }
     portEXIT_CRITICAL(&spinlock);
     return data;
 }
@@ -524,17 +495,6 @@ void RainMeter::resetStats() {
     portEXIT_CRITICAL(&spinlock);
 }
 
-void RainMeter::resetLifetimeTotals() {
-    portENTER_CRITICAL(&spinlock);
-    totalTips = 0;
-    uncommittedTips = 0;
-    for (size_t i = 0; i < 60; i++) minuteBins[i] = 0.0f;
-    for (size_t i = 0; i < 24; i++) hourBins[i] = 0.0f;
-    currentRainRate = 0.0f;
-    commitNvsTips();
-    portEXIT_CRITICAL(&spinlock);
-}
-
 void RainMeter::clearCalibration() {
     portENTER_CRITICAL(&spinlock);
     calibrated = false;
@@ -565,11 +525,8 @@ void RainMeter::loadNvsCalibration() {
         hasReference = true;
         restLeft = preferences.getInt("restL", 0);
         restRight = preferences.getInt("restR", 0);
-        totalTips = preferences.getUInt("tips", 0);
         calibrated = true;
         recomputeGeometry();
-    } else {
-        totalTips = preferences.getUInt("tips", 0);
     }
     preferences.end();
 }
@@ -580,13 +537,5 @@ void RainMeter::saveNvsCalibration() {
     preferences.putUShort("rawRef", rawReference);
     preferences.putInt("restL", restLeft);
     preferences.putInt("restR", restRight);
-    preferences.putUInt("tips", totalTips);
     preferences.end();
-}
-
-void RainMeter::commitNvsTips() {
-    preferences.begin("rainmeter", false);
-    preferences.putUInt("tips", totalTips);
-    preferences.end();
-    uncommittedTips = 0;
 }

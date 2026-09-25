@@ -22,12 +22,6 @@ enum class RainMeterState : uint8_t {
     JAMMED               // Bucket stuck mid-transit (leaf/spiderweb/ice)
 };
 
-// Diagnostic & Status Flags (packed into RainData::flags)
-constexpr uint8_t RAIN_FLAG_CALIBRATED   = 0x01; // Auto-calibration complete
-constexpr uint8_t RAIN_FLAG_TILT_WARNING = 0x02; // Mechanical travel asymmetry > 15%
-constexpr uint8_t RAIN_FLAG_JAMMED       = 0x04; // Bucket stuck between stops > 2s
-constexpr uint8_t RAIN_FLAG_MAGNET_OK    = 0x08; // Magnet detected and within AGC limits
-
 class RainMeter {
 public:
     /**
@@ -57,7 +51,6 @@ public:
     float getRainfall1h();
     float getRainfall24h();
     float getRainRate();
-    uint32_t getTotalTips();
     RainData getRainData();
     RainMeterState getState();
 
@@ -75,7 +68,6 @@ public:
 
     // Maintenance & Calibration Controls
     void resetStats();
-    void resetLifetimeTotals();
     void clearCalibration();
     void setMmPerTip(float mm);
     float getMmPerTip() const;
@@ -122,9 +114,7 @@ private:
     float tiltDegrees = 0.0f;
     bool jammed = false;
 
-    // Rain counters & time tracking
-    uint32_t totalTips = 0;
-    uint32_t uncommittedTips = 0;
+    // Rain rate & time tracking
     uint32_t lastTipMs = 0;
     uint32_t prevTipMs = 0;
     float currentRainRate = 0.0f;
@@ -161,7 +151,6 @@ private:
 
     void loadNvsCalibration();
     void saveNvsCalibration();
-    void commitNvsTips();
     void recordTip(uint32_t nowMs);
     void updateRollingWindows(uint32_t nowMs);
     void recomputeGeometry();

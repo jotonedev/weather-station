@@ -25,6 +25,8 @@ struct __attribute__((packed)) AirData {
 struct __attribute__((packed)) RainData {
     uint16_t rainfall_1h;
     uint16_t rainfall_24h;
+    uint16_t rainRate;
+    MagnetStatus magnetStatus;
 };
 
 struct __attribute__((packed)) AirQualityData {
