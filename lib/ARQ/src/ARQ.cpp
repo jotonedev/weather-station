@@ -63,6 +63,8 @@ Status ARQ::initializeCC1101(uint8_t packetLength) {
     status = radio.setFEC(true);
     if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
 
+    radio.setCcaMode(CC1101::CCA_RSSI_AND_NOT_RX);
+
     radio.setReceiveAction(isrHandler, CC1101::GDO0);
     radio.writeReg(CC1101_REG_IOCFG0, 0x07);
 
@@ -177,9 +179,19 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
         retryCount++;
         totalRetries++;
         if (retryCount < MAX_RETRIES) {
-            // Retransmit saved txBuffer synchronously
-            auto status = radio.transmit(txBuffer, this->packetLength, currentTarget);
+            // Retransmit saved txBuffer synchronously (with CCA if enabled)
+            CC1101::Status status;
+            if (ccaEnabled) {
+                status = radio.transmitWithCca(txBuffer, this->packetLength, currentTarget, 3);
+            } else {
+                status = radio.transmit(txBuffer, this->packetLength, currentTarget);
+            }
             if (status != CC1101::STATUS_OK) {
+                if (status == CC1101::STATUS_CHANNEL_BUSY) {
+                    enterRxMode();
+                    currentState = RadioState::WAITING_ACK;
+                    return STATUS_BUSY;
+                }
                 radio.idle();
                 currentState = RadioState::IDLE;
                 return STATUS_ERROR;
@@ -346,8 +358,18 @@ Status ARQ::sendMessage(Message& message, address_t target) {
         retryCount = 0;
     }
 
-    auto status = radio.transmit(txBuffer, this->packetLength, target);
+    CC1101::Status status;
+    if (ccaEnabled && message.type == DATA_FRAME) {
+        status = radio.transmitWithCca(txBuffer, this->packetLength, target, 5);
+    } else {
+        status = radio.transmit(txBuffer, this->packetLength, target);
+    }
+
     if (status != CC1101::STATUS_OK) {
+        if (status == CC1101::STATUS_CHANNEL_BUSY) {
+            enterRxMode();
+            return STATUS_CHANNEL_BUSY;
+        }
         radio.idle();
         currentState = RadioState::IDLE;
         return STATUS_ERROR;

@@ -585,6 +585,43 @@ Status Radio::transmit(uint8_t *data, size_t length, uint8_t addr) {
   return STATUS_OK;
 }
 
+Status Radio::setCcaMode(CcaMode mode) {
+  writeRegField(CC1101_REG_MCSM1, (uint8_t)mode, 5, 4);
+  return STATUS_OK;
+}
+
+bool Radio::isChannelClear() {
+  uint8_t status = readReg(CC1101_REG_PKTSTATUS);
+  return (status & (1 << 4)) != 0;
+}
+
+bool Radio::isCarrierDetected() {
+  uint8_t status = readReg(CC1101_REG_PKTSTATUS);
+  return (status & (1 << 6)) != 0;
+}
+
+Status Radio::transmitWithCca(uint8_t *data, size_t length, uint8_t addr, uint8_t maxAttempts) {
+  for (uint8_t attempt = 0; attempt < maxAttempts; attempt++) {
+    // Radio must be in RX state to evaluate CCA / carrier sense
+    if (getState() != STATE_RX) {
+      setState(STATE_RX);
+      delayMicroseconds(2000);  // Allow RSSI & AGC to settle (~2 ms)
+    } else {
+      delayMicroseconds(500);
+    }
+
+    if (isChannelClear()) {
+      return transmit(data, length, addr);
+    }
+
+    // Channel is busy: apply pseudo-random exponential backoff (CSMA/CA)
+    uint32_t backoff = random(5, 15) * (attempt + 1);
+    delay(backoff);
+  }
+
+  return STATUS_CHANNEL_BUSY;
+}
+
 Status Radio::startTransmit(uint8_t *data, size_t length, uint8_t addr) {
   if (pktFormat != PKT_FORMAT_NORMAL || pktLenMode == PKT_LEN_MODE_INFINITE) {
     return STATUS_BAD_STATE;

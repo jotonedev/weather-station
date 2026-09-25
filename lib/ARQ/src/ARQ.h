@@ -35,6 +35,7 @@ enum Status : byte {
   STATUS_TIMEOUT,
   STATUS_NACK_RECEIVED,
   STATUS_ACK_NOT_RECEIVED,
+  STATUS_CHANNEL_BUSY,
 };
 
 enum class RadioState {
@@ -98,10 +99,17 @@ class ARQ {
         uint32_t getLastRTT() const { return lastRTT; }
 
         RadioState getState() const { return currentState; }
+
+        // Clear Channel Assessment (CCA / LBT)
+        void enableCca(bool enable) { ccaEnabled = enable; }
+        bool isCcaEnabled() const { return ccaEnabled; }
+        bool isChannelClear() { return radio.isChannelClear(); }
+        bool isCarrierDetected() { return radio.isCarrierDetected(); }
     protected:
         CC1101::Radio radio;
         uint8_t packetLength = 59;
         address_t localAddress = 0;
+        bool ccaEnabled = true;
         volatile RadioState currentState = RadioState::IDLE;
         volatile bool packetDone = false;
         uint32_t opStartTime = 0;

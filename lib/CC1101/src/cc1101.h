@@ -130,7 +130,15 @@ enum Status {
   STATUS_CRC_MISMATCH,
   STATUS_TXFIFO_UNDERFLOW,
   STATUS_RXFIFO_OVERFLOW,
-  STATUS_TIMEOUT
+  STATUS_TIMEOUT,
+  STATUS_CHANNEL_BUSY
+};
+
+enum CcaMode {
+  CCA_ALWAYS_CLEAR      = 0,  /* Always clear (CCA disabled) */
+  CCA_RSSI_BELOW_THR    = 1,  /* Clear if RSSI below threshold */
+  CCA_UNLESS_RECEIVING  = 2,  /* Clear unless currently receiving a packet */
+  CCA_RSSI_AND_NOT_RX   = 3   /* Clear if RSSI below threshold and not receiving */
 };
 
 enum State {
@@ -252,8 +260,14 @@ class Radio {
   Status setPreambleLength(uint8_t length);
   void setSyncWord(uint16_t sync);
 
+  /* Clear Channel Assessment (CCA) & Carrier Sense */
+  Status setCcaMode(CcaMode mode);
+  bool isChannelClear();
+  bool isCarrierDetected();
+
   /* Blocking transmit */
   Status transmit(uint8_t *data, size_t length, uint8_t addr = 0);
+  Status transmitWithCca(uint8_t *data, size_t length, uint8_t addr = 0, uint8_t maxAttempts = 5);
 
   /* Non-blocking transmit */
   Status startTransmit(uint8_t *data, size_t length, uint8_t addr = 0);
