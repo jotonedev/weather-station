@@ -62,13 +62,14 @@ int WindVane::getLastError() {
 
 void WindVane::taskTrampoline(void* arg) {
     auto* self = static_cast<WindVane*>(arg);
-    self->taskLoop(10);
+    self->taskLoop(self->samplePeriodMs);
 }
 
 bool WindVane::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseType_t core) {
     if (taskHandle != nullptr) {
         return true;
     }
+    this->samplePeriodMs = samplePeriodMs;
     BaseType_t res = xTaskCreatePinnedToCore(
         taskTrampoline,
         "WindVaneTask",
@@ -138,7 +139,11 @@ void WindVane::update() {
     while (calibratedDeg < 0.0f) calibratedDeg += 360.0f;
     while (calibratedDeg >= 360.0f) calibratedDeg -= 360.0f;
 
-    // Circular vector smoothing (alpha = 0.20): handles 0/360 wrap seamlessly and dampens flutter
+    // Circular vector smoothing with ~3 second time constant (tau = 3.0s)
+    // alpha = dt / (tau + dt) adapts to 1 Hz, 2 Hz, or 4 Hz cleanly
+    float dtSec = static_cast<float>(samplePeriodMs) * 0.001f;
+    float alpha = std::min(std::max(dtSec / (3.0f + dtSec), 0.10f), 0.80f);
+
     float rad = calibratedDeg * (PI / 180.0f);
     float cosVal = cosf(rad);
     float sinVal = sinf(rad);
@@ -148,8 +153,8 @@ void WindVane::update() {
         vecY = sinVal;
         hasFirstSample = true;
     } else {
-        vecX = 0.20f * cosVal + 0.80f * vecX;
-        vecY = 0.20f * sinVal + 0.80f * vecY;
+        vecX = alpha * cosVal + (1.0f - alpha) * vecX;
+        vecY = alpha * sinVal + (1.0f - alpha) * vecY;
     }
 
     float filteredRad = atan2f(vecY, vecX);

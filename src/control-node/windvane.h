@@ -21,8 +21,8 @@ class WindVane {
         bool magnetTooWeak();
         int getLastError();
 
-        // Background sampling task (pinned to Core 0 by default)
-        bool startTask(uint32_t samplePeriodMs = 10, UBaseType_t priority = 1, BaseType_t core = 0);
+        // Background sampling task (pinned to Core 0 by default, 1 Hz default)
+        bool startTask(uint32_t samplePeriodMs = 1000, UBaseType_t priority = 1, BaseType_t core = 0);
         void stopTask();
 
         // Single sampling update (called by background task or polled manually)
@@ -52,6 +52,7 @@ class WindVane {
         TwoWire& wire;
         AS5600 as5600;
         float calibrationOffset;
+        uint32_t samplePeriodMs = 1000;
 
         TaskHandle_t taskHandle = nullptr;
         static void taskTrampoline(void* arg);
