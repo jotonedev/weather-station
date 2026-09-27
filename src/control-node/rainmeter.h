@@ -8,6 +8,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <Weather.h>
+#include "constants.h"
 
 /**
  * @brief Rain Meter Operational & Mechanical States
@@ -27,9 +28,9 @@ public:
     /**
      * @brief Construct a new Rain Meter object.
      * @param wire Reference to TwoWire or SoftTwoWire bus.
-     * @param mmPerTip Rain volume per tip in mm (default 0.2 mm / tip).
+     * @param mmPerTip Rain volume per tip in mm (default calculated from funnel r=55mm, V=18ml: ~1.894 mm/tip).
      */
-    RainMeter(TwoWire& wire, float mmPerTip = 0.2f);
+    RainMeter(TwoWire& wire, float mmPerTip = RAIN_METER_CALIBRATION_MM_PER_TIP);
     ~RainMeter();
 
     void initialize(uint8_t directionPin = AS5600_SW_DIRECTION_PIN, uint8_t direction = AS5600_CLOCK_WISE);
@@ -85,7 +86,7 @@ private:
     portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
     bool initialized = false;
-    float mmPerTip = 0.2f;
+    float mmPerTip = RAIN_METER_CALIBRATION_MM_PER_TIP;
 
     // Angular tracking & unwrap logic
     bool hasReference = false;

@@ -34,6 +34,13 @@
 #define RAIN_METER_SCL_PIN 9
 #define RAIN_METER_DIRECTION_PIN 1
 
+// Funnel radius r = 55 mm -> Area A = π * r² = 9503.3178 mm²
+// Bucket volume V = 18 ml = 18,000 mm³
+// Rainfall depth per tip = V / A = 18,000 / (π * 55²) ≈ 1.894075 mm
+#define RAIN_METER_FUNNEL_RADIUS_MM       55.0f
+#define RAIN_METER_BUCKET_VOLUME_ML       18.0f
+#define RAIN_METER_CALIBRATION_MM_PER_TIP 1.894075f
+
 // --- I2C Bus 3 (Software I2C / SoftWire) ---
 // Dedicated: Wind Vane AS5600 (@ 0x36)
 #define WIND_VANE_SDA_PIN 15
