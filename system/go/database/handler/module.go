@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"weather-station/database/handler/predictiondata"
+	"weather-station/database/handler/weatherdata"
+
 	"go.uber.org/fx"
 )
 
@@ -10,5 +13,8 @@ import (
 //	fx.Provide(fxgroup.AsHTTPRoute(NewMyHandler))
 //	fx.Provide(fxgroup.AsGRPCHandler(NewMyGRPC))
 var Module = fx.Module("handler",
-	fx.Provide(),
+	fx.Provide(
+		predictiondata.New,
+		weatherdata.New,
+	),
 )
