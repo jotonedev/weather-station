@@ -10,6 +10,7 @@ import (
 	"weather-station/database/controller"
 	"weather-station/database/gateway"
 	"weather-station/database/handler"
+	"weather-station/database/repository"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -32,6 +33,7 @@ func main() {
 		handler.Module,
 		gateway.Module,
 		controller.Module,
+		repository.Module,
 	).Run()
 }
 
