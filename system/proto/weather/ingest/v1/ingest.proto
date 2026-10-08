@@ -1,13 +1,13 @@
 syntax = "proto3";
 
-package weather.injest.v1;
+package weather.ingest.v1;
 
 import "weather/common/v1/common.proto";
 
-option go_package = "weather-station/gen/go/weather/injest/v1;injestv1";
+option go_package = "weather-station/gen/go/weather/ingest/v1;ingestv1";
 
-// WeatherInjest receives raw readings pushed by weather stations.
-service WeatherInjest {
+// WeatherIngest receives raw readings pushed by weather stations.
+service WeatherIngest {
   // Push a batch of raw readings from a station.
   rpc Push(PushRequest) returns (PushResponse);
 }

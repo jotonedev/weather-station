@@ -4,7 +4,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
-	database "weather-station/data-injest/gateway/database"
+	database "weather-station/data-ingest/gateway/database"
 )
 
 type Controller struct {

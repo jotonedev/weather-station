@@ -1,4 +1,4 @@
-module weather-station/data-injest
+module weather-station/data-ingest
 
 go 1.26
 

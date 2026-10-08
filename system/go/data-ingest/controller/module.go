@@ -3,7 +3,7 @@ package controller
 import (
 	"go.uber.org/fx"
 
-	weatherstation "weather-station/data-injest/controller/weatherstation"
+	weatherstation "weather-station/data-ingest/controller/weatherstation"
 )
 
 // Module wires service-specific controllers.

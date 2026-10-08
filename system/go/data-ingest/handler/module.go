@@ -1,7 +1,7 @@
 package handler
 
 import (
-	weatherstation "weather-station/data-injest/handler/weatherstation"
+	weatherstation "weather-station/data-ingest/handler/weatherstation"
 
 	"go.uber.org/fx"
 )

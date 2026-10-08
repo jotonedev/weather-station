@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build context = repository root (run from ./system):
-#   docker build -f go/data-injest/Dockerfile -t weather-station/data-injest .
+#   docker build -f go/data-ingest/Dockerfile -t weather-station/data-ingest .
 
 FROM golang:1.27-alpine AS build-stage
 
@@ -9,14 +9,14 @@ WORKDIR /workspace
 COPY go.work go.work.sum ./
 
 COPY go/common/go.mod go/common/go.sum go/common/
-COPY go/data-injest/go.mod go/data-injest/go.sum go/data-injest/
+COPY go/data-ingest/go.mod go/data-ingest/go.sum go/data-ingest/
 
-RUN go env -w GOCACHE=/go-cache     && (cd go/common && go mod download)     && (cd go/data-injest && go mod download)
+RUN go env -w GOCACHE=/go-cache     && (cd go/common && go mod download)     && (cd go/data-ingest && go mod download)
 
 COPY go/common/ go/common/
-COPY go/data-injest/ go/data-injest/
+COPY go/data-ingest/ go/data-ingest/
 
-RUN --mount=type=cache,target=/go-cache     CGO_ENABLED=0 go build -installsuffix 'static' -o /service ./go/data-injest/cmd
+RUN --mount=type=cache,target=/go-cache     CGO_ENABLED=0 go build -installsuffix 'static' -o /service ./go/data-ingest/cmd
 
 FROM alpine/curl:8.17.0 AS release-stage
 

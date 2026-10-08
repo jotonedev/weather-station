@@ -2,7 +2,7 @@ go 1.26.0
 
 use (
 	./go/common
-	./go/data-injest
+	./go/data-ingest
 	./go/database
 	./go/frontend
 	./go/inference-job

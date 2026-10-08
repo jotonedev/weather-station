@@ -7,9 +7,9 @@ import (
 	"weather-station/common/health"
 	"weather-station/common/server"
 
-	"weather-station/data-injest/controller"
-	"weather-station/data-injest/gateway"
-	"weather-station/data-injest/handler"
+	"weather-station/data-ingest/controller"
+	"weather-station/data-ingest/gateway"
+	"weather-station/data-ingest/handler"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"

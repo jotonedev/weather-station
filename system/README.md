@@ -25,7 +25,7 @@ system/
 │   │   ├── health/            #   shared health-check (registers via fx groups)
 │   │   └── fxgroup/           #   shared helpers for tagging handlers into fx groups
 │   ├── database/              # service (duckdb storage)
-│   ├── data-injest/           # service (ingests MCU data)
+│   ├── data-ingest/           # service (ingests MCU data)
 │   ├── frontend/              # service (HTTP for data)
 │   └── inference-job/         # service (cron prediction)
 └── rust/
@@ -36,7 +36,7 @@ system/
 
 - `database` (golang): database interface for weather ground and prediction data
 - `frontend` (golang): http interface for the data
-- `data-injest` (golang): injest service for the data coming from the MCU
+- `data-ingest` (golang): ingest service for the data coming from the MCU
 - `inference-job` (golang): cron-job that retrieves data from database and predicts the future weather
 - `inference-server` (rust): inference server for chronos-2 model. This is splitted from `inference-job` to allow it to be deployed on more performant nodes or to be replaced it with commercial services.
 
@@ -50,7 +50,7 @@ architecture-beta
     service db(database)[Database] in api
     service inference-server(server)[Inference Server] in api
     service inference-job(server)[Inference Job] in api
-    service data-injest(server)[Data Injest] in api
+    service data-ingest(server)[Data Ingest] in api
     service frontend(server)[Frontend] in api
 
     service weather-station(server)[Weather Station] in source
@@ -58,6 +58,6 @@ architecture-beta
     db:R -- L:inference-job
     inference-job:R -- L:inference-server
     db:T -- B:frontend
-    db:L -- R:data-injest
-    weather-station:T -- B:data-injest
+    db:L -- R:data-ingest
+    weather-station:T -- B:data-ingest
 ```

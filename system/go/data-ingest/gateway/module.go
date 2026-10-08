@@ -3,7 +3,7 @@ package gateway
 import (
 	"go.uber.org/fx"
 
-	database "weather-station/data-injest/gateway/database"
+	database "weather-station/data-ingest/gateway/database"
 )
 
 // Module wires service-specific gateways (outbound dependencies).
