@@ -1,4 +1,4 @@
-package questdb
+package timestorage
 
 import (
 	commonquestdb "weather-station/common/client/questdb"

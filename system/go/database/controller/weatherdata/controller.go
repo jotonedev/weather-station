@@ -3,10 +3,12 @@ package weatherdata
 import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+	"weather-station/database/repository/timestorage"
 )
 
 type Controller struct {
 	log *zap.Logger
+	repo *timestorage.Repository
 }
 
 type ControllerParams struct {
