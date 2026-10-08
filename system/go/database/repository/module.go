@@ -1,8 +1,9 @@
 package repository
 
 import (
-	"go.uber.org/fx"
 	"weather-station/database/repository/timestorage"
+
+	"go.uber.org/fx"
 )
 
 var Module = fx.Module("repository",

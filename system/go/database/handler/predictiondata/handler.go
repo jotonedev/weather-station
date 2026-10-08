@@ -7,18 +7,15 @@ import (
 	controller "weather-station/database/controller/predictiondata"
 )
 
-
-
 type Handler struct {
 	log *zap.Logger
 	con *controller.Controller
 }
 
-
 type HandlerParams struct {
 	fx.In
 
-	Logger *zap.Logger
+	Logger     *zap.Logger
 	Controller *controller.Controller
 }
 
@@ -28,4 +25,3 @@ func New(params HandlerParams) (*Handler, error) {
 		con: params.Controller,
 	}, nil
 }
-

@@ -11,8 +11,6 @@ type Repository struct {
 	log *zap.Logger
 }
 
-
 func New(db *commonquestdb.Client, log *zap.Logger) *Repository {
 	return &Repository{db: db, log: log}
 }
-

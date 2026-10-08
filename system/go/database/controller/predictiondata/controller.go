@@ -11,7 +11,7 @@ type Controller struct {
 
 type ControllerParams struct {
 	fx.In
-	
+
 	Logger *zap.Logger
 }
 
@@ -20,4 +20,3 @@ func New(params ControllerParams) (*Controller, error) {
 		log: params.Logger,
 	}, nil
 }
-

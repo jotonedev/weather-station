@@ -1,9 +1,10 @@
 package server
 
 import (
-	"go.uber.org/fx"
 	"weather-station/common/server/grpc"
 	"weather-station/common/server/http"
+
+	"go.uber.org/fx"
 )
 
 var Module = fx.Module("server",
