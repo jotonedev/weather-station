@@ -1,0 +1,1 @@
+Remix of https://makerworld.com/en/models/2154241-anemometer-wind-vane (https://github.com/slash4you/Anemometre-Girouette)
