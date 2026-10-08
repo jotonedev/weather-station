@@ -32,43 +32,9 @@ system/
     └── inference-server/        # Rust inference server (chronos-2)
 ```
 
-Each Go service owns its service-specific code — `handler/` (endpoints),
-`gateway/` (outbound dependencies), `controller/` — plus a thin
-`cmd/main.go` that wires those together with the shared `common` fx
-modules (`server`, `client`, `health`).
-
-## Development
-
-```sh
-# build everything in the workspace
-go build ./go/...
-
-# build / run a single service
-cd go/frontend && go run ./cmd
-```
-
-## Regenerating protobuf code
-
-Protos live in `proto/`; generated Go and Rust stubs under `proto/gen/` are
-committed and regenerated automatically by the CI workflow
-(`.github/workflows/proto-gen.yml`) whenever a `.proto` file changes.
-
-To regenerate locally (requires `buf`, `protoc-gen-go`,
-`protoc-gen-go-grpc`, `protoc-gen-prost`, `protoc-gen-tonic`):
-
-```sh
-cd proto && buf generate
-```
-
-Run lint / breaking checks locally with:
-
-```sh
-cd proto && buf lint && buf breaking --against "${BUF_BREAKING_AGAINST}"
-```
-
 ## Infrastructure
 
-- `database` (golang): duckdb database for weather ground and prediction data
+- `database` (golang): database interface for weather ground and prediction data
 - `frontend` (golang): http interface for the data
 - `data-injest` (golang): injest service for the data coming from the MCU
 - `inference-job` (golang): cron-job that retrieves data from database and predicts the future weather
