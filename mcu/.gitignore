@@ -99,3 +99,7 @@ dkms.conf
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#C,C++,PlatformIO
 .vscode/launch.json
+
+# Go module files (override the Fortran *.mod rule above)
+!go.mod
+!**/go.mod
