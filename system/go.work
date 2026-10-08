@@ -1,0 +1,10 @@
+go 1.26
+
+use (
+	./go/common
+	./go/data-injest
+	./go/database
+	./go/frontend
+	./go/inference-job
+	./proto/gen/go
+)

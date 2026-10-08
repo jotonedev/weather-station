@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package weather.database.v1;
+
+import "weather/common/v1/common.proto";
+
+option go_package = "weather-station/gen/go/weather/database/v1;databasev1";
+
+// WeatherDatabase stores raw ground readings and forecast predictions.
+service WeatherDatabase {
+  // Store a batch of raw readings.
+  rpc StoreReadings(StoreReadingsRequest) returns (StoreReadingsResponse);
+  // Retrieve a forecast for a station and horizon.
+  rpc GetForecast(GetForecastRequest) returns (GetForecastResponse);
+}
+
+message StoreReadingsRequest {
+  repeated weather.common.v1.RawReading readings = 1;
+}
+
+message StoreReadingsResponse {
+  uint64 stored = 1;
+}
+
+message GetForecastRequest {
+  string station_id = 1;
+  // Forecast horizon in hours.
+  int32 horizon_hours = 2;
+}
+
+message GetForecastResponse {
+  string station_id = 1;
+  repeated weather.common.v1.RawReading predictions = 2;
+}

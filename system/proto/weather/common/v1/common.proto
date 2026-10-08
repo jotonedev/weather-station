@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package weather.common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "weather-station/gen/go/weather/common/v1;commonv1";
+
+// A sample record of raw weather data collected from a station.
+message RawReading {
+  string station_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  double temperature_c = 3;
+  double wind_speed_ms = 4;
+  double wind_direction_deg = 5;
+  double rainfall_mm = 6;
+  double humidity_pct = 7;
+  double pressure_hpa = 8;
+}

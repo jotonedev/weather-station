@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package weather.frontend.v1;
+
+import "weather/common/v1/common.proto";
+
+option go_package = "weather-station/gen/go/weather/frontend/v1;frontendv1";
+
+// WeatherFrontend serves current and forecast data to clients.
+service WeatherFrontend {
+  // Fetch the latest forecast for a station.
+  rpc FetchForecast(FetchForecastRequest) returns (FetchForecastResponse);
+}
+
+message FetchForecastRequest {
+  string station_id = 1;
+}
+
+message FetchForecastResponse {
+  string station_id = 1;
+  repeated weather.common.v1.RawReading predictions = 2;
+}

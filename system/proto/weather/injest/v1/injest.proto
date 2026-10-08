@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package weather.injest.v1;
+
+import "weather/common/v1/common.proto";
+
+option go_package = "weather-station/gen/go/weather/injest/v1;injestv1";
+
+// WeatherInjest receives raw readings pushed by weather stations.
+service WeatherInjest {
+  // Push a batch of raw readings from a station.
+  rpc Push(PushRequest) returns (PushResponse);
+}
+
+message PushRequest {
+  string station_id = 1;
+  repeated weather.common.v1.RawReading readings = 2;
+}
+
+message PushResponse {
+  uint64 accepted = 1;
+}
