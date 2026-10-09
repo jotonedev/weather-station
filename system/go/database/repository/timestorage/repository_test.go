@@ -10,7 +10,7 @@ import (
 
 func TestReadingSourceValues(t *testing.T) {
 	timestamp := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
-	temperature := 21.5
+	temperature := float32(21.5)
 	pm2_5 := int32(12)
 
 	tests := []struct {
@@ -58,7 +58,7 @@ func TestReadingSourceValues(t *testing.T) {
 }
 
 func TestReadingSourceNullAndPresentColumns(t *testing.T) {
-	temperature := 19.0
+	temperature := float32(19.0)
 	reading := Reading{NodeID: "n2", Timestamp: time.Now(), Temperature: &temperature}
 
 	source := &readingSource{readings: []Reading{reading}}
@@ -73,7 +73,7 @@ func TestReadingSourceNullAndPresentColumns(t *testing.T) {
 	if values[6] == nil {
 		t.Errorf("temperature column should not be nil")
 	}
-	if value, ok := values[6].(float64); !ok || value != temperature {
+	if value, ok := values[6].(float32); !ok || value != temperature {
 		t.Errorf("temperature = %v, want %v", values[6], temperature)
 	}
 	for _, columnIndex := range []int{2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15} {

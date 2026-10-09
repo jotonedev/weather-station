@@ -2,20 +2,24 @@ package prediction
 
 import "time"
 
-// Prediction is a single forecast row. Only rainfall, temperature, humidity and
-// wind direction are predicted; other metrics are absent by design.
 type Prediction struct {
 	NodeID       string
 	Ts           time.Time
 	HorizonHours int32
 
-	RainfallMm       *float64
-	TemperatureC     *float64
-	HumidityPct      *float64
-	WindDirectionDeg *float64
+	RainfallMm       *float32
+	TemperatureC     *float32
+	HumidityPct      *float32
+	WindDirectionDeg *float32
+
+	RainfallConfidence      *float32
+	TemperatureConfidence   *float32
+	HumidityConfidence      *float32
+	WindDirectionConfidence *float32
 }
 
 var predictionColumns = []string{
 	"node_id", "ts", "horizon_hours",
 	"rainfall_mm", "temperature_c", "humidity_pct", "wind_direction_deg",
+	"rainfall_confidence", "temperature_confidence", "humidity_confidence", "wind_direction_confidence",
 }

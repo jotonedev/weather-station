@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package weather.database.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "weather-station/gen/go/weather/database/v1;databasev1";
+
+// Reading is a single raw weather sample collected from a station.
+// It mirrors the weather table. Only node_id and timestamp are required.
+// Measurement fields are optional (explicit presence), so an unset field reads
+// as not present and is stored as NULL in the weather table.
+message Reading {
+  string node_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+
+  optional float wind_speed = 3;
+  optional float wind_angle = 4;
+  optional float raw_wind_speed = 5;
+  optional float raw_wind_angle = 6;
+  optional float temperature = 7;
+  optional float humidity = 8;
+  optional float pressure = 9;
+  optional float rain1h = 10;
+  optional float rain24h = 11;
+  optional float rain_rate = 12;
+  // PM1.0 particle concentration below 1.0 micrometres.
+  optional int32 pm1 = 13;
+  // PM2.5 particle concentration below 2.5 micrometres.
+  optional int32 pm25 = 14;
+  // PM10 particle concentration below 10 micrometres.
+  optional int32 pm10 = 15;
+  optional int32 voc = 16;
+  optional int32 anemo_status = 17;
+  optional int32 anemo_agc = 18;
+  optional int32 anemo_agc_variance = 19;
+  optional int32 vane_status = 20;
+  optional int32 vane_agc = 21;
+  optional int32 vane_agc_variance = 22;
+  optional int32 rain_status = 23;
+  optional int32 rain_agc = 24;
+  optional int32 rain_agc_variance = 25;
+}

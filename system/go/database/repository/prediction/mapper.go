@@ -21,6 +21,7 @@ func (s *predictionSource) Values() ([]any, error) {
 	return []any{
 		prediction.NodeID, prediction.Ts, prediction.HorizonHours,
 		value.Nullable(prediction.RainfallMm), value.Nullable(prediction.TemperatureC), value.Nullable(prediction.HumidityPct), value.Nullable(prediction.WindDirectionDeg),
+		value.Nullable(prediction.RainfallConfidence), value.Nullable(prediction.TemperatureConfidence), value.Nullable(prediction.HumidityConfidence), value.Nullable(prediction.WindDirectionConfidence),
 	}, nil
 }
 

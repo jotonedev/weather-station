@@ -15,6 +15,4 @@ plugins:
       - compile_well_known_types=false
   - local: protoc-gen-tonic
     out: gen/rust
-    opt:
-      - build_client=true
-      - build_server=true
+

@@ -10,7 +10,7 @@ import (
 
 func TestPredictionSourceValues(t *testing.T) {
 	timestamp := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
-	rainfall := 1.5
+	rainfall := float32(1.5)
 	tests := []struct {
 		name       string
 		prediction Prediction
@@ -20,13 +20,13 @@ func TestPredictionSourceValues(t *testing.T) {
 		{
 			name:       "present metrics",
 			prediction: Prediction{NodeID: "n1", Ts: timestamp, HorizonHours: 6, RainfallMm: &rainfall},
-			wantLen:    7,
+			wantLen:    11,
 			wantNode:   "n1",
 		},
 		{
 			name:       "absent metrics are nil",
 			prediction: Prediction{NodeID: "n2", Ts: timestamp, HorizonHours: 24},
-			wantLen:    7,
+			wantLen:    11,
 			wantNode:   "n2",
 		},
 	}
@@ -59,7 +59,7 @@ func TestPredictionSourceValues(t *testing.T) {
 }
 
 func TestPredictionSourceNullColumns(t *testing.T) {
-	rainfall := 3.2
+	rainfall := float32(3.2)
 	prediction := Prediction{NodeID: "n1", Ts: time.Now(), HorizonHours: 3, RainfallMm: &rainfall}
 	source := &predictionSource{predictions: []Prediction{prediction}}
 	if !source.Next() {
@@ -69,10 +69,10 @@ func TestPredictionSourceNullColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Values: %v", err)
 	}
-	if value, ok := values[3].(float64); !ok || value != rainfall {
+	if value, ok := values[3].(float32); !ok || value != rainfall {
 		t.Errorf("rainfall = %v, want %v", values[3], rainfall)
 	}
-	for _, columnIndex := range []int{4, 5, 6} {
+	for _, columnIndex := range []int{4, 5, 6, 7, 8, 9, 10} {
 		if values[columnIndex] != nil {
 			t.Errorf("index %d should be nil, got %v", columnIndex, values[columnIndex])
 		}

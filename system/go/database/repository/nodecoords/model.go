@@ -1,7 +1,6 @@
 package nodecoords
 
-// NodeCoordinates describes a node's static physical location.
-// NodeID, Latitude, Longitude and ElevationM are required (non-nullable).
+// NodeCoordinates describes a node's static physical location
 type NodeCoordinates struct {
 	NodeID       string
 	Latitude     float64

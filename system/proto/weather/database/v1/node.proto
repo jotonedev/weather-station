@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package weather.database.v1;
+
+option go_package = "weather-station/gen/go/weather/database/v1;databasev1";
+
+// NodeCoordinates is static location metadata for a node.
+// latitude, longitude and elevation_m are required; location_name is optional.
+message NodeCoordinates {
+  string node_id = 1;
+  double latitude = 2;
+  double longitude = 3;
+  double elevation_m = 4;
+  string location_name = 5;
+}

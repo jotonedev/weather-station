@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package weather.database.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "weather-station/gen/go/weather/database/v1;databasev1";
+
+// ClimateAggregate is a bucket of aggregated climate metrics for a node.
+// Metric fields are optional: a bucket with no samples for a metric reports it
+// as not present, matching the nullable source columns.
+message ClimateAggregate {
+  string node_id = 1;
+  google.protobuf.Timestamp bucket_start = 2;
+  optional float avg_temperature_c = 3;
+  optional float min_temperature_c = 4;
+  optional float max_temperature_c = 5;
+  optional float avg_humidity_pct = 6;
+  optional float min_humidity_pct = 7;
+  optional float max_humidity_pct = 8;
+  optional float avg_pressure_hpa = 9;
+  uint64 sample_count = 10;
+}
+
+// AirQualityAggregate is a bucket of aggregated air quality metrics for a node.
+// Metric fields are optional: a bucket with no samples for a metric reports it
+// as not present, matching the nullable source columns.
+message AirQualityAggregate {
+  string node_id = 1;
+  google.protobuf.Timestamp bucket_start = 2;
+  // PM1.0 particle concentration.
+  optional float avg_pm1 = 3;
+  // PM2.5 particle concentration.
+  optional float avg_pm25 = 4;
+  // PM10 particle concentration.
+  optional float avg_pm10 = 5;
+  optional float avg_voc = 6;
+  uint64 sample_count = 7;
+}

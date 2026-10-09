@@ -2,23 +2,20 @@ package timestorage
 
 import "time"
 
-// Reading is a single raw weather sample for the weather table.
-// Measurement columns are pointers so an absent field is stored as NULL
-// (nodes may provide different subsets of fields).
 type Reading struct {
 	NodeID    string
 	Timestamp time.Time
 
-	WindSpeed    *float64
-	WindAngle    *float64
-	RawWindSpeed *float64
-	RawWindAngle *float64
-	Temperature  *float64
-	Humidity     *float64
-	Pressure     *float64
-	Rain1h       *float64
-	Rain24h      *float64
-	RainRate     *float64
+	WindSpeed    *float32
+	WindAngle    *float32
+	RawWindSpeed *float32
+	RawWindAngle *float32
+	Temperature  *float32
+	Humidity     *float32
+	Pressure     *float32
+	Rain1h       *float32
+	Rain24h      *float32
+	RainRate     *float32
 	PM1_0        *int32
 	PM2_5        *int32
 	PM10_0       *int32

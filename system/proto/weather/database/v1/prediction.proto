@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package weather.database.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "weather-station/gen/go/weather/database/v1;databasev1";
+
+// Prediction is a single forecast for a node and horizon.
+// Only rainfall, temperature, humidity and wind direction are predicted. Each
+// metric and its confidence is optional (explicit presence); missing values are
+// stored as NULL.
+message Prediction {
+  string node_id = 1;
+  google.protobuf.Timestamp issue_time = 2;
+  int32 horizon_hours = 3;
+  optional float rainfall_mm = 4;
+  optional float temperature_c = 5;
+  optional float humidity_pct = 6;
+  optional float wind_direction_deg = 7;
+  // Confidence is in the range 0 to 1 and reflects how reliable the value is
+  // expected to be at its horizon.
+  optional float rainfall_confidence = 8;
+  optional float temperature_confidence = 9;
+  optional float humidity_confidence = 10;
+  optional float wind_direction_confidence = 11;
+}

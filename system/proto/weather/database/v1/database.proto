@@ -2,33 +2,128 @@ syntax = "proto3";
 
 package weather.database.v1;
 
-import "weather/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+import "weather/database/v1/aggregate.proto";
+import "weather/database/v1/node.proto";
+import "weather/database/v1/prediction.proto";
+import "weather/database/v1/reading.proto";
 
 option go_package = "weather-station/gen/go/weather/database/v1;databasev1";
 
-// WeatherDatabase stores raw ground readings and forecast predictions.
-service WeatherDatabase {
+// WeatherDatabaseService stores raw ground readings, forecast predictions, node
+// coordinates, and serves aggregated views of that data.
+service WeatherDatabaseService {
   // Store a batch of raw readings.
   rpc StoreReadings(StoreReadingsRequest) returns (StoreReadingsResponse);
-  // Retrieve a forecast for a station and horizon.
+  // Store a batch of forecast predictions.
+  rpc StorePredictions(StorePredictionsRequest) returns (StorePredictionsResponse);
+  // Create a node with its static location metadata.
+  rpc CreateNode(CreateNodeRequest) returns (CreateNodeResponse);
+  // Update the location metadata of an existing node.
+  rpc UpdateNode(UpdateNodeRequest) returns (UpdateNodeResponse);
+  // Stream raw readings for a node over a time range.
+  rpc GetReadings(GetReadingsRequest) returns (stream GetReadingsResponse);
+  // Return the most recent raw readings for a node.
+  rpc GetLatestReadings(GetLatestReadingsRequest) returns (GetLatestReadingsResponse);
+  // Return the latest forecast predictions for a node.
   rpc GetForecast(GetForecastRequest) returns (GetForecastResponse);
+  // Return the location metadata for a single node.
+  rpc GetNodeCoordinates(GetNodeCoordinatesRequest) returns (GetNodeCoordinatesResponse);
+  // Return the location metadata for all nodes.
+  rpc ListNodeCoordinates(ListNodeCoordinatesRequest) returns (ListNodeCoordinatesResponse);
+  // Return climate aggregates (temperature, humidity, pressure) per time bucket.
+  rpc GetClimateAggregates(GetClimateAggregatesRequest) returns (GetClimateAggregatesResponse);
+  // Return air quality aggregates (pm and voc) per time bucket.
+  rpc GetAirQualityAggregates(GetAirQualityAggregatesRequest) returns (GetAirQualityAggregatesResponse);
 }
 
 message StoreReadingsRequest {
-  repeated weather.common.v1.RawReading readings = 1;
+  repeated Reading readings = 1;
 }
 
 message StoreReadingsResponse {
   uint64 stored = 1;
 }
 
+message StorePredictionsRequest {
+  repeated Prediction predictions = 1;
+}
+
+message StorePredictionsResponse {
+  uint64 stored = 1;
+}
+
+message CreateNodeRequest {
+  NodeCoordinates node = 1;
+}
+
+message CreateNodeResponse {}
+
+message UpdateNodeRequest {
+  NodeCoordinates node = 1;
+}
+
+message UpdateNodeResponse {}
+
+message GetReadingsRequest {
+  string node_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+}
+
+message GetReadingsResponse {
+  Reading reading = 1;
+}
+
+message GetLatestReadingsRequest {
+  string node_id = 1;
+  uint32 limit = 2;
+}
+
+message GetLatestReadingsResponse {
+  repeated Reading readings = 1;
+}
+
 message GetForecastRequest {
-  string station_id = 1;
-  // Forecast horizon in hours.
-  int32 horizon_hours = 2;
+  string node_id = 1;
 }
 
 message GetForecastResponse {
-  string station_id = 1;
-  repeated weather.common.v1.RawReading predictions = 2;
+  repeated Prediction predictions = 1;
+}
+
+message GetNodeCoordinatesRequest {
+  string node_id = 1;
+}
+
+message GetNodeCoordinatesResponse {
+  NodeCoordinates node = 1;
+}
+
+message ListNodeCoordinatesRequest {}
+
+message ListNodeCoordinatesResponse {
+  repeated NodeCoordinates nodes = 1;
+}
+
+message GetClimateAggregatesRequest {
+  string node_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  uint32 bucket_seconds = 4;
+}
+
+message GetClimateAggregatesResponse {
+  repeated ClimateAggregate aggregates = 1;
+}
+
+message GetAirQualityAggregatesRequest {
+  string node_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  uint32 bucket_seconds = 4;
+}
+
+message GetAirQualityAggregatesResponse {
+  repeated AirQualityAggregate aggregates = 1;
 }
