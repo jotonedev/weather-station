@@ -16,10 +16,12 @@ type ControllerParams struct {
 	fx.In
 
 	Logger *zap.Logger
+	Repo   *timestorage.Repository
 }
 
 func New(params ControllerParams) (*Controller, error) {
 	return &Controller{
-		log: params.Logger,
+		log:  params.Logger,
+		repo: params.Repo,
 	}, nil
 }
