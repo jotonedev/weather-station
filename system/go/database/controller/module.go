@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"weather-station/database/controller/aggregate"
+	"weather-station/database/controller/nodedata"
 	"weather-station/database/controller/predictiondata"
-	"weather-station/database/controller/weatherdata"
+	"weather-station/database/controller/readingdata"
 
 	"go.uber.org/fx"
 )
@@ -11,6 +13,8 @@ import (
 var Module = fx.Module("controller",
 	fx.Provide(
 		predictiondata.New,
-		weatherdata.New,
+		readingdata.New,
+		nodedata.New,
+		aggregate.New,
 	),
 )

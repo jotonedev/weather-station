@@ -1,6 +1,8 @@
 package predictiondata
 
 import (
+	"context"
+
 	"weather-station/database/repository/prediction"
 
 	"go.uber.org/fx"
@@ -24,4 +26,14 @@ func New(params ControllerParams) (*Controller, error) {
 		log:  params.Logger,
 		repo: params.Repo,
 	}, nil
+}
+
+// StorePredictions bulk-inserts forecast predictions and returns the number stored.
+func (c *Controller) StorePredictions(ctx context.Context, predictions []prediction.Prediction) (int64, error) {
+	return c.repo.StorePredictions(ctx, predictions)
+}
+
+// GetForecast returns the latest forecast predictions for a node.
+func (c *Controller) GetForecast(ctx context.Context, nodeID string) ([]prediction.Prediction, error) {
+	return c.repo.GetForecast(ctx, nodeID)
 }

@@ -1,6 +1,10 @@
 package timestorage
 
-import "weather-station/common/value"
+import (
+	"weather-station/common/value"
+
+	"github.com/jackc/pgx/v5"
+)
 
 // readingSource adapts a []Reading into a pgx.CopyFromSource.
 type readingSource struct {
@@ -31,3 +35,19 @@ func (s *readingSource) Values() ([]any, error) {
 }
 
 func (s *readingSource) Err() error { return nil }
+
+// scanReading reads a weather row into a Reading, using a nil field for a NULL source column.
+func scanReading(row pgx.Row) (Reading, error) {
+	var reading Reading
+	err := row.Scan(
+		&reading.NodeID, &reading.Timestamp,
+		&reading.WindSpeed, &reading.WindAngle, &reading.RawWindSpeed, &reading.RawWindAngle,
+		&reading.Temperature, &reading.Humidity, &reading.Pressure,
+		&reading.Rain1h, &reading.Rain24h, &reading.RainRate,
+		&reading.PM1_0, &reading.PM2_5, &reading.PM10_0, &reading.VOC,
+		&reading.AnemoStatus, &reading.AnemoAGC, &reading.AnemoAGCVar,
+		&reading.VaneStatus, &reading.VaneAGC, &reading.VaneAGCVar,
+		&reading.RainStatus, &reading.RainAGC, &reading.RainAGCVar,
+	)
+	return reading, err
+}

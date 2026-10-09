@@ -19,8 +19,7 @@ func New(db *commonquestdb.Client, log *zap.Logger) *Repository {
 	return &Repository{db: db, log: log}
 }
 
-// UpsertNodeCoordinates inserts or updates node coordinate rows keyed by node_id.
-// Returns the number of rows affected.
+// UpsertNodeCoordinates inserts or updates node coordinate rows keyed by node_id and returns rows affected.
 func (r *Repository) UpsertNodeCoordinates(ctx context.Context, nodes []NodeCoordinates) (int64, error) {
 	if len(nodes) == 0 {
 		return 0, nil
@@ -75,4 +74,32 @@ func (r *Repository) GetNodeCoordinates(ctx context.Context, nodeID string) (*No
 		return nil, err
 	}
 	return &node, rows.Err()
+}
+
+// ListNodeCoordinates returns coordinates for every node in the table.
+func (r *Repository) ListNodeCoordinates(ctx context.Context) ([]NodeCoordinates, error) {
+	const query = `SELECT node_id, latitude, longitude, elevation_m, location_name
+		FROM node_coordinates ORDER BY node_id ASC`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		r.log.Error("failed to query all node coordinates", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	var nodes []NodeCoordinates
+	for rows.Next() {
+		var node NodeCoordinates
+		if err := rows.Scan(&node.NodeID, &node.Latitude, &node.Longitude, &node.ElevationM, &node.LocationName); err != nil {
+			r.log.Error("failed to scan node coordinates", zap.Error(err))
+			return nil, err
+		}
+		nodes = append(nodes, node)
+	}
+	if err := rows.Err(); err != nil {
+		r.log.Error("error reading node coordinate rows", zap.Error(err))
+		return nil, err
+	}
+	return nodes, nil
 }

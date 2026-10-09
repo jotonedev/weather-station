@@ -1,6 +1,10 @@
 package prediction
 
-import "weather-station/common/value"
+import (
+	"weather-station/common/value"
+
+	"github.com/jackc/pgx/v5"
+)
 
 // predictionSource adapts a []Prediction into a pgx.CopyFromSource.
 type predictionSource struct {
@@ -26,3 +30,14 @@ func (s *predictionSource) Values() ([]any, error) {
 }
 
 func (s *predictionSource) Err() error { return nil }
+
+// scanPrediction reads a predictions row into a Prediction, using a nil field for a NULL column.
+func scanPrediction(row pgx.Row) (Prediction, error) {
+	var prediction Prediction
+	err := row.Scan(
+		&prediction.NodeID, &prediction.Ts, &prediction.HorizonHours,
+		&prediction.RainfallMm, &prediction.TemperatureC, &prediction.HumidityPct, &prediction.WindDirectionDeg,
+		&prediction.RainfallConfidence, &prediction.TemperatureConfidence, &prediction.HumidityConfidence, &prediction.WindDirectionConfidence,
+	)
+	return prediction, err
+}

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"weather-station/database/repository/aggregate"
 	"weather-station/database/repository/nodecoords"
 	"weather-station/database/repository/prediction"
 	"weather-station/database/repository/timestorage"
@@ -13,5 +14,6 @@ var Module = fx.Module("repository",
 		timestorage.New,
 		prediction.New,
 		nodecoords.New,
+		aggregate.New,
 	),
 )

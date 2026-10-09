@@ -4,7 +4,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
-	controller "weather-station/database/controller/weatherdata"
+	controller "weather-station/database/controller/readingdata"
 )
 
 type Handler struct {
