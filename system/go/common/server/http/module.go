@@ -8,6 +8,7 @@ import (
 
 var Module = fx.Module("http",
 	fx.Provide(
+		NewConfig,
 		NewHTTPServer,
 		fx.Annotate(
 			NewHTTPMux,

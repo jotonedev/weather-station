@@ -40,11 +40,9 @@ func (f *ClientFactory) NewConnection(target string) (*grpc.ClientConn, error) {
 			client := grpc_health_v1.NewHealthClient(conn)
 			resp, err := client.Check(ctx, &grpc_health_v1.HealthCheckRequest{})
 			if err != nil {
+				// Fail startup fast so an unreachable dependency surfaces immediately,
+				// mirroring the strict QuestDB ping.
 				f.log.Error("gRPC health check failed", zap.String("target", target), zap.Error(err))
-				// We don't return error here to allow the application to start even if the dependency is down,
-				// but in a real scenario we might want to fail. For now, just log.
-				// or maybe we should return error if strict dependency is required.
-				// The user asked to "implement the ping", implying verification.
 				return err
 			}
 			f.log.Info("gRPC health check successful", zap.String("target", target), zap.String("status", resp.Status.String()))

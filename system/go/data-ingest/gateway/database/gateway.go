@@ -1,4 +1,4 @@
-package weatherstation
+package database
 
 import (
 	"go.uber.org/fx"

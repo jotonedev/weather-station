@@ -9,12 +9,10 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	NET_PROTOCOL = "tcp"
-	NET_ADDRESS  = "0.0.0.0:8090"
-)
+//goland:noinspection GoSnakeCaseUsage
+const NET_PROTOCOL = "tcp"
 
-func NewGRPCServer(lc fx.Lifecycle, log *zap.Logger, registrars []Registrar) *grpc.Server {
+func NewGRPCServer(lc fx.Lifecycle, log *zap.Logger, cfg Config, registrars []Registrar) *grpc.Server {
 	srv := grpc.NewServer()
 
 	for _, registrar := range registrars {
@@ -23,11 +21,11 @@ func NewGRPCServer(lc fx.Lifecycle, log *zap.Logger, registrars []Registrar) *gr
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			ln, err := net.Listen(NET_PROTOCOL, NET_ADDRESS)
+			ln, err := net.Listen(NET_PROTOCOL, cfg.Address)
 			if err != nil {
 				return err
 			}
-			log.Info("Starting gRPC server at", zap.String("addr", NET_ADDRESS))
+			log.Info("Starting gRPC server", zap.String("addr", cfg.Address))
 
 			go func() {
 				if err := srv.Serve(ln); err != nil {

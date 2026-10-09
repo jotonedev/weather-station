@@ -1,4 +1,4 @@
-package inference
+package inferenceserver
 
 import (
 	"go.uber.org/fx"

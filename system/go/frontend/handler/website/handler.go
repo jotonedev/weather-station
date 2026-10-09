@@ -1,4 +1,4 @@
-package homepage
+package website
 
 import (
 	"go.uber.org/fx"

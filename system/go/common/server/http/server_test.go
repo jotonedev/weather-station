@@ -12,14 +12,15 @@ func TestNewHTTPServer(t *testing.T) {
 	lc := fxtest.NewLifecycle(t)
 	mux := http.NewServeMux()
 	log := zaptest.NewLogger(t)
+	cfg := Config{Address: defaultAddress}
 
-	srv := NewHTTPServer(lc, mux, log)
+	srv := NewHTTPServer(lc, mux, log, cfg)
 
 	if srv == nil {
 		t.Error("Expected non-nil HTTP server")
 	}
 
-	if srv.Addr != NET_ADDRESS {
-		t.Errorf("Expected address %s, got %s", NET_ADDRESS, srv.Addr)
+	if srv.Addr != cfg.Address {
+		t.Errorf("Expected address %s, got %s", cfg.Address, srv.Addr)
 	}
 }

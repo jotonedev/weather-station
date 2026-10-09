@@ -1,10 +1,9 @@
 package main
 
 import (
-	"os"
-
 	"weather-station/common/client"
 	"weather-station/common/health"
+	"weather-station/common/logging"
 	"weather-station/common/server"
 
 	"weather-station/database/controller"
@@ -13,8 +12,6 @@ import (
 	"weather-station/database/repository"
 
 	"go.uber.org/fx"
-	"go.uber.org/fx/fxevent"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -22,24 +19,13 @@ func main() {
 		// Shared ingress / egress modules
 		server.Module,
 		client.Module,
-		// Shared health check (HTTP + gRPC)
+		// Shared logging and health checks (HTTP + gRPC)
+		logging.Module,
 		health.Module,
-		// Utility modules
-		fx.Provide(getLogger),
-		fx.WithLogger(func(log *zap.Logger) fxevent.Logger {
-			return &fxevent.ZapLogger{Logger: log}
-		}),
 		// Service-specific modules
 		handler.Module,
 		gateway.Module,
 		controller.Module,
 		repository.Module,
 	).Run()
-}
-
-func getLogger() (*zap.Logger, error) {
-	if os.Getenv("GO_ENV") == "production" {
-		return zap.NewProduction()
-	}
-	return zap.NewDevelopment()
 }

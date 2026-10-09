@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 
@@ -10,13 +11,10 @@ import (
 )
 
 //goland:noinspection GoSnakeCaseUsage
-const (
-	NET_PROTOCOL = "tcp"
-	NET_ADDRESS  = "0.0.0.0:8080"
-)
+const NET_PROTOCOL = "tcp"
 
-func NewHTTPServer(lc fx.Lifecycle, mux *http.ServeMux, log *zap.Logger) *http.Server {
-	srv := &http.Server{Addr: NET_ADDRESS, Handler: mux}
+func NewHTTPServer(lc fx.Lifecycle, mux *http.ServeMux, log *zap.Logger, cfg Config) *http.Server {
+	srv := &http.Server{Addr: cfg.Address, Handler: mux}
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -24,12 +22,11 @@ func NewHTTPServer(lc fx.Lifecycle, mux *http.ServeMux, log *zap.Logger) *http.S
 			if err != nil {
 				return err
 			}
-			log.Info("Starting HTTP server at", zap.String("addr", srv.Addr))
+			log.Info("Starting HTTP server", zap.String("addr", srv.Addr))
 
 			go func() {
-				err := srv.Serve(ln)
-				if err != nil {
-					panic(err)
+				if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					log.Error("HTTP server failed", zap.Error(err))
 				}
 			}()
 

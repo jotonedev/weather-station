@@ -10,19 +10,13 @@ import (
 func TestNewGRPCServer(t *testing.T) {
 	lc := fxtest.NewLifecycle(t)
 	log := zaptest.NewLogger(t)
+	cfg := Config{Address: defaultAddress}
 
-	// No registrars needed for this test
 	var registrars []Registrar
 
-	srv := NewGRPCServer(lc, log, registrars)
+	srv := NewGRPCServer(lc, log, cfg, registrars)
 
 	if srv == nil {
 		t.Error("Expected non-nil gRPC server")
 	}
-
-	// Verify lifecycle hooks
-	// In a real test we might want to ensure hooks are appended, but fx.Lifecycle doesn't expose that easily.
-	// fxtest.Lifecycle verifies that hooks run without error during Start/Stop.
-	// However, we agreed NOT to run the server.
-	// So just verifying NewGRPCServer returns a server is sufficient as per requirements.
 }

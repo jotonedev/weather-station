@@ -7,9 +7,10 @@ import (
 
 var Module = fx.Module("grpc",
 	fx.Provide(
+		NewConfig,
 		fx.Annotate(
 			NewGRPCServer,
-			fx.ParamTags("", "", `group:"grpc-handlers"`),
+			fx.ParamTags("", "", "", `group:"grpc-handlers"`),
 		),
 	),
 	fx.Invoke(func(*grpc.Server) {}),
