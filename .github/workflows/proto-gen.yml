@@ -1,13 +1,14 @@
 name: Generate protobuf code
 
 on:
+  workflow_dispatch:
   push:
     paths:
+      - '.github/workflows/proto-gen.yml'
       - 'system/proto/**'
-    branches:
-      - main
   pull_request:
     paths:
+      - '.github/workflows/proto-gen.yml'
       - 'system/proto/**'
 
 permissions:
