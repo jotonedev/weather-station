@@ -25,15 +25,17 @@ type HandlerParams struct {
 	Controller *controller.Controller
 }
 
-// New returns a registrar that exposes this handler as the NodeDatabaseService.
-func New(params HandlerParams) func(*grpc.Server) {
-	handler := &Handler{
+// New returns a handler for the NodeDatabaseService.
+func New(params HandlerParams) *Handler {
+	return &Handler{
 		log: params.Logger,
 		con: params.Controller,
 	}
-	return func(s *grpc.Server) {
-		protodatabasev1.RegisterNodeDatabaseServiceServer(s, handler)
-	}
+}
+
+// Register exposes this handler as the NodeDatabaseService.
+func (h *Handler) Register(s grpc.ServiceRegistrar) {
+	protodatabasev1.RegisterNodeDatabaseServiceServer(s, h)
 }
 
 // CreateNode stores coordinates for a node.

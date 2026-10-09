@@ -26,15 +26,17 @@ type HandlerParams struct {
 	Controller *controller.Controller
 }
 
-// New returns a registrar that exposes this handler as the ReadingAggregateService.
-func New(params HandlerParams) func(*grpc.Server) {
-	handler := &Handler{
+// New returns a handler for the ReadingAggregateService.
+func New(params HandlerParams) *Handler {
+	return &Handler{
 		log: params.Logger,
 		con: params.Controller,
 	}
-	return func(s *grpc.Server) {
-		protodatabasev1.RegisterReadingAggregateServiceServer(s, handler)
-	}
+}
+
+// Register exposes this handler as the ReadingAggregateService.
+func (h *Handler) Register(s grpc.ServiceRegistrar) {
+	protodatabasev1.RegisterReadingAggregateServiceServer(s, h)
 }
 
 // GetClimateAggregates returns climate aggregates per time bucket for a node.

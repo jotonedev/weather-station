@@ -14,11 +14,11 @@ const (
 	NET_ADDRESS  = "0.0.0.0:8090"
 )
 
-func NewGRPCServer(lc fx.Lifecycle, log *zap.Logger, registrars []func(*grpc.Server)) *grpc.Server {
+func NewGRPCServer(lc fx.Lifecycle, log *zap.Logger, registrars []Registrar) *grpc.Server {
 	srv := grpc.NewServer()
 
-	for _, register := range registrars {
-		register(srv)
+	for _, registrar := range registrars {
+		registrar.Register(srv)
 	}
 
 	lc.Append(fx.Hook{

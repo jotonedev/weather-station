@@ -28,15 +28,17 @@ type HandlerParams struct {
 	Controller *controller.Controller
 }
 
-// New returns a registrar that exposes this handler as the ReadingDatabaseService.
-func New(params HandlerParams) func(*grpc.Server) {
-	handler := &Handler{
+// New returns a handler for the ReadingDatabaseService.
+func New(params HandlerParams) *Handler {
+	return &Handler{
 		log: params.Logger,
 		con: params.Controller,
 	}
-	return func(s *grpc.Server) {
-		protodatabasev1.RegisterReadingDatabaseServiceServer(s, handler)
-	}
+}
+
+// Register exposes this handler as the ReadingDatabaseService.
+func (h *Handler) Register(s grpc.ServiceRegistrar) {
+	protodatabasev1.RegisterReadingDatabaseServiceServer(s, h)
 }
 
 // StoreReadings stores a batch of raw readings.

@@ -1,6 +1,7 @@
 package fxgroup
 
 import (
+	"weather-station/common/server/grpc"
 	"weather-station/common/server/http"
 
 	"go.uber.org/fx"
@@ -16,11 +17,12 @@ func AsHTTPRoute(f any) any {
 	)
 }
 
-// AsGRPCHandler annotates a provider as a gRPC handler registrar so the shared
-// gRPC server registers it. The provider must return func(*grpc.Server).
+// AsGRPCHandler annotates a provider as a gRPC registrar so the shared gRPC
+// server registers it. The provider must return a value implementing grpc.Registrar.
 func AsGRPCHandler(f any) any {
 	return fx.Annotate(
 		f,
+		fx.As(new(grpc.Registrar)),
 		fx.ResultTags(`group:"grpc-handlers"`),
 	)
 }

@@ -5,7 +5,6 @@ import (
 
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/zap/zaptest"
-	"google.golang.org/grpc"
 )
 
 func TestNewGRPCServer(t *testing.T) {
@@ -13,7 +12,7 @@ func TestNewGRPCServer(t *testing.T) {
 	log := zaptest.NewLogger(t)
 
 	// No registrars needed for this test
-	var registrars []func(*grpc.Server)
+	var registrars []Registrar
 
 	srv := NewGRPCServer(lc, log, registrars)
 

@@ -27,15 +27,17 @@ type HandlerParams struct {
 	Controller *controller.Controller
 }
 
-// New returns a registrar that exposes this handler as the PredictionDatabaseService.
-func New(params HandlerParams) func(*grpc.Server) {
-	handler := &Handler{
+// New returns a handler for the PredictionDatabaseService.
+func New(params HandlerParams) *Handler {
+	return &Handler{
 		log: params.Logger,
 		con: params.Controller,
 	}
-	return func(s *grpc.Server) {
-		protodatabasev1.RegisterPredictionDatabaseServiceServer(s, handler)
-	}
+}
+
+// Register exposes this handler as the PredictionDatabaseService.
+func (h *Handler) Register(s grpc.ServiceRegistrar) {
+	protodatabasev1.RegisterPredictionDatabaseServiceServer(s, h)
 }
 
 // StorePredictions stores a batch of forecast predictions.

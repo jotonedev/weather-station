@@ -35,8 +35,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-func NewGRPC() func(*grpc.Server) {
-	return func(s *grpc.Server) {
-		grpc_health_v1.RegisterHealthServer(s, health.NewServer())
-	}
+// GRPCHandler is the gRPC health service registrar.
+type GRPCHandler struct{}
+
+// NewGRPC returns the gRPC health service registrar.
+func NewGRPC() *GRPCHandler {
+	return &GRPCHandler{}
+}
+
+// Register exposes the gRPC health service.
+func (*GRPCHandler) Register(s grpc.ServiceRegistrar) {
+	grpc_health_v1.RegisterHealthServer(s, health.NewServer())
 }
