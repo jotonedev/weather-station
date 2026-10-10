@@ -5,58 +5,34 @@ import (
 	"errors"
 	"testing"
 
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
+	"weather-station/frontend/internal/mocks"
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 )
-
-type fakeReadingClient struct {
-	protodatabasev1.ReadingDatabaseServiceClient
-	getLatestReadingsFunc func(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.GetLatestReadingsResponse, error)
-}
-
-func (f *fakeReadingClient) GetLatestReadings(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.GetLatestReadingsResponse, error) {
-	if f.getLatestReadingsFunc != nil {
-		return f.getLatestReadingsFunc(ctx, in, opts...)
-	}
-	return &protodatabasev1.GetLatestReadingsResponse{}, nil
-}
-
-type fakeNodeClient struct {
-	protodatabasev1.NodeDatabaseServiceClient
-	listNodeCoordinatesFunc func(ctx context.Context, in *protodatabasev1.ListNodeCoordinatesRequest, opts ...grpc.CallOption) (*protodatabasev1.ListNodeCoordinatesResponse, error)
-}
-
-func (f *fakeNodeClient) ListNodeCoordinates(ctx context.Context, in *protodatabasev1.ListNodeCoordinatesRequest, opts ...grpc.CallOption) (*protodatabasev1.ListNodeCoordinatesResponse, error) {
-	if f.listNodeCoordinatesFunc != nil {
-		return f.listNodeCoordinatesFunc(ctx, in, opts...)
-	}
-	return &protodatabasev1.ListNodeCoordinatesResponse{}, nil
-}
 
 func TestGatewayGetLatestReadings(t *testing.T) {
 	errDatabaseFailed := errors.New("readings unavailable")
 
 	testCases := []struct {
-		name                  string
-		nodeID                string
-		getLatestReadingsFunc func(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.GetLatestReadingsResponse, error)
-		wantErr               bool
-		wantCount             int
+		name      string
+		nodeID    string
+		setup     func(client *mocks.MockReadingDatabaseServiceClient)
+		wantErr   bool
+		wantCount int
 	}{
 		{
 			name:   "success returning latest readings",
 			nodeID: "node-1",
-			getLatestReadingsFunc: func(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.GetLatestReadingsResponse, error) {
-				if in.NodeId != "node-1" {
-					t.Fatalf("NodeId = %q, want node-1", in.NodeId)
-				}
-				return &protodatabasev1.GetLatestReadingsResponse{
-					Readings: []*protodatabasev1.Reading{
-						{NodeId: "node-1"},
-					},
-				}, nil
+			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
+				client.EXPECT().
+					GetLatestReadings(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.GetLatestReadingsResponse{
+						Readings: []*protodatabasev1.Reading{
+							{NodeId: "node-1"},
+						},
+					}, nil)
 			},
 			wantErr:   false,
 			wantCount: 1,
@@ -64,8 +40,10 @@ func TestGatewayGetLatestReadings(t *testing.T) {
 		{
 			name:   "database error is wrapped",
 			nodeID: "node-1",
-			getLatestReadingsFunc: func(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.GetLatestReadingsResponse, error) {
-				return nil, errDatabaseFailed
+			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
+				client.EXPECT().
+					GetLatestReadings(gomock.Any(), gomock.Any()).
+					Return(nil, errDatabaseFailed)
 			},
 			wantErr: true,
 		},
@@ -73,7 +51,10 @@ func TestGatewayGetLatestReadings(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			client := &fakeReadingClient{getLatestReadingsFunc: testCase.getLatestReadingsFunc}
+			ctrl := gomock.NewController(t)
+			client := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+			testCase.setup(client)
+
 			gateway, err := New(GatewayParams{
 				Logger:        zap.NewNop(),
 				Config:        Config{Address: "127.0.0.1:8090"},
@@ -101,20 +82,22 @@ func TestGatewayGetLatestReadings(t *testing.T) {
 }
 
 func TestGatewayListNodeCoordinates(t *testing.T) {
-	nodeClient := &fakeNodeClient{
-		listNodeCoordinatesFunc: func(ctx context.Context, in *protodatabasev1.ListNodeCoordinatesRequest, opts ...grpc.CallOption) (*protodatabasev1.ListNodeCoordinatesResponse, error) {
-			return &protodatabasev1.ListNodeCoordinatesResponse{
-				Nodes: []*protodatabasev1.NodeCoordinates{
-					{NodeId: "station-alpha"},
-				},
-			}, nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	nodeClient := mocks.NewMockNodeDatabaseServiceClient(ctrl)
+	readingClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+
+	nodeClient.EXPECT().
+		ListNodeCoordinates(gomock.Any(), gomock.Any()).
+		Return(&protodatabasev1.ListNodeCoordinatesResponse{
+			Nodes: []*protodatabasev1.NodeCoordinates{
+				{NodeId: "station-alpha"},
+			},
+		}, nil)
 
 	gateway, err := New(GatewayParams{
 		Logger:        zap.NewNop(),
 		Config:        Config{Address: "127.0.0.1:8090"},
-		ReadingClient: &fakeReadingClient{},
+		ReadingClient: readingClient,
 		NodeClient:    nodeClient,
 	})
 	if err != nil {

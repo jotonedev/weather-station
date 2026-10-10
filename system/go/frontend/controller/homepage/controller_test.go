@@ -5,32 +5,32 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	"weather-station/frontend/controller/weatherdata"
 	"weather-station/frontend/gateway/database"
+	"weather-station/frontend/internal/mocks"
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 )
 
-type fakeReadingClient struct {
-	protodatabasev1.ReadingDatabaseServiceClient
-}
-
-func (f *fakeReadingClient) GetLatestReadings(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.GetLatestReadingsResponse, error) {
-	temp := float32(21.5)
-	return &protodatabasev1.GetLatestReadingsResponse{
-		Readings: []*protodatabasev1.Reading{
-			{NodeId: "station-test", Temperature: &temp},
-		},
-	}, nil
-}
-
 func TestHomepageControllerRender(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+
+	temp := float32(21.5)
+	mockClient.EXPECT().
+		GetLatestReadings(gomock.Any(), gomock.Any()).
+		Return(&protodatabasev1.GetLatestReadingsResponse{
+			Readings: []*protodatabasev1.Reading{
+				{NodeId: "station-test", Temperature: &temp},
+			},
+		}, nil)
+
 	dbGateway, err := database.New(database.GatewayParams{
 		Logger:        zap.NewNop(),
 		Config:        database.Config{Address: "127.0.0.1:8090"},
-		ReadingClient: &fakeReadingClient{},
+		ReadingClient: mockClient,
 	})
 	if err != nil {
 		t.Fatalf("database.New() unexpected error = %v", err)

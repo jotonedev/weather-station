@@ -5,50 +5,45 @@ import (
 	"errors"
 	"testing"
 
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"weather-station/data-ingest/internal/mocks"
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 )
-
-type fakeReadingClient struct {
-	protodatabasev1.ReadingDatabaseServiceClient
-	storeReadingsFunc func(ctx context.Context, in *protodatabasev1.StoreReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.StoreReadingsResponse, error)
-}
-
-func (f *fakeReadingClient) StoreReadings(ctx context.Context, in *protodatabasev1.StoreReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.StoreReadingsResponse, error) {
-	if f.storeReadingsFunc != nil {
-		return f.storeReadingsFunc(ctx, in, opts...)
-	}
-	return &protodatabasev1.StoreReadingsResponse{Stored: uint64(len(in.Readings))}, nil
-}
 
 func TestGatewayStoreReading(t *testing.T) {
 	errDatabaseFailed := errors.New("connection failed")
 
 	testCases := []struct {
-		name              string
-		reading           *protodatabasev1.Reading
-		storeReadingsFunc func(ctx context.Context, in *protodatabasev1.StoreReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.StoreReadingsResponse, error)
-		wantErr           bool
-		expectedErr       error
+		name        string
+		reading     *protodatabasev1.Reading
+		setup       func(client *mocks.MockReadingDatabaseServiceClient)
+		wantErr     bool
+		expectedErr error
 	}{
 		{
 			name: "success storing single reading",
 			reading: &protodatabasev1.Reading{
 				NodeId: "node-1",
 			},
-			storeReadingsFunc: func(ctx context.Context, in *protodatabasev1.StoreReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.StoreReadingsResponse, error) {
-				if len(in.Readings) != 1 || in.Readings[0].NodeId != "node-1" {
-					t.Fatalf("unexpected readings: %v", in.Readings)
-				}
-				return &protodatabasev1.StoreReadingsResponse{Stored: 1}, nil
+			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
+				client.EXPECT().
+					StoreReadings(gomock.Any(), gomock.AssignableToTypeOf(&protodatabasev1.StoreReadingsRequest{})).
+					DoAndReturn(func(ctx context.Context, in *protodatabasev1.StoreReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.StoreReadingsResponse, error) {
+						if len(in.Readings) != 1 || in.Readings[0].NodeId != "node-1" {
+							t.Fatalf("unexpected readings: %v", in.Readings)
+						}
+						return &protodatabasev1.StoreReadingsResponse{Stored: 1}, nil
+					})
 			},
 			wantErr: false,
 		},
 		{
 			name:        "nil reading returns error",
 			reading:     nil,
+			setup:       func(client *mocks.MockReadingDatabaseServiceClient) {},
 			wantErr:     true,
 			expectedErr: ErrNilReading,
 		},
@@ -57,8 +52,10 @@ func TestGatewayStoreReading(t *testing.T) {
 			reading: &protodatabasev1.Reading{
 				NodeId: "node-1",
 			},
-			storeReadingsFunc: func(ctx context.Context, in *protodatabasev1.StoreReadingsRequest, opts ...grpc.CallOption) (*protodatabasev1.StoreReadingsResponse, error) {
-				return nil, errDatabaseFailed
+			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
+				client.EXPECT().
+					StoreReadings(gomock.Any(), gomock.Any()).
+					Return(nil, errDatabaseFailed)
 			},
 			wantErr: true,
 		},
@@ -66,7 +63,10 @@ func TestGatewayStoreReading(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			client := &fakeReadingClient{storeReadingsFunc: testCase.storeReadingsFunc}
+			ctrl := gomock.NewController(t)
+			client := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+			testCase.setup(client)
+
 			gateway, err := New(GatewayParams{
 				Logger: zap.NewNop(),
 				Config: Config{Address: "127.0.0.1:8090"},
