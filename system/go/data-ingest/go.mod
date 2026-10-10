@@ -6,6 +6,7 @@ require (
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.0
 	weather-station/common v0.0.0
+	weather-station/gen/go v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -20,3 +21,5 @@ require (
 )
 
 replace weather-station/common => ../common
+
+replace weather-station/gen/go => ../../proto/gen/go

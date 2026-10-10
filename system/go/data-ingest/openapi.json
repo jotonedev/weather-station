@@ -1,0 +1,396 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Weather Station Data Ingest API",
+    "description": "HTTP API for ingesting raw weather station sensor readings from microcontrollers.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Weather Station Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    },
+    {
+      "url": "http://ws-data-ingest:8080",
+      "description": "Kubernetes in-cluster service"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health",
+      "description": "Service health and readiness operations"
+    },
+    {
+      "name": "reading",
+      "description": "Weather station reading ingestion operations"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Service health check",
+        "description": "Returns service liveness and readiness status.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Service is healthy and ready to receive traffic",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "ok"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reading": {
+      "post": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Ingest a single weather reading",
+        "description": "Parses and validates a raw weather reading from a station and forwards it to the database service.",
+        "operationId": "storeReading",
+        "requestBody": {
+          "required": true,
+          "description": "Weather reading payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reading"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reading recorded successfully"
+          },
+          "400": {
+            "description": "Malformed JSON or missing required node_id",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "node_id is required"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed (only POST is supported)",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "method not allowed"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Downstream database or internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readings": {
+      "post": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Ingest multiple weather readings",
+        "description": "Parses and validates a batch of raw weather readings, accepting either a JSON array or a wrapper object.",
+        "operationId": "storeReadingsBatch",
+        "requestBody": {
+          "required": true,
+          "description": "Batch weather readings payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Reading"
+                    }
+                  },
+                  {
+                    "$ref": "#/components/schemas/BatchReadingsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch readings recorded successfully"
+          },
+          "400": {
+            "description": "Malformed JSON, empty batch, or missing node_id on any reading",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "no readings provided"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed (only POST is supported)",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "method not allowed"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Downstream database or internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BatchReadingsRequest": {
+        "type": "object",
+        "required": [
+          "readings"
+        ],
+        "properties": {
+          "readings": {
+            "type": "array",
+            "description": "List of sensor readings to ingest",
+            "items": {
+              "$ref": "#/components/schemas/Reading"
+            }
+          }
+        }
+      },
+      "Reading": {
+        "type": "object",
+        "required": [
+          "node_id"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "description": "Unique identifier of the reporting weather station node",
+            "example": "station-alpha"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the measurement was taken. Defaults to current UTC time if omitted.",
+            "example": "2026-10-10T12:00:00Z"
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp alias (mirrors database column name)",
+            "example": "2026-10-10T12:00:00Z"
+          },
+          "temperature": {
+            "type": "number",
+            "format": "float",
+            "description": "Ambient temperature in degrees Celsius",
+            "example": 21.5
+          },
+          "humidity": {
+            "type": "number",
+            "format": "float",
+            "description": "Relative humidity percentage",
+            "example": 55.2
+          },
+          "pressure": {
+            "type": "number",
+            "format": "float",
+            "description": "Atmospheric pressure in hectopascals (hPa)",
+            "example": 1013.25
+          },
+          "wind_speed": {
+            "type": "number",
+            "format": "float",
+            "description": "Calibrated wind speed in meters per second",
+            "example": 4.8
+          },
+          "wind_angle": {
+            "type": "number",
+            "format": "float",
+            "description": "Calibrated wind direction angle in degrees (0-360)",
+            "example": 180.0
+          },
+          "raw_wind_speed": {
+            "type": "number",
+            "format": "float",
+            "description": "Uncalibrated raw wind speed measurement",
+            "example": 4.7
+          },
+          "raw_wind_angle": {
+            "type": "number",
+            "format": "float",
+            "description": "Uncalibrated raw wind direction angle in degrees",
+            "example": 178.5
+          },
+          "rain_1h": {
+            "type": "number",
+            "format": "float",
+            "description": "Rainfall accumulation over the last 1 hour in millimeters",
+            "example": 0.5
+          },
+          "rain1h": {
+            "type": "number",
+            "format": "float",
+            "description": "Rainfall accumulation alias (mirrors protobuf field name)",
+            "example": 0.5
+          },
+          "rain_24h": {
+            "type": "number",
+            "format": "float",
+            "description": "Rainfall accumulation over the last 24 hours in millimeters",
+            "example": 3.2
+          },
+          "rain24h": {
+            "type": "number",
+            "format": "float",
+            "description": "Rainfall accumulation alias (mirrors protobuf field name)",
+            "example": 3.2
+          },
+          "rain_rate": {
+            "type": "number",
+            "format": "float",
+            "description": "Current rain rate in millimeters per hour",
+            "example": 1.2
+          },
+          "pm1_0": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PM1.0 particulate matter concentration in micrograms per cubic meter",
+            "example": 8
+          },
+          "pm1": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PM1.0 alias (mirrors protobuf field name)",
+            "example": 8
+          },
+          "pm2_5": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PM2.5 particulate matter concentration in micrograms per cubic meter",
+            "example": 14
+          },
+          "pm25": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PM2.5 alias (mirrors protobuf field name)",
+            "example": 14
+          },
+          "pm10_0": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PM10 particulate matter concentration in micrograms per cubic meter",
+            "example": 22
+          },
+          "pm10": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PM10 alias (mirrors protobuf field name)",
+            "example": 22
+          },
+          "voc": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Volatile Organic Compounds (VOC) raw index / ppm",
+            "example": 120
+          },
+          "anemo_status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Diagnostic status code from anemometer AS5600 sensor",
+            "example": 32
+          },
+          "anemo_agc": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Automatic gain control value from anemometer magnetic sensor",
+            "example": 128
+          },
+          "anemo_agc_variance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "AGC variance for anemometer sensor health monitoring",
+            "example": 2
+          },
+          "vane_status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Diagnostic status code from wind vane AS5600 sensor",
+            "example": 32
+          },
+          "vane_agc": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Automatic gain control value from wind vane magnetic sensor",
+            "example": 125
+          },
+          "vane_agc_variance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "AGC variance for wind vane sensor health monitoring",
+            "example": 1
+          },
+          "rain_status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Diagnostic status code from rain meter magnetic sensor",
+            "example": 32
+          },
+          "rain_agc": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Automatic gain control value from rain meter magnetic sensor",
+            "example": 130
+          },
+          "rain_agc_variance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "AGC variance for rain meter sensor health monitoring",
+            "example": 0
+          }
+        }
+      }
+    }
+  }
+}

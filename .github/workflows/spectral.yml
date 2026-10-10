@@ -1,0 +1,74 @@
+name: Lint OpenAPI Specifications
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '**/.spectral.yaml'
+      - '**/.spectral.yml'
+      - '**/spectral.yaml'
+      - '**/spectral.yml'
+      - '**/openapi.json'
+      - '**/openapi.yaml'
+      - '**/openapi.yml'
+      - '.github/workflows/spectral.yml'
+  pull_request:
+    paths:
+      - '**/.spectral.yaml'
+      - '**/.spectral.yml'
+      - '**/spectral.yaml'
+      - '**/spectral.yml'
+      - '**/openapi.json'
+      - '**/openapi.yaml'
+      - '**/openapi.yml'
+      - '.github/workflows/spectral.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Spectral Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Spectral CLI
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Discover and lint OpenAPI specs
+        run: |
+          found_count=0
+          # Find all Spectral ruleset files in the repository
+          while IFS= read -r config; do
+            dir=$(dirname "$config")
+            echo "::group::Linting specs in $dir using $config"
+            
+            # Find OpenAPI specs matching standard naming in the same directory tree
+            specs=$(find "$dir" -maxdepth 2 -type f \( -name "openapi.json" -o -name "openapi.yaml" -o -name "openapi.yml" \))
+            
+            if [ -z "$specs" ]; then
+              echo "No OpenAPI specification files found in $dir"
+              echo "::endgroup::"
+              continue
+            fi
+
+            for spec in $specs; do
+              echo "Linting $spec..."
+              spectral lint --ruleset "$config" "$spec"
+              found_count=$((found_count + 1))
+            done
+            echo "::endgroup::"
+          done < <(find . -type f \( -name ".spectral.yaml" -o -name ".spectral.yml" -o -name "spectral.yaml" -o -name "spectral.yml" \) -not -path "*/node_modules/*")
+
+          echo "Total OpenAPI specs validated: $found_count"
+          if [ "$found_count" -eq 0 ]; then
+            echo "Error: No OpenAPI specification files were found to lint."
+            exit 1
+          fi

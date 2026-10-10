@@ -1,13 +1,16 @@
 package handler
 
 import (
-	weatherstation "weather-station/data-ingest/handler/weatherstation"
+	"weather-station/common/fxgroup"
+	"weather-station/data-ingest/handler/reading"
 
 	"go.uber.org/fx"
 )
 
+// Module registers HTTP routes for data-ingest.
 var Module = fx.Module("handler",
 	fx.Provide(
-		weatherstation.New,
+		fxgroup.AsHTTPRoute(reading.New),
+		fxgroup.AsHTTPRoute(reading.NewBatch),
 	),
 )
