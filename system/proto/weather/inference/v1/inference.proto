@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package weather.inference.v1;
+
+import "google/protobuf/timestamp.proto";
+import "weather/database/v1/prediction.proto";
+
+option go_package = "weather-station/gen/go/weather/inference/v1;inferencev1";
+
+// InferenceService provides weather forecasts
+service InferenceService {
+  // PredictWeather executes time series inference for a node and mode.
+  rpc PredictWeather(PredictWeatherRequest) returns (PredictWeatherResponse);
+
+  // GetModelInfo returns metadata and operational bounds for the active model.
+  rpc GetModelInfo(GetModelInfoRequest) returns (GetModelInfoResponse);
+}
+
+// PredictionMode defines the forecasting resolution and horizon.
+enum PredictionMode {
+  PREDICTION_MODE_UNSPECIFIED = 0;
+  // Forecasts next 24 hours hourly from up to 40 days of hourly history.
+  PREDICTION_MODE_NEXT_24_HOURS = 1;
+  // Forecasts next 10 days daily from up to 1 year of daily history.
+  PREDICTION_MODE_NEXT_10_DAYS = 2;
+}
+
+// PredictWeatherRequest contains the pre-aggregated historical series
+message PredictWeatherRequest {
+  // Station node identifier.
+  string node_id = 1;
+
+  // Forecasting mode defining horizon and aggregation frequency.
+  PredictionMode mode = 2;
+
+  // Forecast reference timestamp.
+  google.protobuf.Timestamp issue_time = 3;
+
+  // Structured time series observations.
+  repeated TimeSeriesObservation history = 4;
+
+  // Optional serialized tensor or dataframe payload ready for tensor ingestion.
+  optional bytes data_blob = 5;
+
+  // Format descriptor for data_blob, such as application/arrow or tensor/float32.
+  optional string data_blob_format = 6;
+}
+
+// TimeSeriesObservation is an aggregated time bucket
+message TimeSeriesObservation {
+  // Start timestamp of the aggregated bucket.
+  google.protobuf.Timestamp timestamp = 1;
+
+  // Mean ambient temperature in Celsius.
+  optional float temperature_c = 2;
+
+  // Mean relative humidity percentage.
+  optional float humidity_pct = 3;
+
+  // Mean atmospheric pressure in hectopascals.
+  optional float pressure_hpa = 4;
+
+  // Mean wind speed in meters per second.
+  optional float wind_speed_mps = 5;
+
+  // Mean wind direction in degrees.
+  optional float wind_direction_deg = 6;
+
+  // Total accumulated rainfall in millimeters.
+  optional float rainfall_mm = 7;
+}
+
+// PredictWeatherResponse contains predictions
+message PredictWeatherResponse {
+  // Generated predictions conforming to the database prediction schema.
+  repeated weather.database.v1.Prediction predictions = 1;
+
+  // Version identifier of the model checkpoint.
+  string model_version = 2;
+
+  // Timestamp when inference completed.
+  google.protobuf.Timestamp computed_at = 3;
+
+  // Optional raw quantile output tensor payload.
+  optional bytes output_blob = 4;
+}
+
+// GetModelInfoRequest requests metadata for the inference model.
+message GetModelInfoRequest {}
+
+// GetModelInfoResponse returns metadata for the inference model.
+message GetModelInfoResponse {
+  // Model name.
+  string model_name = 1;
+
+  // Model checkpoint or release version.
+  string model_version = 2;
+
+  // Maximum forecast horizon supported in hours.
+  int32 max_horizon_hours = 3;
+}
