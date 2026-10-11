@@ -1,0 +1,76 @@
+[project]
+name = "inference-server"
+version = "0.1.0"
+description = "Inference server for weather prediction"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "chronos-forecasting>=2.3.2",
+    "torch>=2.14.1",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu-index" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.17.0",
+    "ty>=0.0.86",
+]
+
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+addopts = "--strict-markers -ra"
+timeout = 30
+timeout_method = "thread"
+
+[tool.coverage.run]
+source = ["inference"]
+branch = true
+omit = ["inference/*/__main__.py", "tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+exclude = ["__init__.py"]
+line-length = 119
+
+[tool.ruff.lint]
+extend-select = ["I", "D", "PLC0415", "C901", "PLR0912", "PLR0915"]
+ignore = ["D417", "D107", "D105", "D100", "E731", "E722"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "C901", "PLR0912", "PLR0913", "PLR0915"]
+"*_test.py" = ["D", "C901", "PLR0912", "PLR0913", "PLR0915"]
+
+[tool.uv]
+package = false
+
+[tool.setuptools.packages.find]
+include = ["inference*"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu-index"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
