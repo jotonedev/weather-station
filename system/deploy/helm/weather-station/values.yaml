@@ -161,12 +161,3 @@ ingress:
 # Zero-trust Kubernetes NetworkPolicies
 networkPolicy:
   enabled: true
-
-# Istio Service Mesh & Tracing
-istio:
-  enabled: true
-  mtlsMode: STRICT
-  telemetry:
-    enabled: true
-    # Jaeger OpenTelemetry gRPC / OTLP endpoint
-    jaegerAddress: "http://jaeger-collector.istio-system.svc.cluster.local:4317"

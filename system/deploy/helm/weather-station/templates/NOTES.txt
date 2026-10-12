@@ -17,10 +17,6 @@
   Check database logs:
   kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "weather-station.fullname" . }}-database
 
-4. gRPC Probes & Service Mesh Status:
-{{- if .Values.istio.enabled }}
-  - Istio strict mTLS is enabled.
-  - Telemetry configured with Jaeger provider.
-{{- end }}
+4. Service Pod Status:
   Check service pod status:
   kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "weather-station.name" . }}"
