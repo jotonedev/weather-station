@@ -10,9 +10,9 @@ database:
   enabled: true
   replicaCount: 1
   image:
-    repository: weather-station/database
+    repository: gitea.bream-puffin.ts.net/jotone/database
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   grpcPort: 8090
   duckdb:
     maxMemory: "128MB"
@@ -46,9 +46,9 @@ dataIngest:
   enabled: true
   replicaCount: 1
   image:
-    repository: weather-station/data-ingest
+    repository: gitea.bream-puffin.ts.net/jotone/data-ingest
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   httpPort: 8080
   grpcPort: 8090
   # Pin dataIngest to rpi3 node alongside database
@@ -73,9 +73,9 @@ frontend:
   enabled: true
   replicaCount: 1
   image:
-    repository: weather-station/frontend
+    repository: gitea.bream-puffin.ts.net/jotone/frontend
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   httpPort: 8080
   grpcPort: 8090
   nodeSelector: {}
@@ -94,9 +94,9 @@ inferenceServer:
   enabled: true
   replicaCount: 1
   image:
-    repository: weather-station/inference-server
+    repository: gitea.bream-puffin.ts.net/jotone/inference-server
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   grpcPort: 50051
   modelName: "amazon/chronos-2"
   idleTimeoutSeconds: 3600.0
@@ -135,9 +135,9 @@ inferenceJob:
   failedJobsHistoryLimit: 1
   concurrencyPolicy: Forbid
   image:
-    repository: weather-station/inference-job
+    repository: gitea.bream-puffin.ts.net/jotone/inference-job
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   grpcPort: 8090
   nodeSelector: {}
   tolerations: []
