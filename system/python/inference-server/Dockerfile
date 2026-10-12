@@ -6,17 +6,13 @@
 ARG GO_VERSION=1.27
 FROM golang:${GO_VERSION}-alpine AS probe-builder
 
-WORKDIR /workspace
-COPY go.work go.work.sum ./
-COPY go/common/go.mod go/common/go.sum ./go/common/
-COPY proto/gen/go/go.mod proto/gen/go/go.sum ./proto/gen/go/
+WORKDIR /workspace/go/common
+COPY go/common/go.mod go/common/go.sum ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    (cd go/common && go mod download) && \
-    (cd proto/gen/go && go mod download)
+    go mod download
 
-COPY go/common/ ./go/common/
-COPY proto/gen/go/ ./proto/gen/go/
+COPY go/common/ ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -24,7 +20,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -trimpath \
     -ldflags="-s -w" \
     -o /grpc-health-probe \
-    ./go/common/cmd/healthprobe
+    ./cmd/healthprobe
 
 FROM ghcr.io/astral-sh/uv:0.6.5 AS uv-bin
 

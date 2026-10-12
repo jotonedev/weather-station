@@ -3,7 +3,7 @@
 # Usage:
 #   docker build -f go/Dockerfile --build-arg SERVICE=<service-name> -t weather-station/<service-name> .
 
-ARG GO_VERSION=1.24
+ARG GO_VERSION=1.27
 FROM golang:${GO_VERSION}-bookworm AS build-stage
 
 ARG SERVICE
@@ -11,11 +11,14 @@ RUN test -n "$SERVICE" || (echo "SERVICE build-arg must be specified (e.g. data-
 
 WORKDIR /workspace
 
-# Copy workspace definition and module manifests for dependency caching
+# Copy workspace definition and all module manifests for dependency caching
 COPY go.work go.work.sum ./
 COPY go/common/go.mod go/common/go.sum ./go/common/
 COPY proto/gen/go/go.mod proto/gen/go/go.sum ./proto/gen/go/
-COPY go/${SERVICE}/go.mod go/${SERVICE}/go.sum ./go/${SERVICE}/
+COPY go/data-ingest/go.mod go/data-ingest/go.sum ./go/data-ingest/
+COPY go/database/go.mod go/database/go.sum ./go/database/
+COPY go/frontend/go.mod go/frontend/go.sum ./go/frontend/
+COPY go/inference-job/go.mod go/inference-job/go.sum ./go/inference-job/
 
 # Download dependencies using BuildKit cache
 RUN --mount=type=cache,target=/go/pkg/mod \
