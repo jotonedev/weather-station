@@ -65,6 +65,14 @@ jobs:
             type=sha,prefix=,format=short
             type=semver,pattern={{version}}
 
+      - name: Setup cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ matrix.service }}-${{ hashFiles('system/go/Dockerfile', 'system/go.work', 'system/go.work.sum', format('system/go/{0}/**', matrix.service)) }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.service }}-
+
       - name: Build and push Go microservice
         uses: docker/build-push-action@v7
         with:
@@ -75,6 +83,13 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
+
+      - name: Move cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
 
   build-inference-server:
     name: Build Python Inference Server
@@ -104,6 +119,14 @@ jobs:
             type=sha,prefix=,format=short
             type=semver,pattern={{version}}
 
+      - name: Setup cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/.buildx-cache
+          key: ${{ runner.os }}-buildx-inference-server-${{ hashFiles('system/python/inference-server/Dockerfile', 'system/python/inference-server/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-inference-server-
+
       - name: Build and push inference-server
         uses: docker/build-push-action@v7
         with:
@@ -112,3 +135,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
+
+      - name: Move cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
+          
