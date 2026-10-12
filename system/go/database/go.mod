@@ -5,7 +5,7 @@ go 1.27
 require (
 	github.com/marcboeker/go-duckdb v1.8.5
 	go.uber.org/fx v1.24.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.28.0
 	google.golang.org/grpc v1.84.0
 	weather-station/common v0.0.0
 	weather-station/gen/go v0.0.0-00010101000000-000000000000
