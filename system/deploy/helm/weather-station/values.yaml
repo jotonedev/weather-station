@@ -3,12 +3,21 @@
 global:
   # Default StorageClass to use for PVCs (k3s default is local-path)
   storageClass: "local-path"
-  imagePullSecrets: []
+  imagePullSecrets:
+    - name: gitea-registry-secret
+
+# Keel automatic image update configuration (https://keel.sh)
+keel:
+  enabled: true
+  policy: "force"
+  trigger: "poll"
+  pollSchedule: "@every 15m"
 
 # Database microservice (gRPC with embedded DuckDB OLAP engine)
 database:
   enabled: true
   replicaCount: 1
+  annotations: {}
   image:
     repository: gitea.bream-puffin.ts.net/jotone/database
     tag: latest
@@ -45,6 +54,7 @@ database:
 dataIngest:
   enabled: true
   replicaCount: 1
+  annotations: {}
   image:
     repository: gitea.bream-puffin.ts.net/jotone/data-ingest
     tag: latest
@@ -72,6 +82,7 @@ dataIngest:
 frontend:
   enabled: true
   replicaCount: 1
+  annotations: {}
   image:
     repository: gitea.bream-puffin.ts.net/jotone/frontend
     tag: latest
@@ -93,6 +104,7 @@ frontend:
 inferenceServer:
   enabled: true
   replicaCount: 1
+  annotations: {}
   image:
     repository: gitea.bream-puffin.ts.net/jotone/inference-server
     tag: latest

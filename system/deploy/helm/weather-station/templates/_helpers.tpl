@@ -77,3 +77,15 @@ app.kubernetes.io/name: {{ include "weather-station.name" .root }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
+
+{{/*
+Keel annotations helper
+*/}}
+{{- define "weather-station.keelAnnotations" -}}
+{{- if .Values.keel.enabled }}
+keel.sh/policy: {{ .Values.keel.policy | quote }}
+keel.sh/trigger: {{ .Values.keel.trigger | quote }}
+keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
+{{- end }}
+{{- end }}
+

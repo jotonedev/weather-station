@@ -5,6 +5,13 @@ metadata:
   name: {{ include "weather-station.fullname" . }}-inference-server
   labels:
     {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-server") | nindent 4 }}
+  {{- if or .Values.keel.enabled .Values.inferenceServer.annotations }}
+  annotations:
+    {{- include "weather-station.keelAnnotations" . | nindent 4 }}
+    {{- with .Values.inferenceServer.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 spec:
   replicas: {{ .Values.inferenceServer.replicaCount }}
   strategy:

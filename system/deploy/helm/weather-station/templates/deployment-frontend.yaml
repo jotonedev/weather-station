@@ -5,6 +5,13 @@ metadata:
   name: {{ include "weather-station.fullname" . }}-frontend
   labels:
     {{- include "weather-station.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+  {{- if or .Values.keel.enabled .Values.frontend.annotations }}
+  annotations:
+    {{- include "weather-station.keelAnnotations" . | nindent 4 }}
+    {{- with .Values.frontend.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   selector:
