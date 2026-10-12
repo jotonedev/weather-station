@@ -6,6 +6,8 @@
 ARG GO_VERSION=1.27
 FROM golang:${GO_VERSION}-alpine AS probe-builder
 
+ENV GOWORK=off
+
 WORKDIR /workspace/go/common
 COPY go/common/go.mod go/common/go.sum ./
 
