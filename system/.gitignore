@@ -18,3 +18,11 @@ coverage.*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Python
+__pycache__/
+*.py[cod]
+.coverage
+.coverage.*
+.pytest_cache/
+.venv/
