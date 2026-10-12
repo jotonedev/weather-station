@@ -4,19 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	commonquestdb "weather-station/common/client/questdb"
+	"weather-station/database/client"
 
 	"go.uber.org/zap"
 )
 
-// Repository persists node coordinate metadata to the node_coordinates table.
+// Repository persists node coordinate metadata to the embedded DuckDB node_coordinates table.
 type Repository struct {
-	db  *commonquestdb.Client
-	log *zap.Logger
+	client *duckdb.Client
+	log    *zap.Logger
 }
 
-func New(db *commonquestdb.Client, log *zap.Logger) *Repository {
-	return &Repository{db: db, log: log}
+func New(client *duckdb.Client, log *zap.Logger) *Repository {
+	return &Repository{client: client, log: log}
 }
 
 // UpsertNodeCoordinates inserts or updates node coordinate rows keyed by node_id and returns rows affected.
@@ -26,23 +26,23 @@ func (r *Repository) UpsertNodeCoordinates(ctx context.Context, nodes []NodeCoor
 	}
 
 	var total int64
-	// QuestDB upsert via INSERT ... ON CONFLICT keyed on the unique node_id column.
 	const upsert = `INSERT INTO node_coordinates (node_id, latitude, longitude, elevation_m, location_name)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (node_id) DO UPDATE
 		SET latitude = EXCLUDED.latitude,
 			longitude = EXCLUDED.longitude,
 			elevation_m = EXCLUDED.elevation_m,
-			location_name = EXCLUDED.location_name`
+			location_name = EXCLUDED.location_name;`
 
 	for _, node := range nodes {
-		tag, err := r.db.Exec(ctx, upsert, node.NodeID, node.Latitude, node.Longitude, node.ElevationM, node.LocationName)
+		res, err := r.client.DB().ExecContext(ctx, upsert, node.NodeID, node.Latitude, node.Longitude, node.ElevationM, node.LocationName)
 		if err != nil {
 			r.log.Error("failed to upsert node coordinates",
 				zap.String("node_id", node.NodeID), zap.Error(err))
 			return total, err
 		}
-		total += tag.RowsAffected()
+		affected, _ := res.RowsAffected()
+		total += affected
 	}
 	r.log.Debug("upserted node coordinates", zap.Int64("nodes", total))
 	return total, nil
@@ -51,9 +51,9 @@ func (r *Repository) UpsertNodeCoordinates(ctx context.Context, nodes []NodeCoor
 // GetNodeCoordinates retrieves coordinates for a node.
 func (r *Repository) GetNodeCoordinates(ctx context.Context, nodeID string) (*NodeCoordinates, error) {
 	const query = `SELECT node_id, latitude, longitude, elevation_m, location_name
-		FROM node_coordinates WHERE node_id = $1 LIMIT 1`
+		FROM node_coordinates WHERE node_id = ? LIMIT 1`
 
-	rows, err := r.db.Query(ctx, query, nodeID)
+	rows, err := r.client.DB().QueryContext(ctx, query, nodeID)
 	if err != nil {
 		r.log.Error("failed to query node coordinates", zap.String("node_id", nodeID), zap.Error(err))
 		return nil, err
@@ -81,7 +81,7 @@ func (r *Repository) ListNodeCoordinates(ctx context.Context) ([]NodeCoordinates
 	const query = `SELECT node_id, latitude, longitude, elevation_m, location_name
 		FROM node_coordinates ORDER BY node_id ASC`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.client.DB().QueryContext(ctx, query)
 	if err != nil {
 		r.log.Error("failed to query all node coordinates", zap.Error(err))
 		return nil, err

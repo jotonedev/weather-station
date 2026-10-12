@@ -3,39 +3,67 @@ package prediction
 import (
 	"context"
 
-	commonquestdb "weather-station/common/client/questdb"
+	"weather-station/database/client"
 
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
-// Repository persists forecast predictions to the QuestDB predictions table.
+// Repository persists forecast predictions to the embedded DuckDB predictions table.
 type Repository struct {
-	db  *commonquestdb.Client
-	log *zap.Logger
+	client *duckdb.Client
+	log    *zap.Logger
 }
 
-func New(db *commonquestdb.Client, log *zap.Logger) *Repository {
-	return &Repository{db: db, log: log}
+func New(client *duckdb.Client, log *zap.Logger) *Repository {
+	return &Repository{client: client, log: log}
 }
 
-var predictionTable = pgx.Identifier{"predictions"}
+const insertPredictionSQL = `INSERT INTO predictions (
+	node_id, ts, horizon_hours,
+	rainfall_mm, temperature_c, humidity_pct, wind_direction_deg,
+	rainfall_confidence, temperature_confidence, humidity_confidence, wind_direction_confidence
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 // StorePredictions bulk-inserts predictions and returns the number of rows written.
 func (r *Repository) StorePredictions(ctx context.Context, predictions []Prediction) (int64, error) {
 	if len(predictions) == 0 {
 		return 0, nil
 	}
-	stored, err := r.db.CopyFrom(ctx, predictionTable, predictionColumns, &predictionSource{predictions: predictions})
+
+	tx, err := r.client.DB().BeginTx(ctx, nil)
 	if err != nil {
-		r.log.Error("failed to store predictions", zap.Error(err), zap.Int("predictions", len(predictions)))
+		r.log.Error("failed to start transaction for predictions", zap.Error(err))
 		return 0, err
 	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, insertPredictionSQL)
+	if err != nil {
+		r.log.Error("failed to prepare insert statement for predictions", zap.Error(err))
+		return 0, err
+	}
+	defer stmt.Close()
+
+	var stored int64
+	for _, pred := range predictions {
+		vals := extractValues(pred)
+		if _, err := stmt.ExecContext(ctx, vals...); err != nil {
+			r.log.Error("failed to exec insert for prediction", zap.String("node_id", pred.NodeID), zap.Error(err))
+			return 0, err
+		}
+		stored++
+	}
+
+	if err := tx.Commit(); err != nil {
+		r.log.Error("failed to commit transaction for predictions", zap.Error(err))
+		return 0, err
+	}
+
 	r.log.Debug("stored predictions", zap.Int64("stored", stored))
 	return stored, nil
 }
 
-// predictionColumns lists the SELECT columns, mirroring predictionColumns order.
+// predictionSelectColumns lists the SELECT columns.
 var predictionSelectColumns = `node_id, ts, horizon_hours,
 	rainfall_mm, temperature_c, humidity_pct, wind_direction_deg,
 	rainfall_confidence, temperature_confidence, humidity_confidence, wind_direction_confidence`
@@ -44,10 +72,10 @@ var predictionSelectColumns = `node_id, ts, horizon_hours,
 func (r *Repository) GetForecast(ctx context.Context, nodeID string) ([]Prediction, error) {
 	query := `SELECT ` + predictionSelectColumns + `
 		FROM predictions
-		WHERE node_id = $1 AND ts = (SELECT MAX(ts) FROM predictions WHERE node_id = $1)
+		WHERE node_id = ? AND ts = (SELECT MAX(ts) FROM predictions WHERE node_id = ?)
 		ORDER BY horizon_hours ASC`
 
-	rows, err := r.db.Query(ctx, query, nodeID)
+	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID)
 	if err != nil {
 		r.log.Error("failed to query forecast", zap.String("node_id", nodeID), zap.Error(err))
 		return nil, err

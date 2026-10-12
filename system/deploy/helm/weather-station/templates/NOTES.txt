@@ -12,15 +12,12 @@
   Open http://localhost:8080 in your browser.
 {{- end }}
 
-3. Database Seeding Status:
-  Check the initialization logs of the database pod:
-  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "weather-station.fullname" . }}-database -c db-seed
+3. Embedded Database Status:
+  DuckDB runs embedded directly inside the database microservice with persistent storage.
+  Check database logs:
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "weather-station.fullname" . }}-database
 
-4. QuestDB Web Console:
-  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "weather-station.fullname" . }}-questdb 9000:9000
-  Open http://localhost:9000 in your browser.
-
-5. gRPC Probes & Service Mesh Status:
+4. gRPC Probes & Service Mesh Status:
 {{- if .Values.istio.enabled }}
   - Istio strict mTLS is enabled.
   - Telemetry configured with Jaeger provider.

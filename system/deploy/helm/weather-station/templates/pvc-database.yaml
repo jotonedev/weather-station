@@ -1,0 +1,18 @@
+{{- if and .Values.database.enabled .Values.database.persistence.enabled (not .Values.database.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "weather-station.fullname" . }}-database-data
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.database.persistence.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.database.persistence.size | default "10Gi" }}
+  {{- $storageClass := default .Values.global.storageClass .Values.database.persistence.storageClass }}
+  {{- if $storageClass }}
+  storageClassName: {{ $storageClass | quote }}
+  {{- end }}
+{{- end }}

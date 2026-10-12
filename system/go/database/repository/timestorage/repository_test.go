@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestReadingSourceValues(t *testing.T) {
+func TestExtractValues(t *testing.T) {
 	timestamp := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
 	temperature := float32(21.5)
 	pm2_5 := int32(12)
@@ -36,16 +36,9 @@ func TestReadingSourceValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			source := &readingSource{readings: []Reading{tt.reading}}
-			if !source.Next() {
-				t.Fatal("expected a row, got none")
-			}
-			values, err := source.Values()
-			if err != nil {
-				t.Fatalf("Values: %v", err)
-			}
+			values := extractValues(tt.reading)
 			if len(values) != tt.wantLen {
-				t.Fatalf("len(Values) = %d, want %d", len(values), tt.wantLen)
+				t.Fatalf("len(values) = %d, want %d", len(values), tt.wantLen)
 			}
 			if tt.wantFirst != nil && values[0] != tt.wantFirst {
 				t.Errorf("node_id = %v, want %v", values[0], tt.wantFirst)
@@ -57,19 +50,11 @@ func TestReadingSourceValues(t *testing.T) {
 	}
 }
 
-func TestReadingSourceNullAndPresentColumns(t *testing.T) {
+func TestExtractValuesNullAndPresentColumns(t *testing.T) {
 	temperature := float32(19.0)
 	reading := Reading{NodeID: "n2", Timestamp: time.Now(), Temperature: &temperature}
 
-	source := &readingSource{readings: []Reading{reading}}
-	if !source.Next() {
-		t.Fatal("expected a row")
-	}
-	values, err := source.Values()
-	if err != nil {
-		t.Fatalf("Values: %v", err)
-	}
-
+	values := extractValues(reading)
 	if values[6] == nil {
 		t.Errorf("temperature column should not be nil")
 	}
@@ -83,21 +68,8 @@ func TestReadingSourceNullAndPresentColumns(t *testing.T) {
 	}
 }
 
-func TestReadingSourceExhaustion(t *testing.T) {
-	source := &readingSource{readings: []Reading{{NodeID: "n1"}}}
-	if !source.Next() {
-		t.Fatal("first Next should be true")
-	}
-	if source.Next() {
-		t.Fatal("second Next should be false")
-	}
-	if err := source.Err(); err != nil {
-		t.Fatalf("Err = %v, want nil", err)
-	}
-}
-
 func TestStoreReadingsEmpty(t *testing.T) {
-	repo := &Repository{db: nil, log: zap.NewNop()}
+	repo := &Repository{client: nil, log: zap.NewNop()}
 	stored, err := repo.StoreReadings(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("StoreReadings(empty): %v", err)

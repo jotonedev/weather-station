@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestPredictionSourceValues(t *testing.T) {
+func TestExtractValues(t *testing.T) {
 	timestamp := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
 	rainfall := float32(1.5)
 	tests := []struct {
@@ -33,41 +33,27 @@ func TestPredictionSourceValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			source := &predictionSource{predictions: []Prediction{tt.prediction}}
-			rowCount := 0
-			for source.Next() {
-				rowCount++
-				values, err := source.Values()
-				if err != nil {
-					t.Fatalf("Values: %v", err)
-				}
-				if len(values) != tt.wantLen {
-					t.Fatalf("len(Values) = %d, want %d", len(values), tt.wantLen)
-				}
-				if values[0] != tt.wantNode {
-					t.Errorf("node_id = %v, want %q", values[0], tt.wantNode)
-				}
-				if values[2] != tt.prediction.HorizonHours {
-					t.Errorf("horizon = %v, want %d", values[2], tt.prediction.HorizonHours)
-				}
+			values := extractValues(tt.prediction)
+			if len(values) != tt.wantLen {
+				t.Fatalf("len(values) = %d, want %d", len(values), tt.wantLen)
 			}
-			if rowCount != 1 {
-				t.Fatalf("rows = %d, want 1", rowCount)
+			if values[0] != tt.wantNode {
+				t.Errorf("node_id = %v, want %q", values[0], tt.wantNode)
+			}
+			if values[2] != tt.prediction.HorizonHours {
+				t.Errorf("horizon = %v, want %d", values[2], tt.prediction.HorizonHours)
 			}
 		})
 	}
 }
 
-func TestPredictionSourceNullColumns(t *testing.T) {
+func TestExtractValuesNullColumns(t *testing.T) {
 	rainfall := float32(3.2)
 	prediction := Prediction{NodeID: "n1", Ts: time.Now(), HorizonHours: 3, RainfallMm: &rainfall}
-	source := &predictionSource{predictions: []Prediction{prediction}}
-	if !source.Next() {
-		t.Fatal("expected a row")
-	}
-	values, err := source.Values()
-	if err != nil {
-		t.Fatalf("Values: %v", err)
+	values := extractValues(prediction)
+
+	if values[3] == nil {
+		t.Errorf("rainfall column should not be nil")
 	}
 	if value, ok := values[3].(float32); !ok || value != rainfall {
 		t.Errorf("rainfall = %v, want %v", values[3], rainfall)
@@ -80,7 +66,7 @@ func TestPredictionSourceNullColumns(t *testing.T) {
 }
 
 func TestStorePredictionsEmpty(t *testing.T) {
-	repo := &Repository{db: nil, log: zap.NewNop()}
+	repo := &Repository{client: nil, log: zap.NewNop()}
 	stored, err := repo.StorePredictions(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("StorePredictions(empty): %v", err)

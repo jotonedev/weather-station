@@ -3,8 +3,8 @@
 # Usage:
 #   docker build -f go/Dockerfile --build-arg SERVICE=<service-name> -t weather-station/<service-name> .
 
-ARG GO_VERSION=1.27
-FROM golang:${GO_VERSION}-alpine AS build-stage
+ARG GO_VERSION=1.24
+FROM golang:${GO_VERSION}-bookworm AS build-stage
 
 ARG SERVICE
 RUN test -n "$SERVICE" || (echo "SERVICE build-arg must be specified (e.g. data-ingest, database, frontend, inference-job)" && false)
@@ -28,10 +28,10 @@ COPY go/common/ ./go/common/
 COPY proto/gen/go/ ./proto/gen/go/
 COPY go/${SERVICE}/ ./go/${SERVICE}/
 
-# Compile static binary with symbol stripping and path trimming
+# Compile binary (CGO_ENABLED=1 required for embedded DuckDB in database service)
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build \
+    CGO_ENABLED=1 GOOS=linux go build \
     -trimpath \
     -ldflags="-s -w" \
     -o /service \
@@ -46,12 +46,18 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /grpc-health-probe \
     ./go/common/cmd/healthprobe
 
-FROM alpine:3.21 AS release-stage
+FROM debian:bookworm-slim AS release-stage
 
 ARG GO_ENV="production"
 ENV GO_ENV=${GO_ENV}
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+RUN mkdir -p /data && chown -R 65534:65534 /data
 
 COPY --from=build-stage /service /app/service
 COPY --from=build-stage /grpc-health-probe /usr/local/bin/grpc-health-probe

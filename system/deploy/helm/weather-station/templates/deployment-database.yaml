@@ -7,6 +7,8 @@ metadata:
     {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
 spec:
   replicas: {{ .Values.database.replicaCount }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 6 }}
@@ -19,25 +21,17 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.database.seed.enabled }}
-      initContainers:
-        - name: db-seed
-          image: "{{ .Values.database.seed.image.repository }}:{{ .Values.database.seed.image.tag }}"
-          imagePullPolicy: {{ .Values.database.seed.image.pullPolicy }}
-          command: ["/bin/sh", "/seed/seed.sh"]
-          env:
-            - name: QUESTDB_URL
-              value: "http://{{ include "weather-station.fullname" . }}-questdb:{{ .Values.questdb.service.httpPort }}"
-          volumeMounts:
-            - name: db-seed-scripts
-              mountPath: /seed
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              cpu: 100m
-              memory: 64Mi
+      {{- with .Values.database.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.database.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.database.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: database
@@ -48,8 +42,12 @@ spec:
               containerPort: {{ .Values.database.grpcPort }}
               protocol: TCP
           env:
-            - name: QUESTDB_DSN
-              value: "postgres://admin:quest@{{ include "weather-station.fullname" . }}-questdb:{{ .Values.questdb.service.pgwirePort }}/qdb"
+            - name: DUCKDB_PATH
+              value: "/data/weather.duckdb"
+            - name: DUCKDB_MAX_MEMORY
+              value: {{ .Values.database.duckdb.maxMemory | default "128MB" | quote }}
+            - name: DUCKDB_THREADS
+              value: {{ .Values.database.duckdb.threads | default 2 | quote }}
             - name: GRPC_ADDRESS
               value: "0.0.0.0:{{ .Values.database.grpcPort }}"
           livenessProbe:
@@ -72,11 +70,15 @@ spec:
             runAsGroup: 65534
             readOnlyRootFilesystem: false
             allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /data
       volumes:
-        {{- if .Values.database.seed.enabled }}
-        - name: db-seed-scripts
-          configMap:
-            name: {{ include "weather-station.fullname" . }}-db-seed
-            defaultMode: 0755
-        {{- end }}
+        - name: data
+          {{- if .Values.database.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-database-data" (include "weather-station.fullname" .)) .Values.database.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
 {{- end }}

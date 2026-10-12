@@ -1,13 +1,12 @@
 package main
 
 import (
-	"weather-station/common/client"
 	"weather-station/common/health"
 	"weather-station/common/logging"
 	"weather-station/common/server"
 
+	dbclient "weather-station/database/client"
 	"weather-station/database/controller"
-	"weather-station/database/gateway"
 	"weather-station/database/handler"
 	"weather-station/database/repository"
 
@@ -16,15 +15,14 @@ import (
 
 func main() {
 	fx.New(
-		// Shared ingress / egress modules
+		// Shared ingress modules
 		server.GRPCModule,
-		client.Module,
-		// Shared logging and health checks (HTTP + gRPC)
+		// Shared logging and health checks (gRPC)
 		logging.Module,
 		health.Module,
-		// Service-specific modules
+		// Database-specific modules
+		dbclient.Module,
 		handler.Module,
-		gateway.Module,
 		controller.Module,
 		repository.Module,
 	).Run()
