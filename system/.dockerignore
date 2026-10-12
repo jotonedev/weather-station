@@ -1,0 +1,31 @@
+**/.git
+**/.gitignore
+**/.vscode
+**/.idea
+
+# Python artifacts
+**/.venv
+**/venv
+**/env
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+**/*.egg-info
+**/.eggs
+**/dist
+**/build
+
+# Go artifacts
+**/bin
+**/*.exe
+**/*.test
+**/*.out
+
+# MCU firmware and pictures
+mcu
+pictures

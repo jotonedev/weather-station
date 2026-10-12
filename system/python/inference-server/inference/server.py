@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
+from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 
 from inference.config import Config
@@ -134,7 +135,9 @@ class InferenceServer:
         self.servicer = InferenceServicer(self.pipeline_manager, self.config)
         self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
         inference_pb2_grpc.add_InferenceServiceServicer_to_server(self.servicer, self._server)
-        self._server.add_insecure_port(f"{config.host}:{config.port}")
+        self.health_servicer = health.HealthServicer()
+        health_pb2_grpc.add_HealthServicer_to_server(self.health_servicer, self._server)
+        self.bound_port = self._server.add_insecure_port(f"{config.host}:{config.port}")
 
         self._stop_event = threading.Event()
         self._idle_thread = threading.Thread(target=self._idle_monitor, daemon=True)
@@ -147,12 +150,15 @@ class InferenceServer:
 
     def start(self) -> None:
         """Start begins serving gRPC requests and starts the idle monitor thread."""
+        self.health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+        self.health_servicer.set("ready", health_pb2.HealthCheckResponse.SERVING)
         self._server.start()
         self._idle_thread.start()
         logger.info("inference server started on %s:%d", self.config.host, self.config.port)
 
     def stop(self, grace: float = 5.0) -> None:
         """Stop shuts down the gRPC server and terminates the idle monitor thread."""
+        self.health_servicer.enter_graceful_shutdown()
         self._stop_event.set()
         self._server.stop(grace)
         logger.info("inference server stopped")

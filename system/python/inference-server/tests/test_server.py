@@ -3,6 +3,7 @@ from concurrent import futures
 import grpc
 import pytest
 from google.protobuf.timestamp_pb2 import Timestamp
+from grpc_health.v1 import health_pb2, health_pb2_grpc
 from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 
 from inference.config import Config
@@ -144,7 +145,7 @@ def test_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_server_lifecycle() -> None:
-    """Test_server_lifecycle verifies start and stop of InferenceServer."""
+    """Test_server_lifecycle verifies start, health checks, and stop of InferenceServer."""
     synthetic_pipeline = create_synthetic_pipeline()
     config = Config(host="127.0.0.1", port=0, model_name="test-chronos")
     pipeline_manager = PipelineManager(
@@ -154,4 +155,15 @@ def test_server_lifecycle() -> None:
 
     server = InferenceServer(config=config, pipeline_manager=pipeline_manager)
     server.start()
+
+    channel = grpc.insecure_channel(f"127.0.0.1:{server.bound_port}")
+    health_stub = health_pb2_grpc.HealthStub(channel)
+
+    health_resp = health_stub.Check(health_pb2.HealthCheckRequest(service=""))
+    assert health_resp.status == health_pb2.HealthCheckResponse.SERVING
+
+    ready_resp = health_stub.Check(health_pb2.HealthCheckRequest(service="ready"))
+    assert ready_resp.status == health_pb2.HealthCheckResponse.SERVING
+
+    channel.close()
     server.stop(grace=0.1)

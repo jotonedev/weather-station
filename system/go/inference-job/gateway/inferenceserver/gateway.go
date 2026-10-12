@@ -10,6 +10,7 @@ import (
 
 	grpcclient "weather-station/common/client/grpc"
 	protoinferencev1 "weather-station/gen/go/weather/inference/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 var (
@@ -21,8 +22,9 @@ var (
 
 // Gateway provides access to the inference server gRPC service.
 type Gateway struct {
-	log    *zap.Logger
-	client protoinferencev1.InferenceServiceClient
+	log          *zap.Logger
+	client       protoinferencev1.InferenceServiceClient
+	healthClient grpc_health_v1.HealthClient
 }
 
 // GatewayParams defines dependencies for Gateway.
@@ -33,14 +35,16 @@ type GatewayParams struct {
 	Config        Config
 	ClientFactory *grpcclient.ClientFactory                  `optional:"true"`
 	Client        protoinferencev1.InferenceServiceClient   `optional:"true"`
+	HealthClient  grpc_health_v1.HealthClient               `optional:"true"`
 }
 
 // New creates a new inference server Gateway instance.
 func New(params GatewayParams) (*Gateway, error) {
 	if params.Client != nil {
 		return &Gateway{
-			log:    params.Logger,
-			client: params.Client,
+			log:          params.Logger,
+			client:       params.Client,
+			healthClient: params.HealthClient,
 		}, nil
 	}
 
@@ -54,9 +58,30 @@ func New(params GatewayParams) (*Gateway, error) {
 	}
 
 	return &Gateway{
-		log:    params.Logger,
-		client: protoinferencev1.NewInferenceServiceClient(conn),
+		log:          params.Logger,
+		client:       protoinferencev1.NewInferenceServiceClient(conn),
+		healthClient: grpc_health_v1.NewHealthClient(conn),
 	}, nil
+}
+
+// Name returns the identifier of the readiness check.
+func (*Gateway) Name() string {
+	return "inference-server"
+}
+
+// Check verifies that the inference server service is ready.
+func (g *Gateway) Check(ctx context.Context) error {
+	if g.healthClient == nil {
+		return nil
+	}
+	resp, err := g.healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{Service: "ready"})
+	if err != nil {
+		return fmt.Errorf("check inference server health: %w", err)
+	}
+	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		return fmt.Errorf("inference server status is %s", resp.Status)
+	}
+	return nil
 }
 
 // PredictWeather sends time series observations and returns forecasted predictions.

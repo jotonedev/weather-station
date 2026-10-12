@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 	"weather-station/inference-job/internal/mocks"
@@ -252,6 +253,85 @@ func TestGatewayStorePredictions(t *testing.T) {
 			err = gw.StorePredictions(context.Background(), tt.predictions)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("StorePredictions() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGatewayCheck(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		name    string
+		setup   func(healthMock *mocks.MockHealthClient)
+		withNil bool
+		wantErr bool
+	}{
+		{
+			name:    "nil health client returns no error",
+			withNil: true,
+			wantErr: false,
+		},
+		{
+			name: "serving status returns no error",
+			setup: func(healthMock *mocks.MockHealthClient) {
+				healthMock.EXPECT().
+					Check(gomock.Any(), gomock.Any()).
+					Return(&grpc_health_v1.HealthCheckResponse{
+						Status: grpc_health_v1.HealthCheckResponse_SERVING,
+					}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "not serving status returns error",
+			setup: func(healthMock *mocks.MockHealthClient) {
+				healthMock.EXPECT().
+					Check(gomock.Any(), gomock.Any()).
+					Return(&grpc_health_v1.HealthCheckResponse{
+						Status: grpc_health_v1.HealthCheckResponse_NOT_SERVING,
+					}, nil)
+			},
+			wantErr: true,
+		},
+		{
+			name: "rpc error returns error",
+			setup: func(healthMock *mocks.MockHealthClient) {
+				healthMock.EXPECT().
+					Check(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("rpc failed"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var healthClient grpc_health_v1.HealthClient
+			if !tc.withNil {
+				healthMock := mocks.NewMockHealthClient(ctrl)
+				if tc.setup != nil {
+					tc.setup(healthMock)
+				}
+				healthClient = healthMock
+			}
+
+			gateway := &Gateway{
+				log:          zap.NewNop(),
+				healthClient: healthClient,
+			}
+
+			if gateway.Name() != "database" {
+				t.Errorf("expected name database, got %q", gateway.Name())
+			}
+
+			err := gateway.Check(context.Background())
+			if tc.wantErr && err == nil {
+				t.Fatal("expected error but got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 	}

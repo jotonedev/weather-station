@@ -6,11 +6,12 @@ import (
 	"go.uber.org/fx"
 )
 
-// Module registers the health check handler with the shared servers:
-// the HTTP health route and the gRPC health service.
+// Module registers health and readiness check handlers with shared servers:
+// the HTTP health route, the HTTP ready route, and the gRPC health service.
 var Module = fx.Module("health",
 	fx.Provide(
-		fxgroup.AsHTTPRoute(New),
+		fxgroup.AsHTTPRoute(NewHealth),
+		fxgroup.AsHTTPRoute(NewReady),
 		fxgroup.AsGRPCHandler(NewGRPC),
 	),
 )

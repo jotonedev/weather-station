@@ -17,7 +17,7 @@ import (
 func main() {
 	fx.New(
 		// Shared ingress / egress modules
-		server.Module,
+		server.GRPCModule,
 		client.Module,
 		// Shared logging and health checks (HTTP + gRPC)
 		logging.Module,

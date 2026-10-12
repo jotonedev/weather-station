@@ -22,7 +22,7 @@ system/
 │   ├── common/                # shared infrastructure module
 │   │   ├── server/            #   shared HTTP + gRPC servers
 │   │   ├── client/            #   shared HTTP + gRPC clients
-│   │   ├── health/            #   shared health-check (registers via fx groups)
+│   │   ├── health/            #   shared health and readiness checks (HTTP + gRPC)
 │   │   └── fxgroup/           #   shared helpers for tagging handlers into fx groups
 │   ├── database/              # service (duckdb storage)
 │   ├── data-ingest/           # service (ingests MCU data)
@@ -60,4 +60,24 @@ architecture-beta
     db:T -- B:frontend
     db:L -- R:data-ingest
     weather-station:T -- B:data-ingest
+```
+
+## Docker Images
+
+Build commands run from the `system/` directory.
+
+### Go Microservices
+
+Build any Go microservice by passing `SERVICE` (`data-ingest`, `database`, `frontend`, `inference-job`).
+
+```bash
+docker build -f go/Dockerfile --build-arg SERVICE=data-ingest -t weather-station/data-ingest .
+```
+
+### Python Inference Server
+
+Build the Chronos-2 inference server.
+
+```bash
+docker build -f python/inference-server/Dockerfile -t weather-station/inference-server .
 ```

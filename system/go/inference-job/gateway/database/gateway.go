@@ -12,6 +12,7 @@ import (
 
 	grpcclient "weather-station/common/client/grpc"
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 var (
@@ -27,6 +28,7 @@ type Gateway struct {
 	aggregateClient  protodatabasev1.ReadingAggregateServiceClient
 	predictionClient protodatabasev1.PredictionDatabaseServiceClient
 	nodeClient       protodatabasev1.NodeDatabaseServiceClient
+	healthClient     grpc_health_v1.HealthClient
 }
 
 // GatewayParams defines dependencies for Gateway.
@@ -39,6 +41,7 @@ type GatewayParams struct {
 	AggregateClient  protodatabasev1.ReadingAggregateServiceClient    `optional:"true"`
 	PredictionClient protodatabasev1.PredictionDatabaseServiceClient   `optional:"true"`
 	NodeClient       protodatabasev1.NodeDatabaseServiceClient        `optional:"true"`
+	HealthClient     grpc_health_v1.HealthClient                      `optional:"true"`
 }
 
 // New creates a new database Gateway instance.
@@ -49,6 +52,7 @@ func New(params GatewayParams) (*Gateway, error) {
 			aggregateClient:  params.AggregateClient,
 			predictionClient: params.PredictionClient,
 			nodeClient:       params.NodeClient,
+			healthClient:     params.HealthClient,
 		}, nil
 	}
 
@@ -81,7 +85,28 @@ func New(params GatewayParams) (*Gateway, error) {
 		aggregateClient:  aggregateClient,
 		predictionClient: predictionClient,
 		nodeClient:       nodeClient,
+		healthClient:     grpc_health_v1.NewHealthClient(conn),
 	}, nil
+}
+
+// Name returns the identifier of the readiness check.
+func (*Gateway) Name() string {
+	return "database"
+}
+
+// Check verifies that the database service is ready.
+func (g *Gateway) Check(ctx context.Context) error {
+	if g.healthClient == nil {
+		return nil
+	}
+	resp, err := g.healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{Service: "ready"})
+	if err != nil {
+		return fmt.Errorf("check database health: %w", err)
+	}
+	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		return fmt.Errorf("database status is %s", resp.Status)
+	}
+	return nil
 }
 
 // ListNodeCoordinates returns the metadata and identifiers of all configured weather nodes.

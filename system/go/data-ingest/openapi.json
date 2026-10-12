@@ -35,16 +35,50 @@
           "health"
         ],
         "summary": "Service health check",
-        "description": "Returns service liveness and readiness status.",
+        "description": "Returns service liveness status.",
         "operationId": "getHealth",
         "responses": {
           "200": {
-            "description": "Service is healthy and ready to receive traffic",
+            "description": "Service is healthy",
             "content": {
               "text/plain": {
                 "schema": {
                   "type": "string",
                   "example": "ok"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Service readiness check",
+        "description": "Returns service readiness status after evaluating registered dependencies.",
+        "operationId": "getReady",
+        "responses": {
+          "200": {
+            "description": "Service is ready to receive traffic",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "ok"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready to receive traffic",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "database: connection refused"
                 }
               }
             }

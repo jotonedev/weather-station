@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "chronos-forecasting>=2.3.2",
+    "grpcio-health-checking>=1.70.0",
     "torch>=2.14.1",
     "weather-proto",
 ]
