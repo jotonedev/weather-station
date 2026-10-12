@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM ghcr.io/astral-sh/uv:0.6.5 AS uv-bin
 
-FROM python:3.13-slim-bookworm AS build-stage
+FROM python:3.14-slim-bookworm AS build-stage
 
 WORKDIR /workspace
 
@@ -57,7 +57,7 @@ COPY python/inference-server/README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-FROM python:3.13-slim-bookworm AS release-stage
+FROM python:3.14-slim-bookworm AS release-stage
 
 # Install runtime ca-certificates
 RUN apt-get update \
