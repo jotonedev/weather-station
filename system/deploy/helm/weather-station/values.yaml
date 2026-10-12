@@ -51,6 +51,15 @@ dataIngest:
     pullPolicy: IfNotPresent
   httpPort: 8080
   grpcPort: 8090
+  # Pin dataIngest to rpi3 node alongside database
+  nodeSelector:
+    kubernetes.io/hostname: "rpi3"
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "rpi3"
+      effect: "PreferNoSchedule"
+  affinity: {}
   resources:
     requests:
       cpu: 10m
@@ -69,6 +78,9 @@ frontend:
     pullPolicy: IfNotPresent
   httpPort: 8080
   grpcPort: 8090
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
   resources:
     requests:
       cpu: 10m
@@ -127,6 +139,9 @@ inferenceJob:
     tag: latest
     pullPolicy: IfNotPresent
   grpcPort: 8090
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
   resources:
     requests:
       cpu: 10m
