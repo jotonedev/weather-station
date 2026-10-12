@@ -1,0 +1,77 @@
+{{- if .Values.inferenceServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "weather-station.fullname" . }}-inference-server
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-server") | nindent 4 }}
+spec:
+  replicas: {{ .Values.inferenceServer.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-server") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: {{ .Values.inferenceServer.securityContext.fsGroup | default 10001 }}
+      containers:
+        - name: inference-server
+          image: "{{ .Values.inferenceServer.image.repository }}:{{ .Values.inferenceServer.image.tag }}"
+          imagePullPolicy: {{ .Values.inferenceServer.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.inferenceServer.grpcPort }}
+              protocol: TCP
+          env:
+            - name: INFERENCE_PORT
+              value: {{ .Values.inferenceServer.grpcPort | quote }}
+            - name: INFERENCE_MODEL_NAME
+              value: {{ .Values.inferenceServer.modelName | quote }}
+            - name: INFERENCE_IDLE_TIMEOUT_SECONDS
+              value: {{ .Values.inferenceServer.idleTimeoutSeconds | quote }}
+            - name: INFERENCE_MAX_WORKERS
+              value: {{ .Values.inferenceServer.maxWorkers | quote }}
+            - name: INFERENCE_MAX_HORIZON_HOURS
+              value: {{ .Values.inferenceServer.maxHorizonHours | quote }}
+            - name: HF_HOME
+              value: {{ .Values.inferenceServer.modelCache.mountPath | quote }}
+          livenessProbe:
+            grpc:
+              port: {{ .Values.inferenceServer.grpcPort }}
+              service: ""
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            grpc:
+              port: {{ .Values.inferenceServer.grpcPort }}
+              service: "ready"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.inferenceServer.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.inferenceServer.securityContext.runAsUser | default 10001 }}
+            runAsGroup: {{ .Values.inferenceServer.securityContext.runAsGroup | default 10001 }}
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            {{- if .Values.inferenceServer.modelCache.enabled }}
+            - name: model-cache
+              mountPath: {{ .Values.inferenceServer.modelCache.mountPath }}
+            {{- end }}
+      volumes:
+        {{- if .Values.inferenceServer.modelCache.enabled }}
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "weather-station.fullname" . }}-model-cache
+        {{- end }}
+{{- end }}

@@ -1,0 +1,18 @@
+{{- if and .Values.questdb.enabled .Values.questdb.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "weather-station.fullname" . }}-questdb
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "questdb") | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.questdb.persistence.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.questdb.persistence.size | default "10Gi" }}
+  {{- $storageClass := default .Values.global.storageClass .Values.questdb.persistence.storageClass }}
+  {{- if $storageClass }}
+  storageClassName: {{ $storageClass | quote }}
+  {{- end }}
+{{- end }}

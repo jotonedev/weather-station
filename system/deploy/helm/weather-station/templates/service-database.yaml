@@ -1,0 +1,17 @@
+{{- if .Values.database.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "weather-station.fullname" . }}-database
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: {{ .Values.database.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 4 }}
+{{- end }}

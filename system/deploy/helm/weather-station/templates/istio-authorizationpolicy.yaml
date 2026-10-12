@@ -1,0 +1,98 @@
+{{- if .Values.istio.enabled }}
+# 1. Authorize QuestDB access strictly from the database microservice
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-questdb
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "questdb") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "questdb") | nindent 6 }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/{{ .Release.Namespace }}/sa/default"
+      to:
+        - operation:
+            ports:
+              - {{ .Values.questdb.service.pgwirePort | quote }}
+              - {{ .Values.questdb.service.httpPort | quote }}
+---
+# 2. Authorize Database service access strictly from data-ingest, frontend, and inference-job
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-database
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 6 }}
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.database.grpcPort | quote }}
+---
+# 3. Authorize Inference Server access strictly from inference-job
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-inference-server
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-server") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-server") | nindent 6 }}
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.inferenceServer.grpcPort | quote }}
+---
+# 4. Authorize Ingress to Data Ingest
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-data-ingest
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "data-ingest") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "data-ingest") | nindent 6 }}
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.dataIngest.httpPort | quote }}
+              - {{ .Values.dataIngest.grpcPort | quote }}
+---
+# 5. Authorize Ingress to Frontend
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-frontend
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.frontend.httpPort | quote }}
+              - {{ .Values.frontend.grpcPort | quote }}
+{{- end }}

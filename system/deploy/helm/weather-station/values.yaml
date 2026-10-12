@@ -1,0 +1,174 @@
+# Default values for weather-station.
+
+global:
+  # Default StorageClass to use for PVCs (k3s default is local-path)
+  storageClass: "local-path"
+  imagePullSecrets: []
+
+# QuestDB time-series database
+questdb:
+  enabled: true
+  image:
+    repository: questdb/questdb
+    tag: 8.2.1
+    pullPolicy: IfNotPresent
+  service:
+    pgwirePort: 8812
+    httpPort: 9000
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Database microservice (gRPC only, communicates with QuestDB)
+database:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: weather-station/database
+    tag: latest
+    pullPolicy: IfNotPresent
+  grpcPort: 8090
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  seed:
+    enabled: true
+    image:
+      repository: curlimages/curl
+      tag: 8.12.1
+      pullPolicy: IfNotPresent
+    # Initial node coordinates to insert if not present
+    nodes:
+      - id: "station-01"
+        lat: 45.4642
+        lon: 9.1900
+        elevation: 120.0
+        name: "Milan Station"
+      - id: "station-02"
+        lat: 41.9028
+        lon: 12.4964
+        elevation: 50.0
+        name: "Rome Station"
+
+# Data Ingest microservice (HTTP for sensor ingestion, gRPC for health checks)
+dataIngest:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: weather-station/data-ingest
+    tag: latest
+    pullPolicy: IfNotPresent
+  httpPort: 8080
+  grpcPort: 8090
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Frontend microservice (HTTP for web UI, gRPC for health checks)
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: weather-station/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  httpPort: 8080
+  grpcPort: 8090
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Inference Server (Python / PyTorch gRPC model serving)
+inferenceServer:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: weather-station/inference-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  grpcPort: 50051
+  modelName: "amazon/chronos-2"
+  idleTimeoutSeconds: 3600.0
+  maxWorkers: 4
+  maxHorizonHours: 240
+  # Dedicated PVC cache for HuggingFace model weights
+  modelCache:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    mountPath: /home/appuser/.cache/huggingface
+  # Resources dedicated to ML inference
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+  securityContext:
+    fsGroup: 10001
+    runAsUser: 10001
+    runAsGroup: 10001
+
+# Inference CronJob (Go batch forecaster triggering inference)
+inferenceJob:
+  enabled: true
+  schedule: "0 * * * *" # Every hour
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  image:
+    repository: weather-station/inference-job
+    tag: latest
+    pullPolicy: IfNotPresent
+  grpcPort: 8090
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Traefik Ingress configuration
+ingress:
+  enabled: true
+  className: "traefik"
+  annotations: {}
+  host: "weather.local"
+  tls: []
+
+# Zero-trust Kubernetes NetworkPolicies
+networkPolicy:
+  enabled: true
+
+# Istio Service Mesh & Tracing
+istio:
+  enabled: true
+  mtlsMode: STRICT
+  telemetry:
+    enabled: true
+    # Jaeger OpenTelemetry gRPC / OTLP endpoint
+    jaegerAddress: "http://jaeger-collector.istio-system.svc.cluster.local:4317"

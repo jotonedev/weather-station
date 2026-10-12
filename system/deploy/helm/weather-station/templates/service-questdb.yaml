@@ -1,0 +1,21 @@
+{{- if .Values.questdb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "weather-station.fullname" . }}-questdb
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "questdb") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: pgwire
+      port: {{ .Values.questdb.service.pgwirePort }}
+      targetPort: pgwire
+      protocol: TCP
+    - name: http
+      port: {{ .Values.questdb.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "questdb") | nindent 4 }}
+{{- end }}

@@ -1,0 +1,11 @@
+{{- if .Values.istio.enabled }}
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "weather-station.fullname" . }}-mtls
+  labels:
+    {{- include "weather-station.labels" . | nindent 4 }}
+spec:
+  mtls:
+    mode: {{ .Values.istio.mtlsMode | default "STRICT" }}
+{{- end }}

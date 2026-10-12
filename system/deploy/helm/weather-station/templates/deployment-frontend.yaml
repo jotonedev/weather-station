@@ -1,0 +1,60 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "weather-station.fullname" . }}-frontend
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.httpPort }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.frontend.grpcPort }}
+              protocol: TCP
+          env:
+            - name: DATABASE_ADDRESS
+              value: "{{ include "weather-station.fullname" . }}-database:{{ .Values.database.grpcPort }}"
+            - name: HTTP_ADDRESS
+              value: "0.0.0.0:{{ .Values.frontend.httpPort }}"
+            - name: GRPC_ADDRESS
+              value: "0.0.0.0:{{ .Values.frontend.grpcPort }}"
+          livenessProbe:
+            grpc:
+              port: {{ .Values.frontend.grpcPort }}
+              service: ""
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: {{ .Values.frontend.grpcPort }}
+              service: "ready"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+{{- end }}

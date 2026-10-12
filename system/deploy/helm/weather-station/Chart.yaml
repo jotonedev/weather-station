@@ -1,0 +1,15 @@
+apiVersion: v2
+name: weather-station
+description: Weather station platform with microservices
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - weather-station
+  - microservices
+  - grpc
+  - questdb
+  - machine-learning
+  - istio
+maintainers:
+  - name: John Toniutti

@@ -1,0 +1,21 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "weather-station.fullname" . }}-frontend
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.frontend.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.frontend.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+{{- end }}

@@ -1,0 +1,45 @@
+{{- if .Values.inferenceJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "weather-station.fullname" . }}-inference-job
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-job") | nindent 4 }}
+spec:
+  schedule: {{ .Values.inferenceJob.schedule | quote }}
+  concurrencyPolicy: {{ .Values.inferenceJob.concurrencyPolicy | default "Forbid" }}
+  successfulJobsHistoryLimit: {{ .Values.inferenceJob.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .Values.inferenceJob.failedJobsHistoryLimit | default 1 }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-job") | nindent 8 }}
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-job") | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: inference-job
+              image: "{{ .Values.inferenceJob.image.repository }}:{{ .Values.inferenceJob.image.tag }}"
+              imagePullPolicy: {{ .Values.inferenceJob.image.pullPolicy }}
+              env:
+                - name: DATABASE_ADDRESS
+                  value: "{{ include "weather-station.fullname" . }}-database:{{ .Values.database.grpcPort }}"
+                - name: INFERENCE_SERVER_ADDRESS
+                  value: "{{ include "weather-station.fullname" . }}-inference-server:{{ .Values.inferenceServer.grpcPort }}"
+              resources:
+                {{- toYaml .Values.inferenceJob.resources | nindent 16 }}
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+                readOnlyRootFilesystem: false
+                allowPrivilegeEscalation: false
+{{- end }}

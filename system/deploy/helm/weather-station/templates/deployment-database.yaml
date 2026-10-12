@@ -1,0 +1,82 @@
+{{- if .Values.database.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "weather-station.fullname" . }}-database
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+spec:
+  replicas: {{ .Values.database.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.database.seed.enabled }}
+      initContainers:
+        - name: db-seed
+          image: "{{ .Values.database.seed.image.repository }}:{{ .Values.database.seed.image.tag }}"
+          imagePullPolicy: {{ .Values.database.seed.image.pullPolicy }}
+          command: ["/bin/sh", "/seed/seed.sh"]
+          env:
+            - name: QUESTDB_URL
+              value: "http://{{ include "weather-station.fullname" . }}-questdb:{{ .Values.questdb.service.httpPort }}"
+          volumeMounts:
+            - name: db-seed-scripts
+              mountPath: /seed
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      {{- end }}
+      containers:
+        - name: database
+          image: "{{ .Values.database.image.repository }}:{{ .Values.database.image.tag }}"
+          imagePullPolicy: {{ .Values.database.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.database.grpcPort }}
+              protocol: TCP
+          env:
+            - name: QUESTDB_DSN
+              value: "postgres://admin:quest@{{ include "weather-station.fullname" . }}-questdb:{{ .Values.questdb.service.pgwirePort }}/qdb"
+            - name: GRPC_ADDRESS
+              value: "0.0.0.0:{{ .Values.database.grpcPort }}"
+          livenessProbe:
+            grpc:
+              port: {{ .Values.database.grpcPort }}
+              service: ""
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: {{ .Values.database.grpcPort }}
+              service: "ready"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.database.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+      volumes:
+        {{- if .Values.database.seed.enabled }}
+        - name: db-seed-scripts
+          configMap:
+            name: {{ include "weather-station.fullname" . }}-db-seed
+            defaultMode: 0755
+        {{- end }}
+{{- end }}

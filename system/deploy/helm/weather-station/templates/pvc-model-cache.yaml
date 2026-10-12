@@ -1,0 +1,18 @@
+{{- if and .Values.inferenceServer.enabled .Values.inferenceServer.modelCache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "weather-station.fullname" . }}-model-cache
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-server") | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.inferenceServer.modelCache.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.inferenceServer.modelCache.size | default "10Gi" }}
+  {{- $storageClass := default .Values.global.storageClass .Values.inferenceServer.modelCache.storageClass }}
+  {{- if $storageClass }}
+  storageClassName: {{ $storageClass | quote }}
+  {{- end }}
+{{- end }}

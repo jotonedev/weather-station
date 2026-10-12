@@ -1,0 +1,208 @@
+{{- if .Values.networkPolicy.enabled }}
+# 1. Default deny all ingress and egress traffic in release namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-default-deny
+  labels:
+    {{- include "weather-station.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# 2. Allow DNS resolution and Istio control plane egress for all pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-allow-dns
+  labels:
+    {{- include "weather-station.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# 3. QuestDB NetworkPolicy (accepts pgwire & HTTP only from database pod)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-questdb
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "questdb") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "questdb") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.questdb.service.pgwirePort }}
+        - protocol: TCP
+          port: {{ .Values.questdb.service.httpPort }}
+---
+# 4. Database NetworkPolicy (accepts gRPC from data-ingest, frontend, inference-job; egress to questdb)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-database
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "data-ingest") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-job") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.database.grpcPort }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "questdb") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.questdb.service.pgwirePort }}
+        - protocol: TCP
+          port: {{ .Values.questdb.service.httpPort }}
+---
+# 5. Data Ingest NetworkPolicy (accepts HTTP from Ingress; egress to database)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-data-ingest
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "data-ingest") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "data-ingest") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.dataIngest.httpPort }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.database.grpcPort }}
+---
+# 6. Frontend NetworkPolicy (accepts HTTP from Ingress; egress to database)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-frontend
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.httpPort }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.database.grpcPort }}
+---
+# 7. Inference Server NetworkPolicy (accepts gRPC from inference-job; egress to HuggingFace for weights)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-inference-server
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-server") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-server") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-job") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.inferenceServer.grpcPort }}
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+# 8. Inference Job NetworkPolicy (egress to database and inference-server)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-inference-job
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-job") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-job") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "database") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.database.grpcPort }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "inference-server") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.inferenceServer.grpcPort }}
+{{- end }}
