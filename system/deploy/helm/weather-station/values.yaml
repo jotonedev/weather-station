@@ -105,6 +105,11 @@ inferenceServer:
     limits:
       cpu: 4000m
       memory: 8Gi
+  # Pin inferenceServer to nodes with label node-size=large (arm-01 and arm-02 with ~12GB RAM)
+  nodeSelector:
+    node-size: "large"
+  tolerations: []
+  affinity: {}
   securityContext:
     fsGroup: 10001
     runAsUser: 10001
