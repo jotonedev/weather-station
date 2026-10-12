@@ -8,7 +8,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/local"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -28,7 +28,7 @@ func NewClientFactory(lc fx.Lifecycle, log *zap.Logger) *ClientFactory {
 // NewConnection creates a connection to a specific target.
 // access to *grpc.ClientConn is managed by Fx lifecycle.
 func (f *ClientFactory) NewConnection(target string) (*grpc.ClientConn, error) {
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(local.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		f.log.Error("Failed to create gRPC client", zap.String("target", target), zap.Error(err))
 		return nil, err
