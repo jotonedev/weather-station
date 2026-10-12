@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"weather-station/database/client"
+	duckdb "weather-station/database/client"
 
 	"go.uber.org/zap"
 )

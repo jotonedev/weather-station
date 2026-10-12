@@ -159,13 +159,6 @@ func (c *Client) initSchema(ctx context.Context) error {
 			wind_direction_confidence FLOAT
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_predictions_node_ts ON predictions (node_id, ts);`,
-
-		// 4. Default seed stations (idempotent)
-		`INSERT INTO node_coordinates (node_id, latitude, longitude, elevation_m, location_name)
-		VALUES
-			('station-01', 45.4642, 9.1900, 120.0, 'Milan Station'),
-			('station-02', 41.9028, 12.4964, 50.0, 'Rome Station')
-		ON CONFLICT (node_id) DO NOTHING;`,
 	}
 
 	for _, q := range queries {

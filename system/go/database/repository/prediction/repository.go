@@ -3,7 +3,7 @@ package prediction
 import (
 	"context"
 
-	"weather-station/database/client"
+	duckdb "weather-station/database/client"
 
 	"go.uber.org/zap"
 )
