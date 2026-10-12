@@ -1,0 +1,49 @@
+name: Go Tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/go-test.yml'
+      - 'system/go/**'
+      - 'system/proto/gen/go/**'
+      - 'system/go.work'
+      - 'system/go.work.sum'
+  pull_request:
+    paths:
+      - '.github/workflows/go-test.yml'
+      - 'system/go/**'
+      - 'system/proto/gen/go/**'
+      - 'system/go.work'
+      - 'system/go.work.sum'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run Go tests
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '1'
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'system/go.work'
+          cache-dependency-path: 'system/go.work.sum'
+
+      - name: Sync dependencies
+        run: go work sync
+
+      - name: Run go vet
+        run: go vet ./go/common/... ./go/data-ingest/... ./go/database/... ./go/frontend/... ./go/inference-job/...
+
+      - name: Run Go tests
+        run: go test -v -cover ./go/common/... ./go/data-ingest/... ./go/database/... ./go/frontend/... ./go/inference-job/...
