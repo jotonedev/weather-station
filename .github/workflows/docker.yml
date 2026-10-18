@@ -66,7 +66,7 @@ jobs:
             type=semver,pattern={{version}}
 
       - name: Setup cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ matrix.service }}-${{ hashFiles('system/go/Dockerfile', 'system/go.work', 'system/go.work.sum', format('system/go/{0}/**', matrix.service)) }}
@@ -120,7 +120,7 @@ jobs:
             type=semver,pattern={{version}}
 
       - name: Setup cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/.buildx-cache
           key: ${{ runner.os }}-buildx-inference-server-${{ hashFiles('system/python/inference-server/Dockerfile', 'system/python/inference-server/uv.lock') }}
