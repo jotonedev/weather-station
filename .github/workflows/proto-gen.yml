@@ -22,7 +22,7 @@ jobs:
       BUF_VERSION: v1.73.0
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup buf
         uses: bufbuild/buf-setup-action@v1
