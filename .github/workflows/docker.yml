@@ -65,7 +65,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-            type=sha,prefix=,format=short
+            # sha- prefix keeps Keel from parsing short SHAs as semver candidates
+            type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
 
       - name: Setup cache
@@ -123,7 +124,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/inference-server
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-            type=sha,prefix=,format=short
+            # sha- prefix keeps Keel from parsing short SHAs as semver candidates
+            type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
 
       - name: Setup cache

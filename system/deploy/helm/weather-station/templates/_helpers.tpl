@@ -86,6 +86,10 @@ Keel annotations helper
 keel.sh/policy: {{ .Values.keel.policy | quote }}
 keel.sh/trigger: {{ .Values.keel.trigger | quote }}
 keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
+# Track only the digest of the tag in use (e.g. latest). Without this, the
+# force policy's multi-tag watcher treats any other tag (incl. SHA tags) as
+# a valid update candidate and can pin stale/broken builds.
+keel.sh/match-tag: "true"
 {{- end }}
 {{- end }}
 
