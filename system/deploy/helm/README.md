@@ -174,3 +174,27 @@ wsl helm install ws /mnt/s/dev/weather-station/system/deploy/helm/weather-statio
   --namespace weather-station \
   --create-namespace
 ```
+
+### Upgrades with SSA field-manager conflicts
+
+If `helm upgrade` fails with `conflict with "keel" using apps/v1: ...containers[name=...].image`, Keel's server-side-apply field manager still owns the image field from a previous automated update. Reclaim ownership:
+```bash
+helm upgrade ws ./weather-station -n weather-station --force-conflicts
+```
+
+---
+
+## Automatic Image Updates (Keel)
+
+The chart ships Keel annotations (`keel.enabled: true` in `values.yaml`) so the platform's deployments update automatically:
+
+- `keel.sh/policy: force`, `keel.sh/trigger: poll`, `keel.sh/pollSchedule: @every 15m`
+- `keel.sh/match-tag: "true"` - **critical**: switches Keel's `force` policy to the single-tag watcher, which tracks only the **digest of the tag in use** (`latest`). Without it, Keel's multi-tag watcher treats *any* other tag in the repository as an update candidate (the current `latest` tag is non-semver, so no version comparison happens), and stale bare-SHA tags have been observed winning and pinning broken builds.
+
+### Update model: `latest` + digest tracking
+
+- CI (`.github/workflows/docker.yml`) pushes `latest` (rebuilt on every push to `main`), `sha-<shortsha>` tags (human debugging only - never deploy these directly), and semver tags on git tags.
+- Deployments always reference `image.tag: latest`. Keel polls the registry every 15 minutes, compares the `latest` digest with what the workloads run, and rolls deployments on digest change.
+- To pin an exact build, override the tag via `--set <component>.image.tag=sha-<shortsha>` **and** set `--set keel.enabled=false`, otherwise Keel will roll you back onto `latest` on its next poll.
+- The `verify-latest` job in the CI workflow fails the run if `latest` is missing or does not contain every declared platform (`linux/amd64`, `linux/arm64`), preventing Keel from rolling the cluster onto a partially pushed multi-arch image index.
+
