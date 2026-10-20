@@ -1,12 +1,10 @@
-#include <Arduino.h> 
+#include <Arduino.h>
 #include <cmath>
 #include <cstdlib>
 
 #include "anemometer.h"
 
-
-Anemometer::Anemometer(TwoWire& wire) : wire(wire), as5600(&wire) {
-}
+Anemometer::Anemometer(TwoWire& wire) : wire(wire), as5600(&wire) {}
 
 Anemometer::~Anemometer() {
     stopTask();
@@ -39,7 +37,8 @@ void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
 }
 
 bool Anemometer::ready() {
-    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() && !as5600.magnetTooWeak();
+    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
+           !as5600.magnetTooWeak();
 }
 
 bool Anemometer::isConnected() {
@@ -71,15 +70,8 @@ bool Anemometer::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseTy
     if (taskHandle != nullptr) {
         return true;
     }
-    BaseType_t res = xTaskCreatePinnedToCore(
-        taskTrampoline,
-        "AnemometerTask",
-        4096,
-        this,
-        priority,
-        &taskHandle,
-        core
-    );
+    BaseType_t res = xTaskCreatePinnedToCore(taskTrampoline, "AnemometerTask", 4096, this, priority,
+                                             &taskHandle, core);
     return res == pdPASS;
 }
 
@@ -160,16 +152,20 @@ void Anemometer::update() {
 
         uint32_t elapsedGapUs = nowUs - dropoutStartMicros;
 
-        // Inertial coasting: bridge blind spots up to 1.5 seconds (supports slow speeds down to 10 RPM)
+        // Inertial coasting: bridge blind spots up to 1.5 seconds (supports slow speeds down to 10
+        // RPM)
         if (elapsedGapUs < 1500000 && filteredRpm > 0.5f && lastRawAngle >= 0) {
             // Coast with subtle bearing friction deceleration (0.1% per 10ms)
             filteredRpm *= 0.999f;
-            int32_t projectedStep = rotationDirection * static_cast<int32_t>((filteredRpm * 4096.0f / 60.0f) * 0.010f);
+            int32_t projectedStep =
+                rotationDirection * static_cast<int32_t>((filteredRpm * 4096.0f / 60.0f) * 0.010f);
             cumulativeCounts += projectedStep;
 
-            history[historyIdx] = { cumulativeCounts, nowUs };
+            history[historyIdx] = {cumulativeCounts, nowUs};
             historyIdx = (historyIdx + 1) % WINDOW_SIZE;
-            if (historyCount < WINDOW_SIZE) historyCount++;
+            if (historyCount < WINDOW_SIZE) {
+                historyCount++;
+            }
         } else if (elapsedGapUs >= 1500000) {
             // Genuine standstill or disconnected sensor: decay smoothly to zero
             filteredRpm *= 0.85f;
@@ -202,7 +198,7 @@ void Anemometer::update() {
         cumulativeCounts = 0;
         historyIdx = 0;
         historyCount = 1;
-        history[0] = { cumulativeCounts, nowUs };
+        history[0] = {cumulativeCounts, nowUs};
         portEXIT_CRITICAL(&spinlock);
         return;
     }
@@ -218,7 +214,7 @@ void Anemometer::update() {
     lastRawAngle = raw;
 
     // Record sample in circular history buffer
-    history[historyIdx] = { cumulativeCounts, nowUs };
+    history[historyIdx] = {cumulativeCounts, nowUs};
     historyIdx = (historyIdx + 1) % WINDOW_SIZE;
     if (historyCount < WINDOW_SIZE) {
         historyCount++;
@@ -235,7 +231,8 @@ void Anemometer::update() {
         if (std::abs(dCounts) <= 3) {
             rawRpm = 0.0f;
         } else {
-            rawRpm = (static_cast<float>(std::abs(dCounts)) * 60.0f * 1e6f) / (static_cast<float>(dtUs) * 4096.0f);
+            rawRpm = (static_cast<float>(std::abs(dCounts)) * 60.0f * 1e6f) /
+                     (static_cast<float>(dtUs) * 4096.0f);
         }
     }
 
@@ -326,4 +323,3 @@ float Anemometer::readWindRPM() {
 float Anemometer::readWindSpeed() {
     return getWindSpeed();
 }
-

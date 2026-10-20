@@ -1,12 +1,11 @@
 #include <Arduino.h>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 
 #include "rainmeter.h"
 
 RainMeter::RainMeter(TwoWire& wire, float mmPerTip)
-    : wire(wire), as5600(&wire), mmPerTip(mmPerTip) {
-}
+    : wire(wire), as5600(&wire), mmPerTip(mmPerTip) {}
 
 RainMeter::~RainMeter() {
     stopTask();
@@ -46,8 +45,8 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
 }
 
 bool RainMeter::ready() {
-    return as5600.isConnected() && as5600.magnetDetected() &&
-           !as5600.magnetTooStrong() && !as5600.magnetTooWeak();
+    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
+           !as5600.magnetTooWeak();
 }
 
 bool RainMeter::isConnected() {
@@ -80,15 +79,8 @@ bool RainMeter::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseTyp
         return true;
     }
     this->samplePeriodMs = samplePeriodMs;
-    BaseType_t res = xTaskCreatePinnedToCore(
-        taskTrampoline,
-        "RainMeterTask",
-        4096,
-        this,
-        priority,
-        &taskHandle,
-        core
-    );
+    BaseType_t res = xTaskCreatePinnedToCore(taskTrampoline, "RainMeterTask", 4096, this, priority,
+                                             &taskHandle, core);
     return res == pdPASS;
 }
 
@@ -176,7 +168,9 @@ void RainMeter::update() {
         stillCount = 0;
     }
     uint32_t stillThreshold = (samplePeriodMs > 0) ? (250 / samplePeriodMs) : 8;
-    if (stillThreshold < 4) stillThreshold = 4;
+    if (stillThreshold < 4) {
+        stillThreshold = 4;
+    }
     bool isStill = (stillCount >= stillThreshold);
 
     // =========================================================================
@@ -190,7 +184,8 @@ void RainMeter::update() {
                 hasClusterA = true;
             } else if (!hasClusterB) {
                 int32_t dist = std::abs(currentPos - clusterA);
-                // At least 20 counts (~1.75 degrees) separation to constitute distinct resting positions
+                // At least 20 counts (~1.75 degrees) separation to constitute distinct resting
+                // positions
                 if (dist >= 20) {
                     clusterB = currentPos;
                     hasClusterB = true;
@@ -200,8 +195,10 @@ void RainMeter::update() {
                     recomputeGeometry();
                     saveNvsCalibration();
 
-                    currentState = (std::abs(currentPos - restLeft) < std::abs(currentPos - restRight))
-                                   ? RainMeterState::REST_LEFT : RainMeterState::REST_RIGHT;
+                    currentState =
+                        (std::abs(currentPos - restLeft) < std::abs(currentPos - restRight))
+                            ? RainMeterState::REST_LEFT
+                            : RainMeterState::REST_RIGHT;
                 } else {
                     // Refine cluster A
                     clusterA = static_cast<int32_t>(0.90f * clusterA + 0.10f * currentPos);
@@ -211,80 +208,80 @@ void RainMeter::update() {
     } else {
         // Active calibrated operation
         switch (currentState) {
-            case RainMeterState::REST_LEFT:
-                // Adaptive resting stop tracking while stationary
-                if (isStill && std::abs(currentPos - restLeft) < travelSpan * 0.30f) {
-                    restLeft = static_cast<int32_t>(0.99f * restLeft + 0.01f * currentPos);
-                    recomputeGeometry();
-                }
-                // Check if tipped past center crest + hysteresis
-                if (filteredPos > (centerPoint + hysteresis)) {
-                    currentState = RainMeterState::TRANSIT_TO_RIGHT;
-                    transitStartMs = nowMs;
-                }
-                break;
+        case RainMeterState::REST_LEFT:
+            // Adaptive resting stop tracking while stationary
+            if (isStill && std::abs(currentPos - restLeft) < travelSpan * 0.30f) {
+                restLeft = static_cast<int32_t>(0.99f * restLeft + 0.01f * currentPos);
+                recomputeGeometry();
+            }
+            // Check if tipped past center crest + hysteresis
+            if (filteredPos > (centerPoint + hysteresis)) {
+                currentState = RainMeterState::TRANSIT_TO_RIGHT;
+                transitStartMs = nowMs;
+            }
+            break;
 
-            case RainMeterState::TRANSIT_TO_RIGHT:
-                // Check for successful landing in Right basin
-                if (filteredPos >= (static_cast<float>(restRight) - travelSpan * 0.25f)) {
-                    recordTip(nowMs);
+        case RainMeterState::TRANSIT_TO_RIGHT:
+            // Check for successful landing in Right basin
+            if (filteredPos >= (static_cast<float>(restRight) - travelSpan * 0.25f)) {
+                recordTip(nowMs);
+                currentState = RainMeterState::REST_RIGHT;
+                jammed = false;
+            } else if (filteredPos < (centerPoint - hysteresis)) {
+                // Wind shake rejection: rocked past crest but fell back without reaching right stop
+                currentState = RainMeterState::REST_LEFT;
+            } else if (nowMs - transitStartMs > 2000) {
+                // Stuck mid-air for > 2 seconds
+                currentState = RainMeterState::JAMMED;
+                jammed = true;
+            }
+            break;
+
+        case RainMeterState::REST_RIGHT:
+            // Adaptive resting stop tracking while stationary
+            if (isStill && std::abs(currentPos - restRight) < travelSpan * 0.30f) {
+                restRight = static_cast<int32_t>(0.99f * restRight + 0.01f * currentPos);
+                recomputeGeometry();
+            }
+            // Check if tipped past center crest - hysteresis
+            if (filteredPos < (centerPoint - hysteresis)) {
+                currentState = RainMeterState::TRANSIT_TO_LEFT;
+                transitStartMs = nowMs;
+            }
+            break;
+
+        case RainMeterState::TRANSIT_TO_LEFT:
+            // Check for successful landing in Left basin
+            if (filteredPos <= (static_cast<float>(restLeft) + travelSpan * 0.25f)) {
+                recordTip(nowMs);
+                currentState = RainMeterState::REST_LEFT;
+                jammed = false;
+            } else if (filteredPos > (centerPoint + hysteresis)) {
+                // Wind shake rejection: rocked past crest but fell back to right stop
+                currentState = RainMeterState::REST_RIGHT;
+            } else if (nowMs - transitStartMs > 2000) {
+                // Stuck mid-air for > 2 seconds
+                currentState = RainMeterState::JAMMED;
+                jammed = true;
+            }
+            break;
+
+        case RainMeterState::JAMMED:
+            // Check if blockage cleared and bucket reached either resting basin
+            if (isStill) {
+                if (std::abs(currentPos - restLeft) < travelSpan * 0.30f) {
+                    currentState = RainMeterState::REST_LEFT;
+                    jammed = false;
+                } else if (std::abs(currentPos - restRight) < travelSpan * 0.30f) {
                     currentState = RainMeterState::REST_RIGHT;
                     jammed = false;
-                } else if (filteredPos < (centerPoint - hysteresis)) {
-                    // Wind shake rejection: rocked past crest but fell back without reaching right stop
-                    currentState = RainMeterState::REST_LEFT;
-                } else if (nowMs - transitStartMs > 2000) {
-                    // Stuck mid-air for > 2 seconds
-                    currentState = RainMeterState::JAMMED;
-                    jammed = true;
                 }
-                break;
+            }
+            break;
 
-            case RainMeterState::REST_RIGHT:
-                // Adaptive resting stop tracking while stationary
-                if (isStill && std::abs(currentPos - restRight) < travelSpan * 0.30f) {
-                    restRight = static_cast<int32_t>(0.99f * restRight + 0.01f * currentPos);
-                    recomputeGeometry();
-                }
-                // Check if tipped past center crest - hysteresis
-                if (filteredPos < (centerPoint - hysteresis)) {
-                    currentState = RainMeterState::TRANSIT_TO_LEFT;
-                    transitStartMs = nowMs;
-                }
-                break;
-
-            case RainMeterState::TRANSIT_TO_LEFT:
-                // Check for successful landing in Left basin
-                if (filteredPos <= (static_cast<float>(restLeft) + travelSpan * 0.25f)) {
-                    recordTip(nowMs);
-                    currentState = RainMeterState::REST_LEFT;
-                    jammed = false;
-                } else if (filteredPos > (centerPoint + hysteresis)) {
-                    // Wind shake rejection: rocked past crest but fell back to right stop
-                    currentState = RainMeterState::REST_RIGHT;
-                } else if (nowMs - transitStartMs > 2000) {
-                    // Stuck mid-air for > 2 seconds
-                    currentState = RainMeterState::JAMMED;
-                    jammed = true;
-                }
-                break;
-
-            case RainMeterState::JAMMED:
-                // Check if blockage cleared and bucket reached either resting basin
-                if (isStill) {
-                    if (std::abs(currentPos - restLeft) < travelSpan * 0.30f) {
-                        currentState = RainMeterState::REST_LEFT;
-                        jammed = false;
-                    } else if (std::abs(currentPos - restRight) < travelSpan * 0.30f) {
-                        currentState = RainMeterState::REST_RIGHT;
-                        jammed = false;
-                    }
-                }
-                break;
-
-            default:
-                currentState = RainMeterState::CALIBRATING;
-                break;
+        default:
+            currentState = RainMeterState::CALIBRATING;
+            break;
         }
     }
 
@@ -307,7 +304,8 @@ void RainMeter::recordTip(uint32_t nowMs) {
     }
 
     // Dynamic siphon & transit loss compensation at high rain rates:
-    // When water is pouring heavily (>20 mm/h), water enters the bucket during the 50-80ms tip transit.
+    // When water is pouring heavily (>20 mm/h), water enters the bucket during the 50-80ms tip
+    // transit.
     float rateClamped = std::min(currentRainRate, 150.0f);
     float dynamicVolume = mmPerTip * (1.0f + 0.0015f * rateClamped);
 
@@ -395,16 +393,21 @@ RainData RainMeter::getRainData() {
     portENTER_CRITICAL(&spinlock);
     RainData data = {};
     float r1h = 0.0f;
-    for (size_t i = 0; i < 60; i++) r1h += minuteBins[i];
+    for (size_t i = 0; i < 60; i++) {
+        r1h += minuteBins[i];
+    }
     float r24h = 0.0f;
-    for (size_t i = 0; i < 24; i++) r24h += hourBins[i];
+    for (size_t i = 0; i < 24; i++) {
+        r24h += hourBins[i];
+    }
 
-    data.rainfall_1h = static_cast<uint16_t>(r1h * 100.0f);   // 0.01 mm resolution
-    data.rainfall_24h = static_cast<uint16_t>(r24h * 100.0f); // 0.01 mm resolution
+    data.rainfall_1h = static_cast<uint16_t>(r1h * 100.0f);         // 0.01 mm resolution
+    data.rainfall_24h = static_cast<uint16_t>(r24h * 100.0f);       // 0.01 mm resolution
     data.rainRate = static_cast<uint16_t>(currentRainRate * 10.0f); // 0.1 mm/h
     data.magnetStatus.status = lastStatus;
     data.magnetStatus.agc = lastAgc;
-    data.magnetStatus.agcVariance = (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
+    data.magnetStatus.agcVariance =
+        (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
     portEXIT_CRITICAL(&spinlock);
     return data;
 }

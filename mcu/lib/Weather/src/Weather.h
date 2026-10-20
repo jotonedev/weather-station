@@ -100,9 +100,9 @@ float decodeRainRate(uint16_t raw);
 bool packWeatherData(const WeatherData& data, uint8_t* out, size_t capacity);
 bool unpackWeatherData(const uint8_t* in, size_t length, WeatherData& out);
 
-}  // namespace weather
+} // namespace weather
 
 static_assert(sizeof(WeatherData) <= weather::kMaxWirePayload,
               "WeatherData must fit the ARQ payload budget");
 
-#endif  // WEATHER_H
+#endif // WEATHER_H

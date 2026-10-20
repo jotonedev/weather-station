@@ -1,5 +1,6 @@
 #include "Ingest.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -21,7 +22,7 @@ struct BufferWriter {
         }
         va_list args;
         va_start(args, fmt);
-        int n = vsnprintf(data + written, capacity - written, fmt, args);
+        int const n = vsnprintf(data + written, capacity - written, fmt, args);
         va_end(args);
         if (n < 0 || static_cast<size_t>(n) >= capacity - written) {
             ok = false;
@@ -38,7 +39,7 @@ void appendRaw(BufferWriter& writer, bool& first, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     char field[64];
-    int n = vsnprintf(field, sizeof(field), fmt, args);
+    int const n = vsnprintf(field, sizeof(field), fmt, args);
     va_end(args);
     if (n <= 0 || static_cast<size_t>(n) >= sizeof(field)) {
         writer.ok = false;
@@ -84,20 +85,19 @@ void appendMagnetStatus(BufferWriter& writer, bool& first, const char* prefix,
 }
 
 // Append the full JSON object for one reading.
-bool appendJsonReading(BufferWriter& writer, const IngestReading& reading,
-                       const char* nodeId) {
+bool appendJsonReading(BufferWriter& writer, const IngestReading& reading, const char* nodeId) {
     if (!writer.append("{")) {
         return false;
     }
     bool first = true;
-    appendRaw(writer, first, "\"node_id\":\"%s\"", nodeId);
+    appendRaw(writer, first, R"("node_id":"%s")", nodeId);
 
     if (reading.epoch != 0) {
         char timestamp[24];
         if (formatIso8601(reading.epoch, timestamp, sizeof(timestamp)) != 20) {
             return false;
         }
-        appendRaw(writer, first, "\"timestamp\":\"%s\"", timestamp);
+        appendRaw(writer, first, R"("timestamp":"%s")", timestamp);
     }
 
     const WindData& wind = reading.data.windData;
@@ -150,7 +150,7 @@ bool appendJsonReading(BufferWriter& writer, const IngestReading& reading,
     return writer.append("}");
 }
 
-}  // namespace
+} // namespace
 
 int formatFloat(char* out, size_t capacity, float value) {
     if (capacity == 0 || std::isnan(value) || std::isinf(value)) {
@@ -163,7 +163,7 @@ int formatFloat(char* out, size_t capacity, float value) {
     if (n <= 0 || static_cast<size_t>(n) >= capacity) {
         return 0;
     }
-    char* dot = strchr(out, '.');
+    char const* dot = strchr(out, '.');
     if (dot != nullptr) {
         char* end = out + n - 1;
         while (end > dot && *end == '0') {
@@ -185,14 +185,13 @@ int formatIso8601(uint32_t epoch, char* out, size_t capacity) {
     if (capacity < 21) {
         return 0;
     }
-    time_t seconds = static_cast<time_t>(epoch);
+    auto const seconds = static_cast<time_t>(epoch);
     struct tm utc;
     if (gmtime_r(&seconds, &utc) == nullptr) {
         return 0;
     }
-    int n = snprintf(out, capacity, "%04d-%02d-%02dT%02d:%02d:%02dZ",
-                     utc.tm_year + 1900, utc.tm_mon + 1, utc.tm_mday,
-                     utc.tm_hour, utc.tm_min, utc.tm_sec);
+    int const n = snprintf(out, capacity, "%04d-%02d-%02dT%02d:%02d:%02dZ", utc.tm_year + 1900,
+                           utc.tm_mon + 1, utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec);
     if (n != 20) {
         return 0;
     }
@@ -205,8 +204,9 @@ bool sanitizeNodeId(const char* raw, char* out, size_t capacity) {
     }
     size_t written = 0;
     for (const char* p = raw; *p != '\0' && written + 1 < capacity; ++p) {
-        char c = *p;
-        bool alnum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+        char const c = *p;
+        bool const alnum =
+            (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
         if (alnum || c == '-' || c == '_') {
             out[written++] = c;
         }
@@ -218,8 +218,8 @@ bool sanitizeNodeId(const char* raw, char* out, size_t capacity) {
     return true;
 }
 
-int buildSinglePayload(const IngestReading& reading, const char* nodeId,
-                       char* out, size_t capacity) {
+int buildSinglePayload(const IngestReading& reading, const char* nodeId, char* out,
+                       size_t capacity) {
     if (out == nullptr || capacity == 0) {
         return 0;
     }
@@ -230,8 +230,8 @@ int buildSinglePayload(const IngestReading& reading, const char* nodeId,
     return static_cast<int>(writer.written);
 }
 
-int buildBatchPayload(const IngestReading* readings, size_t count, const char* nodeId,
-                      char* out, size_t capacity) {
+int buildBatchPayload(const IngestReading* readings, size_t count, const char* nodeId, char* out,
+                      size_t capacity) {
     if (readings == nullptr || count == 0 || out == nullptr || capacity == 0) {
         return 0;
     }
@@ -261,9 +261,7 @@ uint32_t backoffDelayMs(const BackoffPolicy& policy, uint8_t retryIndex) {
     for (uint8_t i = 1; i < retryIndex && delay < policy.maxDelayMs; ++i) {
         delay *= policy.multiplier;
     }
-    if (delay > policy.maxDelayMs) {
-        delay = policy.maxDelayMs;
-    }
+    delay = std::min<uint64_t>(delay, policy.maxDelayMs);
     return static_cast<uint32_t>(delay);
 }
 

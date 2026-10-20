@@ -2,14 +2,14 @@
 
 ARQ::RadioStatus CC1101RadioAdapter::fromRadioStatus(CC1101::Status status) {
     switch (status) {
-        case CC1101::STATUS_OK:
-            return ARQ::RadioStatus::Ok;
-        case CC1101::STATUS_INVALID_PARAM:
-            return ARQ::RadioStatus::InvalidParam;
-        case CC1101::STATUS_CHANNEL_BUSY:
-            return ARQ::RadioStatus::ChannelBusy;
-        default:
-            return ARQ::RadioStatus::Error;
+    case CC1101::STATUS_OK:
+        return ARQ::RadioStatus::Ok;
+    case CC1101::STATUS_INVALID_PARAM:
+        return ARQ::RadioStatus::InvalidParam;
+    case CC1101::STATUS_CHANNEL_BUSY:
+        return ARQ::RadioStatus::ChannelBusy;
+    default:
+        return ARQ::RadioStatus::Error;
     }
 }
 
@@ -19,9 +19,9 @@ ARQ::RadioStatus CC1101RadioAdapter::begin() {
 
 void CC1101RadioAdapter::setModulation(ARQ::Modulation mod) {
     switch (mod) {
-        case ARQ::Modulation::Gfsk:
-            radio_.setModulation(CC1101::MOD_GFSK);
-            break;
+    case ARQ::Modulation::Gfsk:
+        radio_.setModulation(CC1101::MOD_GFSK);
+        break;
     }
 }
 
@@ -119,8 +119,8 @@ ARQ::RadioStatus CC1101RadioAdapter::transmit(uint8_t* data, size_t length, uint
     return fromRadioStatus(radio_.transmit(data, length, address));
 }
 
-ARQ::RadioStatus CC1101RadioAdapter::transmitWithCca(uint8_t* data, size_t length,
-                                                     uint8_t address, uint8_t maxAttempts) {
+ARQ::RadioStatus CC1101RadioAdapter::transmitWithCca(uint8_t* data, size_t length, uint8_t address,
+                                                     uint8_t maxAttempts) {
     return fromRadioStatus(radio_.transmitWithCca(data, length, address, maxAttempts));
 }
 

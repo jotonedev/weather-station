@@ -27,11 +27,11 @@
 // Radio pins (LOLIN S3 Mini)
 // =============================================================================
 
-#define RADIO_CS_PIN   16
+#define RADIO_CS_PIN 16
 #define RADIO_GDO0_PIN 18
-#define SCK_PIN        12
-#define MISO_PIN       13
-#define MOSI_PIN       11
+#define SCK_PIN 12
+#define MISO_PIN 13
+#define MOSI_PIN 11
 
 constexpr uint8_t CONTROL_NODE_ADDR = 1;
 constexpr uint8_t BASE_STATION_ADDR = 2;
@@ -68,4 +68,4 @@ constexpr uint8_t BASE_STATION_ADDR = 2;
 #define NVS_KEY_BUFFER_DROPPED "bdrop"
 #define NVS_KEY_LAST_HTTP "http"
 
-#endif  // BASE_CONFIG_H
+#endif // BASE_CONFIG_H

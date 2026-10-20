@@ -8,8 +8,7 @@
 
 #include "ARQ.h"
 
-using ::testing::_;
-using ::testing::AnyNumber;
+using ::testing::_; // NOLINT(bugprone-reserved-identifier)/gtest matcher convention
 using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
@@ -36,7 +35,7 @@ class MockRadio : public ARQ::RadioInterface {
     MOCK_METHOD(ARQ::RadioStatus, setManchester, (bool), (override));
     MOCK_METHOD(ARQ::RadioStatus, setFec, (bool), (override));
     MOCK_METHOD(void, setCcaMode, (ARQ::CcaMode), (override));
-    MOCK_METHOD(void, setReceiveAction, (void (*)(void), ARQ::GdoPin), (override));
+    MOCK_METHOD(void, setReceiveAction, (void (*)(), ARQ::GdoPin), (override));
     MOCK_METHOD(void, writeReg, (uint8_t, uint8_t), (override));
     MOCK_METHOD(uint8_t, readRegField, (uint8_t, uint8_t, uint8_t), (override));
     MOCK_METHOD(ARQ::RadioStatus, readData, (uint8_t*, size_t, size_t*), (override));
@@ -55,11 +54,11 @@ class MockRadio : public ARQ::RadioInterface {
 void fillDataFrame(uint8_t* data, size_t length, size_t* read, ARQ::seq_t seq) {
     (void)length;
     data[0] = ARQ::PROTOCOL_VERSION;
-    data[1] = 1;  // source is the control node
+    data[1] = 1; // source is the control node
     data[2] = ARQ::DATA_FRAME;
     data[3] = static_cast<uint8_t>(seq & 0xFF);
     data[4] = static_cast<uint8_t>((seq >> 8) & 0xFF);
-    data[5] = 4;  // length
+    data[5] = 4; // length
     data[6] = 0;
     data[7] = 0x01;
     data[8] = 0x02;
@@ -68,7 +67,7 @@ void fillDataFrame(uint8_t* data, size_t length, size_t* read, ARQ::seq_t seq) {
     *read = 11;
 }
 
-}  // namespace
+} // namespace
 
 TEST(Arq, InitializesRadioConfiguration) {
     NiceMock<MockRadio> mock;
@@ -99,19 +98,19 @@ TEST(Arq, SendHappyPathWithAck) {
     EXPECT_CALL(mock, transmitWithCca(_, _, 2, 5)).WillOnce(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillOnce(Return(48));
-    EXPECT_CALL(mock, readData(_, _, _)).WillOnce(Invoke([](uint8_t* data, size_t length,
-                                                           size_t* read) {
-        (void)length;
-        data[0] = ARQ::PROTOCOL_VERSION;
-        data[1] = 2;  // source is the base station
-        data[2] = ARQ::ACK;
-        data[3] = 1;  // first sequence number
-        data[4] = 0;
-        data[5] = 0;
-        data[6] = 0;
-        *read = 7;
-        return ARQ::RadioStatus::Ok;
-    }));
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
+            (void)length;
+            data[0] = ARQ::PROTOCOL_VERSION;
+            data[1] = 2; // source is the base station
+            data[2] = ARQ::ACK;
+            data[3] = 1; // first sequence number
+            data[4] = 0;
+            data[5] = 0;
+            data[6] = 0;
+            *read = 7;
+            return ARQ::RadioStatus::Ok;
+        }));
     EXPECT_CALL(mock, idle()).Times(1);
 
     uint8_t payload[4] = {1, 2, 3, 4};
@@ -127,8 +126,9 @@ TEST(Arq, SendRetriesThenTimesOut) {
     ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
 
     // Initial send plus two retransmissions exhaust the retry budget.
-    EXPECT_CALL(mock, transmitWithCca(_, _, 2, _)).Times(3).WillRepeatedly(
-        Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, transmitWithCca(_, _, 2, _))
+        .Times(3)
+        .WillRepeatedly(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, startReceive(1)).Times(3).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, idle()).Times(1);
 
@@ -154,8 +154,7 @@ TEST(Arq, SendReportsChannelBusy) {
     ARQ::ARQ arq(mock, 1);
     ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
 
-    EXPECT_CALL(mock, transmitWithCca(_, _, _, _)).WillOnce(
-        Return(ARQ::RadioStatus::ChannelBusy));
+    EXPECT_CALL(mock, transmitWithCca(_, _, _, _)).WillOnce(Return(ARQ::RadioStatus::ChannelBusy));
     EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
 
     uint8_t payload[4] = {1, 2, 3, 4};
@@ -179,8 +178,8 @@ TEST(Arq, ReceiveDeliversDataAndAcks) {
 
     EXPECT_CALL(mock, startReceive(2)).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillRepeatedly(Return(48));
-    EXPECT_CALL(mock, readData(_, _, _)).WillRepeatedly(
-        Invoke([](uint8_t* data, size_t length, size_t* read) {
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillRepeatedly(Invoke([](uint8_t* data, size_t length, size_t* read) {
             fillDataFrame(data, length, read, 5);
             return ARQ::RadioStatus::Ok;
         }));
@@ -210,8 +209,8 @@ TEST(Arq, ReceiveSuppressesDuplicate) {
 
     EXPECT_CALL(mock, startReceive(2)).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillRepeatedly(Return(48));
-    EXPECT_CALL(mock, readData(_, _, _)).WillRepeatedly(
-        Invoke([](uint8_t* data, size_t length, size_t* read) {
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillRepeatedly(Invoke([](uint8_t* data, size_t length, size_t* read) {
             fillDataFrame(data, length, read, 5);
             return ARQ::RadioStatus::Ok;
         }));
@@ -236,19 +235,19 @@ TEST(Arq, ReceiveRejectsWrongVersion) {
 
     EXPECT_CALL(mock, startReceive(2)).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
     EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillOnce(Return(48));
-    EXPECT_CALL(mock, readData(_, _, _)).WillOnce(Invoke([](uint8_t* data, size_t length,
-                                                           size_t* read) {
-        (void)length;
-        data[0] = 2;  // unknown protocol version
-        data[1] = 1;
-        data[2] = ARQ::DATA_FRAME;
-        data[3] = 1;
-        data[4] = 0;
-        data[5] = 4;
-        data[6] = 0;
-        *read = 11;
-        return ARQ::RadioStatus::Ok;
-    }));
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
+            (void)length;
+            data[0] = 2; // unknown protocol version
+            data[1] = 1;
+            data[2] = ARQ::DATA_FRAME;
+            data[3] = 1;
+            data[4] = 0;
+            data[5] = 4;
+            data[6] = 0;
+            *read = 11;
+            return ARQ::RadioStatus::Ok;
+        }));
     EXPECT_CALL(mock, transmit(_, _, _)).Times(0);
 
     EXPECT_EQ(arq.startReceiveData(2), ARQ::STATUS_OK);

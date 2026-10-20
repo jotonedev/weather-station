@@ -64,6 +64,6 @@ class RadioInterface {
     virtual bool isCarrierDetected() = 0;
 };
 
-}  // namespace ARQ
+} // namespace ARQ
 
-#endif  // ARQ_RADIO_INTERFACE_H
+#endif // ARQ_RADIO_INTERFACE_H

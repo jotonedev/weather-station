@@ -1,12 +1,10 @@
-#include <Arduino.h> 
+#include <Arduino.h>
 #include <cmath>
 
 #include "windvane.h"
 
-
-WindVane::WindVane(TwoWire& wire, float calibrationOffset) 
-    : wire(wire), as5600(&wire), calibrationOffset(calibrationOffset) {
-}
+WindVane::WindVane(TwoWire& wire, float calibrationOffset)
+    : wire(wire), as5600(&wire), calibrationOffset(calibrationOffset) {}
 
 WindVane::~WindVane() {
     stopTask();
@@ -37,7 +35,8 @@ void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
 }
 
 bool WindVane::ready() {
-    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() && !as5600.magnetTooWeak();
+    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
+           !as5600.magnetTooWeak();
 }
 
 bool WindVane::isConnected() {
@@ -70,15 +69,8 @@ bool WindVane::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseType
         return true;
     }
     this->samplePeriodMs = samplePeriodMs;
-    BaseType_t res = xTaskCreatePinnedToCore(
-        taskTrampoline,
-        "WindVaneTask",
-        4096,
-        this,
-        priority,
-        &taskHandle,
-        core
-    );
+    BaseType_t res = xTaskCreatePinnedToCore(taskTrampoline, "WindVaneTask", 4096, this, priority,
+                                             &taskHandle, core);
     return res == pdPASS;
 }
 
@@ -136,8 +128,12 @@ void WindVane::update() {
 
     // Apply calibration offset
     float calibratedDeg = deg + calibrationOffset;
-    while (calibratedDeg < 0.0f) calibratedDeg += 360.0f;
-    while (calibratedDeg >= 360.0f) calibratedDeg -= 360.0f;
+    while (calibratedDeg < 0.0f) {
+        calibratedDeg += 360.0f;
+    }
+    while (calibratedDeg >= 360.0f) {
+        calibratedDeg -= 360.0f;
+    }
 
     // Circular vector smoothing with ~3 second time constant (tau = 3.0s)
     // alpha = dt / (tau + dt) adapts to 1 Hz, 2 Hz, or 4 Hz cleanly
@@ -234,4 +230,3 @@ float WindVane::readAngle() {
     }
     return getAngle();
 }
-

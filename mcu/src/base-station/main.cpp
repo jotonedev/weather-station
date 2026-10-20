@@ -1,17 +1,17 @@
 #include <Arduino.h>
+#include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <HTTPClient.h>
 #include <esp_task_wdt.h>
 #include <time.h>
 
 #include <ARQ.h>
 #include <Ingest.h>
 #include <Outbox.h>
+#include <RadioAdapter.h>
 #include <Weather.h>
 #include <cc1101.h>
-#include <RadioAdapter.h>
 
 #include "config.h"
 
@@ -39,7 +39,7 @@ static Counters counters;
 static BackoffPolicy backoff = {BACKOFF_MIN_MS, BACKOFF_MAX_MS, BACKOFF_MULTIPLIER, 0};
 
 bool timeSynced() {
-    return time(nullptr) >= 1600000000;  // roughly 2020
+    return time(nullptr) >= 1600000000; // roughly 2020
 }
 
 void syncTime() {
@@ -52,9 +52,8 @@ void syncTime() {
         time_t current = time(nullptr);
         struct tm now;
         gmtime_r(&current, &now);
-        Serial.printf("[OK] NTP synced %04d-%02d-%02dT%02d:%02d:%02dZ\n",
-                      now.tm_year + 1900, now.tm_mon + 1, now.tm_mday,
-                      now.tm_hour, now.tm_min, now.tm_sec);
+        Serial.printf("[OK] NTP synced %04d-%02d-%02dT%02d:%02d:%02dZ\n", now.tm_year + 1900,
+                      now.tm_mon + 1, now.tm_mday, now.tm_hour, now.tm_min, now.tm_sec);
     } else {
         Serial.println("[WARN] NTP not synced, readings will be sent untimestamped");
     }
@@ -105,7 +104,7 @@ int postToIngest(const char* url, const char* body) {
 
 bool isTransientFailure(int httpCode) {
     if (httpCode < 0) {
-        return true;  // network level error
+        return true; // network level error
     }
     if (httpCode >= 500) {
         return true;
@@ -224,8 +223,8 @@ void outboxSenderTask(void*) {
             ingestBatch[i].epoch = batch[i].receivedAt;
         }
 
-        int payloadLength = buildBatchPayload(ingestBatch, batchCount, nodeId, payload,
-                                              sizeof(payload));
+        int payloadLength =
+            buildBatchPayload(ingestBatch, batchCount, nodeId, payload, sizeof(payload));
         if (payloadLength <= 0) {
             // Payload builder should never fail with valid inputs, drop as a
             // safety net so the outbox drains.
@@ -334,14 +333,13 @@ void loop() {
     uint32_t now = millis();
     if (now - lastDiag >= 10000uL) {
         lastDiag = now;
-        Serial.printf("[Diag] outbox=%u rssi=%d lqi=%u state=%d http=%d | recv=%lu sent=%lu "
-                      "drop=%lu inv=%lu bufdrop=%lu\n",
-                      outbox->count(), arq.getLastRSSI(), arq.getLastLQI(),
-                      static_cast<int>(arq.getState()), counters.lastHttpCode,
-                      static_cast<unsigned long>(counters.received),
-                      static_cast<unsigned long>(counters.sent),
-                      static_cast<unsigned long>(counters.dropped),
-                      static_cast<unsigned long>(counters.framesInvalid),
-                      static_cast<unsigned long>(counters.bufferDropped));
+        Serial.printf(
+            "[Diag] outbox=%u rssi=%d lqi=%u state=%d http=%d | recv=%lu sent=%lu "
+            "drop=%lu inv=%lu bufdrop=%lu\n",
+            outbox->count(), arq.getLastRSSI(), arq.getLastLQI(), static_cast<int>(arq.getState()),
+            counters.lastHttpCode, static_cast<unsigned long>(counters.received),
+            static_cast<unsigned long>(counters.sent), static_cast<unsigned long>(counters.dropped),
+            static_cast<unsigned long>(counters.framesInvalid),
+            static_cast<unsigned long>(counters.bufferDropped));
     }
 }

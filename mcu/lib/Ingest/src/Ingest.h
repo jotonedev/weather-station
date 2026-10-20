@@ -37,13 +37,13 @@ bool sanitizeNodeId(const char* raw, char* out, size_t capacity);
 
 // Build a single reading JSON payload. Returns the bytes written or 0 on
 // failure. nodeId must already be sanitized.
-int buildSinglePayload(const IngestReading& reading, const char* nodeId,
-                       char* out, size_t capacity);
+int buildSinglePayload(const IngestReading& reading, const char* nodeId, char* out,
+                       size_t capacity);
 
 // Build a JSON array payload for a batch of readings. Returns the bytes
 // written or 0 on failure or an empty batch.
-int buildBatchPayload(const IngestReading* readings, size_t count, const char* nodeId,
-                      char* out, size_t capacity);
+int buildBatchPayload(const IngestReading* readings, size_t count, const char* nodeId, char* out,
+                      size_t capacity);
 
 // Delay to wait before retry at the given retry index (0 is the first, wait
 // nothing).
@@ -52,4 +52,4 @@ uint32_t backoffDelayMs(const BackoffPolicy& policy, uint8_t retryIndex);
 // Whether another attempt is allowed after retryIndex failures.
 bool shouldRetry(const BackoffPolicy& policy, uint8_t retryIndex);
 
-#endif  // INGEST_H
+#endif // INGEST_H

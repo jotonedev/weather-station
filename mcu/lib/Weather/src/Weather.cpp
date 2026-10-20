@@ -9,16 +9,14 @@ namespace weather {
 
 int16_t encodeTemperature(float celsius) {
     long rounded = std::lroundf(celsius * kTemperatureScale);
-    rounded = std::clamp(rounded,
-                         static_cast<long>(std::numeric_limits<int16_t>::min()) + 1L,
+    rounded = std::clamp(rounded, static_cast<long>(std::numeric_limits<int16_t>::min()) + 1L,
                          static_cast<long>(std::numeric_limits<int16_t>::max()));
     return static_cast<int16_t>(rounded);
 }
 
 uint16_t encodeUnsigned(float value, float scale) {
     long rounded = std::lroundf(value * scale);
-    rounded = std::clamp(rounded, 0L,
-                         static_cast<long>(std::numeric_limits<uint16_t>::max()));
+    rounded = std::clamp(rounded, 0L, static_cast<long>(std::numeric_limits<uint16_t>::max()));
     return static_cast<uint16_t>(rounded);
 }
 
@@ -82,4 +80,4 @@ bool unpackWeatherData(const uint8_t* in, size_t length, WeatherData& out) {
     return true;
 }
 
-}  // namespace weather
+} // namespace weather

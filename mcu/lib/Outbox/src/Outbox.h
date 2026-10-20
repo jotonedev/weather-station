@@ -59,4 +59,4 @@ class Outbox {
     uint32_t dropped_ = 0;
 };
 
-#endif  // OUTBOX_H
+#endif // OUTBOX_H

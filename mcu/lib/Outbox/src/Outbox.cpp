@@ -19,7 +19,7 @@ bool Outbox::push(const PendingReading& entry) {
         count_--;
         dropped_++;
     }
-    size_t tail = (head_ + count_) % capacity_;
+    size_t const tail = (head_ + count_) % capacity_;
     buffer_[tail] = entry;
     count_++;
     return true;
@@ -42,7 +42,7 @@ bool Outbox::peekAt(size_t index, PendingReading& out) const {
     if (index >= count_) {
         return false;
     }
-    size_t slot = (head_ + index) % capacity_;
+    size_t const slot = (head_ + index) % capacity_;
     out = buffer_[slot];
     return true;
 }

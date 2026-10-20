@@ -14,7 +14,7 @@ PendingReading makeEntry(uint16_t sequence) {
     return entry;
 }
 
-}  // namespace
+} // namespace
 
 TEST(Outbox, PushPopInOrder) {
     Outbox outbox(3);

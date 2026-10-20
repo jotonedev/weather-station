@@ -1,39 +1,41 @@
 #ifndef RAIN_METER_H
 #define RAIN_METER_H
 
-#include <Arduino.h>
-#include <Wire.h>
+#include "constants.h"
 #include <AS5600.h>
+#include <Arduino.h>
 #include <Preferences.h>
+#include <Weather.h>
+#include <Wire.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <Weather.h>
-#include "constants.h"
 
 /**
  * @brief Rain Meter Operational & Mechanical States
  */
 enum class RainMeterState : uint8_t {
     UNINITIALIZED = 0,
-    CALIBRATING,         // Discovering resting end-stops
-    REST_LEFT,           // Resting steadily on left stop
-    TRANSIT_TO_RIGHT,    // In motion towards right stop
-    REST_RIGHT,          // Resting steadily on right stop
-    TRANSIT_TO_LEFT,     // In motion towards left stop
-    JAMMED               // Bucket stuck mid-transit (leaf/spiderweb/ice)
+    CALIBRATING,      // Discovering resting end-stops
+    REST_LEFT,        // Resting steadily on left stop
+    TRANSIT_TO_RIGHT, // In motion towards right stop
+    REST_RIGHT,       // Resting steadily on right stop
+    TRANSIT_TO_LEFT,  // In motion towards left stop
+    JAMMED            // Bucket stuck mid-transit (leaf/spiderweb/ice)
 };
 
 class RainMeter {
-public:
+  public:
     /**
      * @brief Construct a new Rain Meter object.
      * @param wire Reference to TwoWire or SoftTwoWire bus.
-     * @param mmPerTip Rain volume per tip in mm (default calculated from funnel r=55mm, V=18ml: ~1.894 mm/tip).
+     * @param mmPerTip Rain volume per tip in mm (default calculated from funnel r=55mm, V=18ml:
+     * ~1.894 mm/tip).
      */
     RainMeter(TwoWire& wire, float mmPerTip = RAIN_METER_CALIBRATION_MM_PER_TIP);
     ~RainMeter();
 
-    void initialize(uint8_t directionPin = AS5600_SW_DIRECTION_PIN, uint8_t direction = AS5600_CLOCK_WISE);
+    void initialize(uint8_t directionPin = AS5600_SW_DIRECTION_PIN,
+                    uint8_t direction = AS5600_CLOCK_WISE);
     bool ready();
     bool isConnected();
     bool magnetDetected();
@@ -73,7 +75,7 @@ public:
     void setMmPerTip(float mm);
     float getMmPerTip() const;
 
-private:
+  private:
     TwoWire& wire;
     AS5600 as5600;
     Preferences preferences;
@@ -91,10 +93,10 @@ private:
     // Angular tracking & unwrap logic
     bool hasReference = false;
     uint16_t rawReference = 0;
-    int32_t currentPos = 0;       // Continuous unwrapped position relative to rawReference
+    int32_t currentPos = 0; // Continuous unwrapped position relative to rawReference
     int32_t prevPos = 0;
     float filteredPos = 0.0f;
-    uint32_t stillCount = 0;      // Counter for stationary samples
+    uint32_t stillCount = 0; // Counter for stationary samples
 
     // Auto-calibration state & resting clusters
     bool calibrated = false;
@@ -145,8 +147,11 @@ private:
     // Helper functions
     static inline int32_t shortestAngleDiff(uint16_t current, uint16_t reference) {
         int32_t diff = static_cast<int32_t>(current) - static_cast<int32_t>(reference);
-        if (diff > 2048) diff -= 4096;
-        else if (diff < -2048) diff += 4096;
+        if (diff > 2048) {
+            diff -= 4096;
+        } else if (diff < -2048) {
+            diff += 4096;
+        }
         return diff;
     }
 

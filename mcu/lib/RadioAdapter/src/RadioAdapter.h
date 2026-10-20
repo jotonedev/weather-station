@@ -52,4 +52,4 @@ class CC1101RadioAdapter : public ARQ::RadioInterface {
     CC1101::Radio& radio_;
 };
 
-#endif  // RADIO_ADAPTER_H
+#endif // RADIO_ADAPTER_H

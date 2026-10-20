@@ -3,20 +3,20 @@
 #include <Wire.h>
 #include <esp_task_wdt.h>
 
+#include <ARQ.h>
+#include <AS5600.h>
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP085.h>
 #include <Adafruit_SGP30.h>
-#include <AS5600.h>
-#include <ARQ.h>
 #include <PMS.h>
+#include <RadioAdapter.h>
 #include <Weather.h>
 #include <cc1101.h>
-#include <RadioAdapter.h>
 
+#include "SoftTwoWire.h"
 #include "anemometer.h"
 #include "constants.h"
 #include "rainmeter.h"
-#include "SoftTwoWire.h"
 #include "windvane.h"
 
 constexpr ARQ::address_t CONTROL_NODE_ADDR = 1;
@@ -155,10 +155,9 @@ void setup() {
         Serial.println("[OK] Radio initialized");
     }
 
-    Serial.printf("Sensor health aht=%d bmp=%d sgp=%d anemo=%d vane=%d rain=%d\n",
-                  ahtOk ? 1 : 0, bmpOk ? 1 : 0, sgpOk ? 1 : 0,
-                  anemometer.ready() ? 1 : 0, windVane.ready() ? 1 : 0,
-                  rainMeter.ready() ? 1 : 0);
+    Serial.printf("Sensor health aht=%d bmp=%d sgp=%d anemo=%d vane=%d rain=%d\n", ahtOk ? 1 : 0,
+                  bmpOk ? 1 : 0, sgpOk ? 1 : 0, anemometer.ready() ? 1 : 0,
+                  windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0);
 }
 
 // Sample every sensor into a reading, marking failed sensors as absent.
@@ -262,21 +261,21 @@ void sendAttempt() {
     linkState.timeoutSnapshot = arq.getTxTimeoutCount();
     ARQ::Status status = arq.startSendData(wire, sizeof(wire), BASE_STATION_ADDR);
     switch (status) {
-        case ARQ::STATUS_OK:
-            linkState.phase = SendPhase::Transmitting;
-            linkState.phaseStartMs = millis();
-            break;
-        case ARQ::STATUS_CHANNEL_BUSY:
-        case ARQ::STATUS_BUSY:
-            linkState.phase = SendPhase::RetryDelay;
-            linkState.phaseStartMs = millis();
-            break;
-        case ARQ::STATUS_INVALID_SIZE:
-            dropReading("oversize_frame");
-            break;
-        default:
-            dropReading("radio_error");
-            break;
+    case ARQ::STATUS_OK:
+        linkState.phase = SendPhase::Transmitting;
+        linkState.phaseStartMs = millis();
+        break;
+    case ARQ::STATUS_CHANNEL_BUSY:
+    case ARQ::STATUS_BUSY:
+        linkState.phase = SendPhase::RetryDelay;
+        linkState.phaseStartMs = millis();
+        break;
+    case ARQ::STATUS_INVALID_SIZE:
+        dropReading("oversize_frame");
+        break;
+    default:
+        dropReading("radio_error");
+        break;
     }
 }
 
@@ -301,36 +300,36 @@ void completeAttempt(bool successful) {
 
 void handleTx() {
     switch (linkState.phase) {
-        case SendPhase::Idle:
-            if (newReadingPending) {
-                newReadingPending = false;
-                linkState.attempt = 0;
-                sendAttempt();
-            }
-            break;
+    case SendPhase::Idle:
+        if (newReadingPending) {
+            newReadingPending = false;
+            linkState.attempt = 0;
+            sendAttempt();
+        }
+        break;
 
-        case SendPhase::Transmitting:
-            arq.poll(TX_ACK_TIMEOUT_MS);
-            if (arq.getState() == ARQ::RadioState::IDLE) {
-                bool timedOut = arq.getTxTimeoutCount() != linkState.timeoutSnapshot;
-                completeAttempt(!timedOut);
-            } else if (millis() - linkState.phaseStartMs > TX_HARD_TIMEOUT_MS) {
-                Serial.println("[WARN] Send stalled, re-syncing radio");
-                dropReading("stalled");
-                reinitRadio();
-            }
-            break;
+    case SendPhase::Transmitting:
+        arq.poll(TX_ACK_TIMEOUT_MS);
+        if (arq.getState() == ARQ::RadioState::IDLE) {
+            bool timedOut = arq.getTxTimeoutCount() != linkState.timeoutSnapshot;
+            completeAttempt(!timedOut);
+        } else if (millis() - linkState.phaseStartMs > TX_HARD_TIMEOUT_MS) {
+            Serial.println("[WARN] Send stalled, re-syncing radio");
+            dropReading("stalled");
+            reinitRadio();
+        }
+        break;
 
-        case SendPhase::RetryDelay:
-            if (millis() - linkState.phaseStartMs >= TX_BACKOFF_MS) {
-                sendAttempt();
-            }
-            break;
+    case SendPhase::RetryDelay:
+        if (millis() - linkState.phaseStartMs >= TX_BACKOFF_MS) {
+            sendAttempt();
+        }
+        break;
 
-        case SendPhase::Dropped:
-            // Wait for the next sample before trying again.
-            linkState.phase = SendPhase::Idle;
-            break;
+    case SendPhase::Dropped:
+        // Wait for the next sample before trying again.
+        linkState.phase = SendPhase::Idle;
+        break;
     }
 }
 
@@ -338,9 +337,8 @@ void printDiagnostics(uint32_t nowMs) {
     Serial.printf("[Diag] up=%lu boots=%lu txok=%lu txdrop=%lu resyncs=%lu state=%d rssi=%d\n",
                   nowMs / 1000uL, bootCount, linkState.sentOk, linkState.sentDropped,
                   linkState.radioResyncs, static_cast<int>(arq.getState()), arq.getLastRSSI());
-    Serial.printf("[Diag] anemo=%d vane=%d rain=%d pms=%d\n",
-                  anemometer.ready() ? 1 : 0, windVane.ready() ? 1 : 0,
-                  rainMeter.ready() ? 1 : 0, pmsHasData ? 1 : 0);
+    Serial.printf("[Diag] anemo=%d vane=%d rain=%d pms=%d\n", anemometer.ready() ? 1 : 0,
+                  windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0, pmsHasData ? 1 : 0);
 }
 
 void loop() {

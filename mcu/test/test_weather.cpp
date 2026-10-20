@@ -67,7 +67,7 @@ TEST(Weather, PackAndUnpackRoundTrip) {
 }
 
 TEST(Weather, PackRejectsSmallBuffer) {
-    WeatherData data = {};
+    WeatherData const data = {};
     uint8_t small[4];
     EXPECT_FALSE(weather::packWeatherData(data, small, sizeof(small)));
 }

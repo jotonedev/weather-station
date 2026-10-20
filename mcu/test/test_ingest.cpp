@@ -27,7 +27,7 @@ WeatherData sentinelReading() {
     return data;
 }
 
-}  // namespace
+} // namespace
 
 TEST(Ingest, FormatFloatTrimsZeros) {
     char out[32];
@@ -99,27 +99,25 @@ TEST(Ingest, SinglePayloadFullFields) {
     data.airQualityData.pm10_0 = 22;
     data.airQualityData.voc = 120;
 
-    IngestReading reading = {data, 1700000000u};
+    IngestReading const reading = {data, 1700000000u};
 
     char payload[1024];
-    int len = buildSinglePayload(reading, "weather-mast", payload, sizeof(payload));
+    int const len = buildSinglePayload(reading, "weather-mast", payload, sizeof(payload));
     ASSERT_GT(len, 0);
-    EXPECT_STREQ(
-        payload,
-        "{\"node_id\":\"weather-mast\",\"timestamp\":\"2023-11-14T22:13:20Z\","
-        "\"wind_speed\":4.8,\"wind_angle\":180,\"anemo_status\":32,"
-        "\"anemo_agc\":128,\"anemo_agc_variance\":2,\"temperature\":21.5,"
-        "\"humidity\":55.2,\"pressure\":1013.5,\"rain_1h\":0.25,"
-        "\"rain_24h\":3.21,\"rain_rate\":12,\"rain_status\":32,\"rain_agc\":130,"
-        "\"rain_agc_variance\":0,\"pm1_0\":8,\"pm2_5\":14,\"pm10_0\":22,"
-        "\"voc\":120}");
+    EXPECT_STREQ(payload, "{\"node_id\":\"weather-mast\",\"timestamp\":\"2023-11-14T22:13:20Z\","
+                          "\"wind_speed\":4.8,\"wind_angle\":180,\"anemo_status\":32,"
+                          "\"anemo_agc\":128,\"anemo_agc_variance\":2,\"temperature\":21.5,"
+                          "\"humidity\":55.2,\"pressure\":1013.5,\"rain_1h\":0.25,"
+                          "\"rain_24h\":3.21,\"rain_rate\":12,\"rain_status\":32,\"rain_agc\":130,"
+                          "\"rain_agc_variance\":0,\"pm1_0\":8,\"pm2_5\":14,\"pm10_0\":22,"
+                          "\"voc\":120}");
 }
 
 TEST(Ingest, SinglePayloadOmitsAbsentFieldsAndTimestampWhenNoEpoch) {
-    IngestReading reading = {sentinelReading(), 0};
+    IngestReading const reading = {sentinelReading(), 0};
 
     char payload[256];
-    int len = buildSinglePayload(reading, "weather-mast", payload, sizeof(payload));
+    int const len = buildSinglePayload(reading, "weather-mast", payload, sizeof(payload));
     ASSERT_GT(len, 0);
     EXPECT_STREQ(payload, "{\"node_id\":\"weather-mast\"}");
 }
@@ -128,13 +126,12 @@ TEST(Ingest, SinglePayloadWithOnlyTemperature) {
     WeatherData data = sentinelReading();
     data.airData.temperature = weather::encodeTemperature(18.4f);
 
-    IngestReading reading = {data, 1};
+    IngestReading const reading = {data, 1};
     char payload[256];
-    int len = buildSinglePayload(reading, "n1", payload, sizeof(payload));
+    int const len = buildSinglePayload(reading, "n1", payload, sizeof(payload));
     ASSERT_GT(len, 0);
-    EXPECT_STREQ(payload,
-                 "{\"node_id\":\"n1\",\"timestamp\":\"1970-01-01T00:00:01Z\","
-                 "\"temperature\":18.4}");
+    EXPECT_STREQ(payload, "{\"node_id\":\"n1\",\"timestamp\":\"1970-01-01T00:00:01Z\","
+                          "\"temperature\":18.4}");
 }
 
 TEST(Ingest, BatchPayload) {
@@ -144,11 +141,10 @@ TEST(Ingest, BatchPayload) {
     };
 
     char payload[512];
-    int len = buildBatchPayload(readings, 2, "n1", payload, sizeof(payload));
+    int const len = buildBatchPayload(readings, 2, "n1", payload, sizeof(payload));
     ASSERT_GT(len, 0);
-    EXPECT_STREQ(payload,
-                 "[{\"node_id\":\"n1\"},{\"node_id\":\"n1\","
-                 "\"timestamp\":\"1970-01-01T00:00:01Z\"}]");
+    EXPECT_STREQ(payload, "[{\"node_id\":\"n1\"},{\"node_id\":\"n1\","
+                          "\"timestamp\":\"1970-01-01T00:00:01Z\"}]");
 }
 
 TEST(Ingest, BatchRejectsEmpty) {
@@ -185,7 +181,7 @@ TEST(Ingest, BackoffRetryLimit) {
 TEST(Ingest, SinglePayloadRejectsSmallBuffer) {
     WeatherData data = sentinelReading();
     data.airData.temperature = weather::encodeTemperature(18.4f);
-    IngestReading reading = {data, 1};
+    IngestReading const reading = {data, 1};
     char payload[16];
     EXPECT_EQ(buildSinglePayload(reading, "n1", payload, sizeof(payload)), 0);
 }

@@ -12,14 +12,15 @@
 // =============================================================================
 
 // --- CC1101 Radio SPI ---
-#define RADIO_CS_PIN   10
-#define MOSI_PIN       11
-#define SCK_PIN        12
-#define MISO_PIN       13
+#define RADIO_CS_PIN 10
+#define MOSI_PIN 11
+#define SCK_PIN 12
+#define MISO_PIN 13
 #define RADIO_GDO0_PIN 14
 
 // --- I2C Bus 1 (Hardware Wire) ---
-// Shared: Anemometer AS5600 (@ 0x36) + Environmental: AHT20 (@ 0x38), SGP30 (@ 0x58), BMP180 (@ 0x77)
+// Shared: Anemometer AS5600 (@ 0x36) + Environmental: AHT20 (@ 0x38), SGP30 (@ 0x58), BMP180 (@
+// 0x77)
 #define I2C_1_SDA_PIN 4
 #define I2C_1_SCL_PIN 5
 
@@ -37,8 +38,8 @@
 // Funnel radius r = 55 mm -> Area A = π * r² = 9503.3178 mm²
 // Bucket volume V = 18 ml = 18,000 mm³
 // Rainfall depth per tip = V / A = 18,000 / (π * 55²) ≈ 1.894075 mm
-#define RAIN_METER_FUNNEL_RADIUS_MM       55.0f
-#define RAIN_METER_BUCKET_VOLUME_ML       18.0f
+#define RAIN_METER_FUNNEL_RADIUS_MM 55.0f
+#define RAIN_METER_BUCKET_VOLUME_ML 18.0f
 #define RAIN_METER_CALIBRATION_MM_PER_TIP 1.894075f
 
 // --- I2C Bus 3 (Software I2C / SoftWire) ---
@@ -49,8 +50,8 @@
 #define WIND_VANE_CALIBRATION_OFFSET 0.0f
 
 // --- PMS7003 Particulate Matter Sensor (UART2) ---
-#define PMS_RX_PIN 17  // Connects to PMS7003 TX
-#define PMS_TX_PIN 18  // Connects to PMS7003 RX
+#define PMS_RX_PIN 17 // Connects to PMS7003 TX
+#define PMS_TX_PIN 18 // Connects to PMS7003 RX
 
 // =============================================================================
 // Reporting and link policy
