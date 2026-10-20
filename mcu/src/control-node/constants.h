@@ -52,4 +52,32 @@
 #define PMS_RX_PIN 17  // Connects to PMS7003 TX
 #define PMS_TX_PIN 18  // Connects to PMS7003 RX
 
+// =============================================================================
+// Reporting and link policy
+// =============================================================================
+
+// How often a reading is sampled and scheduled for the radio link.
+#define REPORT_INTERVAL_MS 60000uL
+// How long a send waits for an ACK before ARQ retransmits.
+#define TX_ACK_TIMEOUT_MS 1000uL
+// Attempts per reading before it is dropped.
+#define TX_MAX_ATTEMPTS 3
+// Delay before retrying a busy or failed send attempt.
+#define TX_BACKOFF_MS 2000uL
+// Upper bound for one attempt to settle, forces a radio re-sync when exceeded.
+#define TX_HARD_TIMEOUT_MS 12000uL
+// Consecutive dropped readings before the radio is initialized again.
+#define RADIO_REINIT_THRESHOLD 3
+// The board restarts when the loop stalls this long.
+#define WATCHDOG_TIMEOUT_MS 10000uL
+// A cached air quality value stays valid this long.
+#define PMS_DATA_FRESH_MS 30000uL
+
+// NVS keys for the boot counter and the last failure tag.
+#define NVS_NAMESPACE "control"
+#define NVS_KEY_BOOTS "boots"
+#define NVS_KEY_LAST_ERR "lasterr"
+// Boots in a row without a successful send flag a crash loop.
+#define BOOT_CRASH_THRESHOLD 4
+
 #endif // CONSTANTS_H
