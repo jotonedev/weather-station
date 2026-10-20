@@ -14,12 +14,21 @@
 #define INGEST_URL "http://192.168.1.50:8081/readings"
 // #define INGEST_URL "https://ingest.example.com/readings"
 
+// Scheme of INGEST_URL. 1 enables the TLS client that trusts the Arduino core
+// certificate bundle, 0 uses plain http. Keep it consistent with the URL scheme.
+#define INGEST_HTTPS 0
+
 // Node id reported to the ingest service.
 #define NODE_ID "weather-mast"
 
 // NTP server used to timestamp received readings.
 #define NTP_SERVER "pool.ntp.org"
-#define NTP_TIMEOUT_MS 5000uL
+// Wait per sync attempt for one NTP response.
+#define NTP_SYNC_TIMEOUT_MS 10000uL
+// Sleep after a successful sync, roughly 12 hours.
+#define NTP_RESYNC_INTERVAL_MS 43200000uL
+// Sleep after a failed sync before trying again.
+#define NTP_RETRY_INTERVAL_MS 900000uL
 #define WIFI_CONNECT_TIMEOUT_MS 15000uL
 #define WIFI_RECONNECT_DELAY_MS 5000uL
 

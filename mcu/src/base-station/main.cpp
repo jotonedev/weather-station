@@ -38,24 +38,51 @@ static Counters counters;
 
 static BackoffPolicy backoff = {BACKOFF_MIN_MS, BACKOFF_MAX_MS, BACKOFF_MULTIPLIER, 0};
 
-bool timeSynced() {
-    return time(nullptr) >= 1600000000; // roughly 2020
-}
+// The clock counts as synced once it passes roughly 2020.
+constexpr time_t kClockSyncedEpoch = 1600000000;
 
-void syncTime() {
+// True once NTP has set the clock. Written by the NTP sync task, read by the
+// loop when stamping received readings.
+static volatile bool clockSynced = false;
+
+bool syncClockOnce(uint32_t timeoutMs) {
     configTime(0, 0, NTP_SERVER);
     uint32_t started = millis();
-    while (!timeSynced() && millis() - started < NTP_TIMEOUT_MS) {
-        delay(200);
+    while (time(nullptr) < kClockSyncedEpoch && millis() - started < timeoutMs) {
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
-    if (timeSynced()) {
+    bool synced = time(nullptr) >= kClockSyncedEpoch;
+    if (synced) {
         time_t current = time(nullptr);
         struct tm now;
         gmtime_r(&current, &now);
         Serial.printf("[OK] NTP synced %04d-%02d-%02dT%02d:%02d:%02dZ\n", now.tm_year + 1900,
                       now.tm_mon + 1, now.tm_mday, now.tm_hour, now.tm_min, now.tm_sec);
     } else {
-        Serial.println("[WARN] NTP not synced, readings will be sent untimestamped");
+        Serial.println("[WARN] NTP sync failed, server unreachable");
+    }
+    return synced;
+}
+
+// Resync the clock every 12 hours. When the server is unreachable retry sooner
+// and keep a previously synced clock running instead of demoting it.
+void ntpSyncTask(void*) {
+    while (true) {
+        if (WiFi.status() != WL_CONNECTED) {
+            vTaskDelay(pdMS_TO_TICKS(WIFI_RECONNECT_DELAY_MS));
+            continue;
+        }
+        if (syncClockOnce(NTP_SYNC_TIMEOUT_MS)) {
+            clockSynced = true;
+            vTaskDelay(pdMS_TO_TICKS(NTP_RESYNC_INTERVAL_MS));
+        } else {
+            if (!clockSynced) {
+                Serial.println("[WARN] NTP unreachable, readings will be sent untimestamped");
+            } else {
+                Serial.println("[WARN] NTP re-sync failed, keeping the current clock");
+            }
+            vTaskDelay(pdMS_TO_TICKS(NTP_RETRY_INTERVAL_MS));
+        }
     }
 }
 
@@ -85,17 +112,16 @@ void ensureWifi() {
 }
 
 int postToIngest(const char* url, const char* body) {
-    bool isHttps = (strncmp(url, "https://", 8) == 0);
     WiFiClientSecure secureClient;
     HTTPClient http;
     http.setTimeout(HTTP_TIMEOUT_MS);
-    if (isHttps) {
-        // Trust the Arduino core cert bundle. Pin a specific cert for production.
-        secureClient.setInsecure();
-        http.begin(secureClient, url);
-    } else {
-        http.begin(url);
-    }
+#if INGEST_HTTPS
+    // Trust the Arduino core cert bundle. Pin a specific cert for production.
+    secureClient.setInsecure();
+    http.begin(secureClient, url);
+#else
+    http.begin(url);
+#endif
     http.addHeader("Content-Type", "application/json");
     int code = http.POST(body);
     http.end();
@@ -155,7 +181,7 @@ void handleMessage(const ARQ::Message& message, const uint8_t* frame) {
     PendingReading entry = {};
     entry.data = data;
     entry.sequence = message.sequence;
-    entry.receivedAt = timeSynced() ? static_cast<uint32_t>(time(nullptr)) : 0;
+    entry.receivedAt = clockSynced ? static_cast<uint32_t>(time(nullptr)) : 0;
 
     if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
         bool pushed = outbox->push(entry);
@@ -185,15 +211,9 @@ void outboxSenderTask(void*) {
     while (true) {
         if (WiFi.status() != WL_CONNECTED) {
             ensureWifi();
-            if (WiFi.status() == WL_CONNECTED && !timeSynced()) {
-                syncTime();
-            }
             retryIndex = 0;
             vTaskDelay(pdMS_TO_TICKS(WIFI_RECONNECT_DELAY_MS));
             continue;
-        }
-        if (!timeSynced()) {
-            syncTime();
         }
 
         size_t available = 0;
@@ -307,6 +327,7 @@ void setup() {
         }
     }
 
+    xTaskCreatePinnedToCore(ntpSyncTask, "NtpSync", 4096, nullptr, 1, nullptr, 0);
     xTaskCreatePinnedToCore(outboxSenderTask, "OutboxSender", 8192, nullptr, 1, nullptr, 0);
     Serial.printf("Outbox capacity %d, node id %s\n", OUTBOX_CAPACITY, nodeId);
 }

@@ -36,10 +36,10 @@ RainMeter rainMeter(Wire1);
 SoftTwoWire softWireWindVane(WIND_VANE_SDA_PIN, WIND_VANE_SCL_PIN);
 WindVane windVane(softWireWindVane, WIND_VANE_CALIBRATION_OFFSET);
 
-// Per-sensor health, set once during setup.
-static bool ahtOk = false;
+// The BMP085 divides by calibration coefficients loaded during begin(). With
+// a failed begin they stay zero and readPressure() would divide by zero, so
+// reads are gated on the init result.
 static bool bmpOk = false;
-static bool sgpOk = false;
 
 // Cached air quality, refreshed continuously from the PMS7003 stream.
 static PMS::DATA latestPms = {};
@@ -132,11 +132,9 @@ void setup() {
     Serial2.begin(PMS::BAUD_RATE, SERIAL_8N1, PMS_RX_PIN, PMS_TX_PIN);
     softWireWindVane.beginSoftwareI2C();
 
-    ahtOk = aht.begin(&Wire);
     bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
-    if (sgp.begin(&Wire, true)) {
-        sgpOk = sgp.IAQinit();
-    }
+    sgp.begin(&Wire, true);
+    sgp.IAQinit();
 
     anemometer.initialize();
     windVane.initialize();
@@ -154,10 +152,6 @@ void setup() {
     } else {
         Serial.println("[OK] Radio initialized");
     }
-
-    Serial.printf("Sensor health aht=%d bmp=%d sgp=%d anemo=%d vane=%d rain=%d\n", ahtOk ? 1 : 0,
-                  bmpOk ? 1 : 0, sgpOk ? 1 : 0, anemometer.ready() ? 1 : 0,
-                  windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0);
 }
 
 // Sample every sensor into a reading, marking failed sensors as absent.
@@ -197,7 +191,7 @@ WeatherData sampleSensors() {
 
     sensors_event_t humidityEvent;
     sensors_event_t temperatureEvent;
-    if (ahtOk && aht.getEvent(&humidityEvent, &temperatureEvent)) {
+    if (aht.getEvent(&humidityEvent, &temperatureEvent)) {
         reading.airData.temperature = weather::encodeTemperature(temperatureEvent.temperature);
         reading.airData.humidity = weather::encodeHumidity(humidityEvent.relative_humidity);
     }
@@ -207,7 +201,7 @@ WeatherData sampleSensors() {
             reading.airData.pressure = weather::encodePressure(static_cast<float>(pascal) / 100.0f);
         }
     }
-    if (sgpOk && sgp.IAQmeasure()) {
+    if (sgp.IAQmeasure()) {
         reading.airQualityData.voc = sgp.TVOC;
     }
 
