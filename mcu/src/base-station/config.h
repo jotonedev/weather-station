@@ -66,10 +66,23 @@ constexpr uint8_t BASE_STATION_ADDR = 2;
 #define BACKOFF_MULTIPLIER 3
 
 // =============================================================================
+// Watchdog and radio self-healing
+// =============================================================================
+
+// Hardware watchdog timeout covering WiFi connect + HTTP request latency.
+#define WATCHDOG_TIMEOUT_MS 30000uL
+// Re-initialize the CC1101 receiver if no valid frame arrives within 5 minutes.
+#define RADIO_SILENCE_REINIT_MS 300000uL
+// Boots in a row without receiving a valid frame or flushing a batch flag a crash loop.
+#define BOOT_CRASH_THRESHOLD 4
+
+// =============================================================================
 // NVS counters
 // =============================================================================
 
 #define NVS_NAMESPACE "base"
+#define NVS_KEY_BOOTS "boots"
+#define NVS_KEY_LAST_ERR "lasterr"
 #define NVS_KEY_RECEIVED "recv"
 #define NVS_KEY_SENT "sent"
 #define NVS_KEY_DROPPED "drop"

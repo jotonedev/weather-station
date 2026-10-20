@@ -100,3 +100,55 @@ TEST(Outbox, ZeroCapacityDropsEverything) {
     EXPECT_FALSE(outbox.push(makeEntry(1)));
     EXPECT_EQ(outbox.dropped(), 1);
 }
+
+TEST(Outbox, ExternalBufferAndRestoreState) {
+    PendingReading backing[4] = {};
+    Outbox outbox(backing, 4);
+    EXPECT_TRUE(outbox.push(makeEntry(10)));
+    EXPECT_TRUE(outbox.push(makeEntry(11)));
+    PendingReading popped;
+    ASSERT_TRUE(outbox.pop(popped));
+    EXPECT_EQ(popped.sequence, 10);
+    EXPECT_EQ(outbox.head(), 1);
+    EXPECT_EQ(outbox.count(), 1);
+
+    Outbox restored(backing, 4);
+    ASSERT_TRUE(restored.restoreState(1, 1, 5));
+    EXPECT_EQ(restored.count(), 1);
+    EXPECT_EQ(restored.dropped(), 5);
+    ASSERT_TRUE(restored.pop(popped));
+    EXPECT_EQ(popped.sequence, 11);
+
+    EXPECT_FALSE(restored.restoreState(4, 1, 0));
+    EXPECT_FALSE(restored.restoreState(0, 5, 0));
+}
+
+TEST(Outbox, BackfillTimestampsUpdatesOnlyZeroEpochEntries) {
+    Outbox outbox(3);
+    PendingReading e1 = makeEntry(1);
+    e1.receivedAt = 0;
+    e1.receivedMs = 10000;
+
+    PendingReading e2 = makeEntry(2);
+    e2.receivedAt = 1700000050u;
+    e2.receivedMs = 20000;
+
+    PendingReading e3 = makeEntry(3);
+    e3.receivedAt = 0;
+    e3.receivedMs = 25000;
+
+    outbox.push(e1);
+    outbox.push(e2);
+    outbox.push(e3);
+
+    size_t updated = outbox.backfillTimestamps(1700000100u, 30000u);
+    EXPECT_EQ(updated, 2);
+
+    PendingReading out;
+    ASSERT_TRUE(outbox.pop(out));
+    EXPECT_EQ(out.receivedAt, 1700000080u);
+    ASSERT_TRUE(outbox.pop(out));
+    EXPECT_EQ(out.receivedAt, 1700000050u);
+    ASSERT_TRUE(outbox.pop(out));
+    EXPECT_EQ(out.receivedAt, 1700000095u);
+}
