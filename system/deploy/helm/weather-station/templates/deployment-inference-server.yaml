@@ -5,13 +5,8 @@ metadata:
   name: {{ include "weather-station.fullname" . }}-inference-server
   labels:
     {{- include "weather-station.componentLabels" (dict "root" . "component" "inference-server") | nindent 4 }}
-  {{- if or .Values.keel.enabled .Values.inferenceServer.annotations }}
-  annotations:
-    {{- include "weather-station.keelAnnotations" . | nindent 4 }}
-    {{- with .Values.inferenceServer.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- end }}
+  {{- $annotations := include "weather-station.componentAnnotations" (dict "root" . "component" .Values.inferenceServer) | trim }}
+  {{- if $annotations }}{{- $annotations | nindent 2 }}{{- end }}
 spec:
   replicas: {{ .Values.inferenceServer.replicaCount }}
   strategy:
@@ -28,18 +23,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.inferenceServer.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.inferenceServer.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.inferenceServer.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- $placement := include "weather-station.placement" (dict "component" .Values.inferenceServer) | trim }}
+      {{- if $placement }}{{- $placement | nindent 6 }}{{- end }}
       securityContext:
         fsGroup: {{ .Values.inferenceServer.securityContext.fsGroup | default 10001 }}
       containers:

@@ -5,13 +5,8 @@ metadata:
   name: {{ include "weather-station.fullname" . }}-database
   labels:
     {{- include "weather-station.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
-  {{- if or .Values.keel.enabled .Values.database.annotations }}
-  annotations:
-    {{- include "weather-station.keelAnnotations" . | nindent 4 }}
-    {{- with .Values.database.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- end }}
+  {{- $annotations := include "weather-station.componentAnnotations" (dict "root" . "component" .Values.database) | trim }}
+  {{- if $annotations }}{{- $annotations | nindent 2 }}{{- end }}
 spec:
   replicas: {{ .Values.database.replicaCount }}
   strategy:
@@ -41,18 +36,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.database.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.database.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.database.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- $placement := include "weather-station.placement" (dict "component" .Values.database) | trim }}
+      {{- if $placement }}{{- $placement | nindent 6 }}{{- end }}
       containers:
         - name: database
           image: "{{ .Values.database.image.repository }}:{{ .Values.database.image.tag }}"

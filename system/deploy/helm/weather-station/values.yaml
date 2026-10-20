@@ -176,9 +176,6 @@ ingress:
 # Tailscale exposure
 # https://tailscale.com/docs/features/tailscale-services
 tailscale:
-  # Reserved: when using the tailscale-operator Ingress mode instead, an
-  # Ingress named "weather" would expose weather.<tailnet>.ts.net.
-  # This chart currently implements the Service-host path below.
   serviceHost:
     enabled: false
     # The Tailscale Service to advertise (svc:<serviceName>). Must match a

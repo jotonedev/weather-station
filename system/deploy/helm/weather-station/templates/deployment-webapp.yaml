@@ -1,0 +1,71 @@
+{{- $apps := list
+  (dict "name" "data-ingest" "cfg" .Values.dataIngest)
+  (dict "name" "frontend" "cfg" .Values.frontend)
+}}
+{{- range $app := $apps }}
+{{- if $app.cfg.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "weather-station.fullname" $ }}-{{ $app.name }}
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" $ "component" $app.name) | nindent 4 }}
+  {{- $annotations := include "weather-station.componentAnnotations" (dict "root" $ "component" $app.cfg) | trim }}
+  {{- if $annotations }}{{- $annotations | nindent 2 }}{{- end }}
+spec:
+  replicas: {{ $app.cfg.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" $ "component" $app.name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "weather-station.componentSelectorLabels" (dict "root" $ "component" $app.name) | nindent 8 }}
+    spec:
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $placement := include "weather-station.placement" (dict "component" $app.cfg) | trim }}
+      {{- if $placement }}{{- $placement | nindent 6 }}{{- end }}
+      containers:
+        - name: {{ $app.name }}
+          image: "{{ $app.cfg.image.repository }}:{{ $app.cfg.image.tag }}"
+          imagePullPolicy: {{ $app.cfg.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $app.cfg.httpPort }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ $app.cfg.grpcPort }}
+              protocol: TCP
+          env:
+            - name: DATABASE_ADDRESS
+              value: "{{ include "weather-station.fullname" $ }}-database:{{ $.Values.database.grpcPort }}"
+            - name: HTTP_ADDRESS
+              value: "0.0.0.0:{{ $app.cfg.httpPort }}"
+            - name: GRPC_ADDRESS
+              value: "0.0.0.0:{{ $app.cfg.grpcPort }}"
+          livenessProbe:
+            grpc:
+              port: {{ $app.cfg.grpcPort }}
+              service: ""
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: {{ $app.cfg.grpcPort }}
+              service: "ready"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $app.cfg.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+{{- end }}
+{{- end }}

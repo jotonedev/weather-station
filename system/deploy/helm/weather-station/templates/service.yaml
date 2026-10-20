@@ -1,0 +1,28 @@
+{{- $services := list
+  (dict "name" "data-ingest" "cfg" .Values.dataIngest "ports" (list (dict "name" "http" "port" .Values.dataIngest.httpPort) (dict "name" "grpc" "port" .Values.dataIngest.grpcPort)))
+  (dict "name" "database" "cfg" .Values.database "ports" (list (dict "name" "grpc" "port" .Values.database.grpcPort)))
+  (dict "name" "frontend" "cfg" .Values.frontend "ports" (list (dict "name" "http" "port" .Values.frontend.httpPort) (dict "name" "grpc" "port" .Values.frontend.grpcPort)))
+  (dict "name" "inference-server" "cfg" .Values.inferenceServer "ports" (list (dict "name" "grpc" "port" .Values.inferenceServer.grpcPort)))
+}}
+{{- range $svc := $services }}
+{{- if $svc.cfg.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "weather-station.fullname" $ }}-{{ $svc.name }}
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" $ "component" $svc.name) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    {{- range $p := $svc.ports }}
+    - name: {{ $p.name }}
+      port: {{ $p.port }}
+      targetPort: {{ $p.name }}
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "weather-station.componentSelectorLabels" (dict "root" $ "component" $svc.name) | nindent 4 }}
+{{- end }}
+{{- end }}

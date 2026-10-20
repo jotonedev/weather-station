@@ -51,14 +51,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Component fullname helper: (include "weather-station.componentFullname" (dict "root" . "component" "questdb"))
+Component fullname helper: (include "weather-station.componentFullname" (dict "root" . "component" "database"))
 */}}
 {{- define "weather-station.componentFullname" -}}
 {{- printf "%s-%s" (include "weather-station.fullname" .root) .component | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Component labels: (include "weather-station.componentLabels" (dict "root" . "component" "questdb"))
+Component labels: (include "weather-station.componentLabels" (dict "root" . "component" "database"))
 */}}
 {{- define "weather-station.componentLabels" -}}
 helm.sh/chart: {{ include "weather-station.chart" .root }}
@@ -70,7 +70,7 @@ app.kubernetes.io/managed-by: {{ .root.Release.Service }}
 {{- end }}
 
 {{/*
-Component selector labels: (include "weather-station.componentSelectorLabels" (dict "root" . "component" "questdb"))
+Component selector labels: (include "weather-station.componentSelectorLabels" (dict "root" . "component" "database"))
 */}}
 {{- define "weather-station.componentSelectorLabels" -}}
 app.kubernetes.io/name: {{ include "weather-station.name" .root }}
@@ -90,6 +90,43 @@ keel.sh/pollSchedule: {{ .Values.keel.pollSchedule | quote }}
 # force policy's multi-tag watcher treats any other tag (incl. SHA tags) as
 # a valid update candidate and can pin stale/broken builds.
 keel.sh/match-tag: "true"
+{{- end }}
+{{- end }}
+
+{{/*
+Deployment annotations block (Keel + user annotations) for a component.
+Usage:
+  {{- $annotations := include "weather-station.componentAnnotations" (dict "root" . "component" .Values.<component>) | trim }}
+  {{- if $annotations }}{{- $annotations | nindent 2 }}{{- end }}
+*/}}
+{{- define "weather-station.componentAnnotations" -}}
+{{- if or .root.Values.keel.enabled .component.annotations }}
+annotations:
+  {{- include "weather-station.keelAnnotations" .root | nindent 2 }}
+  {{- with .component.annotations }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Placement settings (nodeSelector / affinity / tolerations) for a component.
+Usage:
+  {{- $placement := include "weather-station.placement" (dict "component" .Values.<component>) | trim }}
+  {{- if $placement }}{{- $placement | nindent 6 }}{{- end }}
+*/}}
+{{- define "weather-station.placement" -}}
+{{- with .component.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .component.affinity }}
+affinity:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .component.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end }}
 
