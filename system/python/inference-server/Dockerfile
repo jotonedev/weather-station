@@ -28,6 +28,10 @@ FROM ghcr.io/astral-sh/uv:0.6.5 AS uv-bin
 
 FROM python:3.15-slim-bookworm AS build-stage
 
+# The forecast model backend to bundle. Matches a [project.optional-dependencies] entry:
+# timestral (default) or chronos-2.
+ARG INFERENCE_BACKEND=timestral
+
 WORKDIR /workspace
 
 COPY --from=uv-bin /uv /uvx /bin/
@@ -37,6 +41,11 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     PYTHONUNBUFFERED=1
 
+# git is required to fetch the timestral dependency from its GitHub repository
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package metadata first to optimize Docker layer caching
 COPY proto/gen/python/pyproject.toml proto/gen/python/README.md ./proto/gen/python/
 COPY proto/gen/python/weather/ ./proto/gen/python/weather/
@@ -45,7 +54,7 @@ COPY python/inference-server/pyproject.toml python/inference-server/uv.lock pyth
 # Install dependencies into virtual environment
 WORKDIR /workspace/python/inference-server
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project --extra ${INFERENCE_BACKEND}
 
 # Copy application source code
 COPY python/inference-server/inference/ ./inference/
@@ -53,7 +62,7 @@ COPY python/inference-server/README.md ./
 
 # Install project into virtual environment
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --extra ${INFERENCE_BACKEND}
 
 FROM python:3.15-slim-bookworm AS release-stage
 

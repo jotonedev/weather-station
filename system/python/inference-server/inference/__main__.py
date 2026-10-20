@@ -15,9 +15,10 @@ logger = logging.getLogger("inference")
 
 def main() -> None:
     """Main parses arguments and runs the inference server until interrupted."""
-    parser = argparse.ArgumentParser(description="Chronos-2 Weather Inference Server")
+    parser = argparse.ArgumentParser(description="Weather Inference Server")
     parser.add_argument("--host", default=None, help="Host address to bind")
     parser.add_argument("--port", type=int, default=None, help="Port to listen on")
+    parser.add_argument("--model-backend", default=None, help="Forecast backend name (chronos-2, timestral)")
     parser.add_argument("--model-name", default=None, help="HuggingFace model repository or checkpoint path")
     parser.add_argument("--idle-timeout", type=float, default=None, help="Idle timeout seconds before model eviction")
 
@@ -27,6 +28,7 @@ def main() -> None:
     config = Config(
         host=args.host or default_config.host,
         port=args.port or default_config.port,
+        model_backend=args.model_backend or default_config.model_backend,
         model_name=args.model_name or default_config.model_name,
         idle_timeout_seconds=args.idle_timeout or default_config.idle_timeout_seconds,
         max_workers=default_config.max_workers,

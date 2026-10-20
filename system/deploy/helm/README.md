@@ -109,7 +109,9 @@ Internal `ClusterIP` Service exposing port 8080 (HTTP) for ingress traffic and p
 ### 4. Machine Learning Inference & Batch Job
 
 #### `templates/deployment-inference-server.yaml`
-Deploys the Python PyTorch model serving workload (`amazon/chronos-2`):
+Deploys the Python PyTorch model serving workload. The active model family is selected
+through `inferenceServer.modelBackend` and `inferenceServer.modelName` in `values.yaml`
+(default `timestral` with `mistralai/Timestral-209M`, alternative `chronos-2`):
 - Pinned to large nodes with label `node-size=large` (`arm-01` and `arm-02` with ~12 GB RAM).
 - Allocated 1-4 CPU cores and 2-8 GB RAM.
 - Mounts dedicated model cache PVC at `/home/appuser/.cache/huggingface` with `fsGroup: 10001` so non-root `appuser` can persist model weights across restarts.

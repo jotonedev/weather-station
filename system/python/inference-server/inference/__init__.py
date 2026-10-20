@@ -1,7 +1,7 @@
 """Inference server package for weather prediction."""
 
+from inference.backends import available_backends, create_backend
 from inference.config import Config
-from inference.pipeline import PipelineManager
 from inference.server import InferenceServer, InferenceServicer
 
-__all__ = ["Config", "InferenceServer", "InferenceServicer", "PipelineManager"]
+__all__ = ["Config", "InferenceServer", "InferenceServicer", "available_backends", "create_backend"]

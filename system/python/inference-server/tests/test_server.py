@@ -6,24 +6,24 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from grpc_health.v1 import health_pb2, health_pb2_grpc
 from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 
+from inference.backends.chronos import Chronos2Backend
 from inference.config import Config
-from inference.pipeline import PipelineManager
 from inference.server import InferenceServer, InferenceServicer
-from tests.test_pipeline import create_synthetic_pipeline
+from tests.helpers import create_synthetic_chronos_pipeline
 
 
 @pytest.fixture(scope="module")
 def grpc_service():
     """Grpc_service spins up an in-process gRPC test server with synthetic pipeline."""
-    synthetic_pipeline = create_synthetic_pipeline()
+    synthetic_pipeline = create_synthetic_chronos_pipeline()
     config = Config(host="127.0.0.1", port=0, model_name="test-chronos", max_horizon_hours=240)
-    pipeline_manager = PipelineManager(
+    backend = Chronos2Backend(
         model_name="test-chronos",
         pipeline=synthetic_pipeline,
     )
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
-    servicer = InferenceServicer(pipeline_manager, config)
+    servicer = InferenceServicer(backend, config)
     inference_pb2_grpc.add_InferenceServiceServicer_to_server(servicer, server)
 
     port = server.add_insecure_port("127.0.0.1:0")
@@ -130,6 +130,7 @@ def test_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test_config_from_env verifies parsing of environment variables."""
     monkeypatch.setenv("INFERENCE_PORT", "60060")
     monkeypatch.setenv("INFERENCE_HOST", "127.0.0.1")
+    monkeypatch.setenv("INFERENCE_MODEL_BACKEND", "chronos-2")
     monkeypatch.setenv("INFERENCE_MODEL_NAME", "custom-model")
     monkeypatch.setenv("INFERENCE_IDLE_TIMEOUT_SECONDS", "1800")
     monkeypatch.setenv("INFERENCE_MAX_WORKERS", "8")
@@ -138,6 +139,7 @@ def test_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     config = Config.from_env()
     assert config.port == 60060
     assert config.host == "127.0.0.1"
+    assert config.model_backend == "chronos-2"
     assert config.model_name == "custom-model"
     assert config.idle_timeout_seconds == 1800.0
     assert config.max_workers == 8
@@ -146,14 +148,14 @@ def test_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_server_lifecycle() -> None:
     """Test_server_lifecycle verifies start, health checks, and stop of InferenceServer."""
-    synthetic_pipeline = create_synthetic_pipeline()
+    synthetic_pipeline = create_synthetic_chronos_pipeline()
     config = Config(host="127.0.0.1", port=0, model_name="test-chronos")
-    pipeline_manager = PipelineManager(
+    backend = Chronos2Backend(
         model_name="test-chronos",
         pipeline=synthetic_pipeline,
     )
 
-    server = InferenceServer(config=config, pipeline_manager=pipeline_manager)
+    server = InferenceServer(config=config, backend=backend)
     server.start()
 
     channel = grpc.insecure_channel(f"127.0.0.1:{server.bound_port}")

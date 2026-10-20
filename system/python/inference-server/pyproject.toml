@@ -5,10 +5,20 @@ description = "Inference server for weather prediction"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "chronos-forecasting>=2.3.2",
     "grpcio-health-checking>=1.70.0",
+    "numpy>=2.0",
+    "pandas>=2.2",
     "torch>=2.14.1",
     "weather-proto",
+]
+
+[project.optional-dependencies]
+chronos-2 = [
+    "chronos-forecasting>=2.3.2",
+]
+# Pinned commit until the repo publishes its first tag
+timestral = [
+    "timestral @ git+https://github.com/mistralai/timestral.git@a534bdbd244d64f3d9d743f46c7bf6fc330ed4ff",
 ]
 
 [tool.uv.sources]
@@ -65,7 +75,7 @@ max-complexity = 10
 quote-style = "double"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D", "C901", "PLR0912", "PLR0913", "PLR0915"]
+"tests/**" = ["D", "C901", "PLC0415", "PLR0912", "PLR0913", "PLR0915"]
 "*_test.py" = ["D", "C901", "PLR0912", "PLR0913", "PLR0915"]
 
 [tool.uv]

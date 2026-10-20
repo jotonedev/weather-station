@@ -29,7 +29,7 @@ system/
 │   ├── frontend/              # service (HTTP for data)
 │   └── inference-job/         # service (cron prediction)
 └── python/
-    └── inference-server/        # Python inference server (chronos-2)
+    └── inference-server/        # Python inference server (timestral / chronos-2)
 ```
 
 ## Infrastructure
@@ -38,7 +38,7 @@ system/
 - `frontend` (golang): http interface for the data
 - `data-ingest` (golang): ingest service for the data coming from the MCU
 - `inference-job` (golang): cron-job that retrieves data from database and predicts the future weather
-- `inference-server` (python): inference server for chronos-2 model. This is splitted from `inference-job` to allow it to be deployed on more performant nodes or to be replaced it with commercial services.
+- `inference-server` (python): inference server for time series forecasting, with pluggable model backends (timestral by default, chronos-2 available). This is split from `inference-job` to allow it to be deployed on more performant nodes or to be replaced with commercial services.
 
 
 

@@ -110,7 +110,10 @@ inferenceServer:
     tag: latest
     pullPolicy: Always
   grpcPort: 50051
-  modelName: "amazon/chronos-2"
+  # Forecast backend name (timestral or chronos-2). The image must bundle the
+  # matching optional dependency (Dockerfile INFERENCE_BACKEND build arg).
+  modelBackend: "timestral"
+  modelName: "mistralai/Timestral-209M"
   idleTimeoutSeconds: 3600.0
   maxWorkers: 4
   maxHorizonHours: 360

@@ -8,6 +8,8 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 
+from inference.backends import create_backend
+from inference.backends.base import ForecastBackend
 from inference.config import Config
 from inference.features import (
     calculate_temporal_covariates,
@@ -17,7 +19,6 @@ from inference.features import (
     sort_observations,
 )
 from inference.formatter import format_predictions
-from inference.pipeline import PipelineManager
 from inference.validator import ValidationError, validate_request
 
 logger = logging.getLogger(__name__)
@@ -26,9 +27,9 @@ logger = logging.getLogger(__name__)
 class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
     """InferenceServicer handles weather forecasting and model metadata gRPC requests."""
 
-    def __init__(self, pipeline_manager: PipelineManager, config: Config):
-        """InferenceServicer stores the pipeline manager and configuration."""
-        self.pipeline_manager = pipeline_manager
+    def __init__(self, backend: ForecastBackend, config: Config):
+        """InferenceServicer stores the forecast backend and configuration."""
+        self.backend = backend
         self.config = config
 
     def PredictWeather(
@@ -75,7 +76,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         future_covariates = calculate_temporal_covariates(future_timestamps)
 
         try:
-            quantiles, _ = self.pipeline_manager.predict(
+            quantiles, _ = self.backend.predict(
                 target=target,
                 past_covariates=past_covariates,
                 future_covariates=future_covariates,
@@ -101,7 +102,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
 
         return inference_pb2.PredictWeatherResponse(
             predictions=predictions,
-            model_version=self.pipeline_manager.model_name,
+            model_version=self.backend.model_name,
             computed_at=computed_at,
         )
 
@@ -112,7 +113,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
     ) -> inference_pb2.GetModelInfoResponse:
         """GetModelInfo returns active model identifier and maximum supported horizon."""
         return inference_pb2.GetModelInfoResponse(
-            model_name=self.pipeline_manager.model_name,
+            model_name=self.backend.model_name,
             model_version="1.0.0",
             max_horizon_hours=self.config.max_horizon_hours,
         )
@@ -124,15 +125,16 @@ class InferenceServer:
     def __init__(
         self,
         config: Config,
-        pipeline_manager: PipelineManager | None = None,
+        backend: ForecastBackend | None = None,
     ):
         """InferenceServer initializes gRPC server and background tasks."""
         self.config = config
-        self.pipeline_manager = pipeline_manager or PipelineManager(
+        self.backend = backend or create_backend(
+            backend_name=config.model_backend,
             model_name=config.model_name,
             idle_timeout_seconds=config.idle_timeout_seconds,
         )
-        self.servicer = InferenceServicer(self.pipeline_manager, self.config)
+        self.servicer = InferenceServicer(self.backend, self.config)
         self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
         inference_pb2_grpc.add_InferenceServiceServicer_to_server(self.servicer, self._server)
         self.health_servicer = health.HealthServicer()
@@ -145,7 +147,7 @@ class InferenceServer:
     def _idle_monitor(self) -> None:
         """_idle_monitor periodically triggers idle model eviction."""
         while not self._stop_event.wait(timeout=60.0):
-            if self.pipeline_manager.maybe_unload_idle():
+            if self.backend.maybe_unload_idle():
                 logger.info("idle model successfully evicted from memory")
 
     def start(self) -> None:

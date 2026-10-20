@@ -55,6 +55,8 @@ spec:
               value: {{ .Values.inferenceServer.grpcPort | quote }}
             - name: INFERENCE_MODEL_NAME
               value: {{ .Values.inferenceServer.modelName | quote }}
+            - name: INFERENCE_MODEL_BACKEND
+              value: {{ .Values.inferenceServer.modelBackend | quote }}
             - name: INFERENCE_IDLE_TIMEOUT_SECONDS
               value: {{ .Values.inferenceServer.idleTimeoutSeconds | quote }}
             - name: INFERENCE_MAX_WORKERS
