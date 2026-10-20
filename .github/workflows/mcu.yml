@@ -15,8 +15,29 @@ permissions:
   contents: read
 
 jobs:
+  format:
+    name: clang-format check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Check formatting
+        uses: cpp-linter/cpp-linter-action@v2
+        id: linter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          style: file
+          version: '18'
+          files-changed-only: false
+          ignore: '.pio|lib/CC1101'
+          tidy-checks: '-*'
+          step-summary: true
+          format-fail-on-error: true
+
   unit-tests:
-    name: Host unit tests
+    name: Native tests and clang-tidy
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,6 +64,27 @@ jobs:
 
       - name: Run native unit tests
         run: pio test -e native
+
+      - name: Install clang-tidy
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang-tidy
+
+      - name: Run clang-tidy
+        run: |
+          set -o pipefail
+          clang-tidy --config-file=.clang-tidy \
+            lib/ARQ/src/ARQ.cpp lib/Weather/src/Weather.cpp lib/Ingest/src/Ingest.cpp \
+            lib/Outbox/src/Outbox.cpp \
+            test/test_arq.cpp test/test_weather.cpp test/test_outbox.cpp test/test_ingest.cpp \
+            test/main.cpp \
+            -- -std=gnu++17 \
+            -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src \
+            -I.pio/libdeps/native/googletest/googletest/include \
+            -I.pio/libdeps/native/googletest/googlemock/include \
+            2>&1 | tee tidy.log
+          if grep -qE "warning:|error:" tidy.log; then
+            echo "clang-tidy findings detected"
+            exit 1
+          fi
 
   build:
     name: Build firmware

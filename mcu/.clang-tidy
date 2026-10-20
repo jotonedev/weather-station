@@ -1,0 +1,31 @@
+# Static analysis for the mcu code. Device sources need the Arduino toolchain,
+# so tidy runs target the host compilable libraries and tests through the
+# native environment compile database.
+Checks: >
+  bugprone-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-signed-bitwise,
+  -bugprone-throwing-static-initialization,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-internal-linkage,
+  -modernize-avoid-c-arrays,
+  -modernize-avoid-variadic-functions,
+  -modernize-type-traits,
+  -modernize-use-trailing-return-type,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-uppercase-literal-suffix
+
+# Warnings from Arduino core and third-party headers are not actionable.
+HeaderFilterRegex: '^(?!.*(\.pio|lib/CC1101|tools/sdk)).*$'
+
+WarningsAsErrors: ''
+FormatStyle: file

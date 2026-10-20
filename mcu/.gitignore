@@ -107,3 +107,5 @@ sdkconfig.*
 # Go module files (override the Fortran *.mod rule above)
 !go.mod
 !**/go.mod
+
+compile_commands.json

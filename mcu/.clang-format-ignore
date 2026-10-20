@@ -1,0 +1,4 @@
+# Vendored third-party driver, keep upstream formatting.
+lib/CC1101/
+# PlatformIO build output and downloaded packages.
+.pio/

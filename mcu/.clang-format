@@ -1,0 +1,15 @@
+# Style matching the existing mcu code. Four space indent, attached braces,
+# project headers after system headers, 100 column limit.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+InsertBraces: true
+RemoveBracesLLVM: false
+SpaceAfterCStyleCast: false
