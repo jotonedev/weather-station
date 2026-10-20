@@ -1,0 +1,100 @@
+# Minimal Docker Compose deployment for the weather-station microservices.
+
+name: weather-station
+
+services:
+  database:
+    image: weather-station/database
+    build:
+      context: ../..
+      dockerfile: go/Dockerfile
+      args:
+        SERVICE: database
+    environment:
+      GRPC_ADDRESS: "0.0.0.0:8090"
+      DUCKDB_PATH: "/data/weather.duckdb"
+      DUCKDB_MAX_MEMORY: "128MB"
+      DUCKDB_THREADS: "2"
+    volumes:
+      - db-data:/data
+    expose:
+      - "8090"
+
+  data-ingest:
+    image: weather-station/data-ingest
+    build:
+      context: ../..
+      dockerfile: go/Dockerfile
+      args:
+        SERVICE: data-ingest
+    environment:
+      DATABASE_ADDRESS: "database:8090"
+      HTTP_ADDRESS: "0.0.0.0:8080"
+      GRPC_ADDRESS: "0.0.0.0:8090"
+    ports:
+      - "8081:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    image: weather-station/frontend
+    build:
+      context: ../..
+      dockerfile: go/Dockerfile
+      args:
+        SERVICE: frontend
+    environment:
+      DATABASE_ADDRESS: "database:8090"
+      HTTP_ADDRESS: "0.0.0.0:8080"
+      GRPC_ADDRESS: "0.0.0.0:8090"
+    ports:
+      - "8080:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  inference-server:
+    image: weather-station/inference-server
+    build:
+      context: ../..
+      dockerfile: python/inference-server/Dockerfile
+      args:
+        INFERENCE_BACKEND: timestral
+    environment:
+      INFERENCE_PORT: "50051"
+      INFERENCE_HOST: "0.0.0.0"
+      INFERENCE_MODEL_BACKEND: "timestral"
+      INFERENCE_MODEL_NAME: "mistralai/Timestral-209M"
+      INFERENCE_IDLE_TIMEOUT_SECONDS: "3600.0"
+      INFERENCE_MAX_WORKERS: "4"
+      INFERENCE_MAX_HORIZON_HOURS: "360"
+    volumes:
+      # Persist downloaded HuggingFace weights across restarts.
+      - hf-cache:/home/appuser/.cache/huggingface
+    expose:
+      - "50051"
+
+  # One-shot forecast job. Not started by plain "compose up" (profile).
+  # Run it on demand, see the README for a host-cron example.
+  inference-job:
+    image: weather-station/inference-job
+    build:
+      context: ../..
+      dockerfile: go/Dockerfile
+      args:
+        SERVICE: inference-job
+    profiles: ["job"]
+    restart: "no"
+    environment:
+      DATABASE_ADDRESS: "database:8090"
+      INFERENCE_SERVER_ADDRESS: "inference-server:50051"
+    depends_on:
+      database:
+        condition: service_healthy
+      inference-server:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  hf-cache:
