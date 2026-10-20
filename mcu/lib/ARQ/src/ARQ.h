@@ -49,12 +49,12 @@ enum class RadioState {
  * @brief Represents a data link message for the ARQ protocol.
  */
 struct __attribute__((packed)) Message {
-    version_t version;
-    address_t source;
-    MessageType type;
-    seq_t sequence;
-    length_t length;
-    const byte* payload;
+    version_t version = PROTOCOL_VERSION;
+    address_t source = 0;
+    MessageType type = DATA_FRAME;
+    seq_t sequence = 0;
+    length_t length = 0;
+    const byte* payload = nullptr;
 };
 
 /**
