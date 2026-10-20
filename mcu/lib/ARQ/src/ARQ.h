@@ -2,7 +2,8 @@
 #define ARQ_H
 
 #include <cstdint>
-#include <cc1101.h>
+
+#include "RadioInterface.h"
 
 namespace ARQ {
 
@@ -64,7 +65,7 @@ struct __attribute__((packed)) Message {
  */
 class ARQ {
     public:
-        explicit ARQ(CC1101::Radio radio, address_t localAddress = 0)
+        explicit ARQ(RadioInterface& radio, address_t localAddress = 0)
             : radio(radio), localAddress(localAddress) {}
         ~ARQ();
 
@@ -106,7 +107,7 @@ class ARQ {
         bool isChannelClear() { return radio.isChannelClear(); }
         bool isCarrierDetected() { return radio.isCarrierDetected(); }
     protected:
-        CC1101::Radio radio;
+        RadioInterface& radio;
         uint8_t packetLength = 59;
         address_t localAddress = 0;
         bool ccaEnabled = true;

@@ -1,5 +1,15 @@
 # Shared libraries
 
+## Project libraries
+
+- `ARQ` - radio link state machine with retries, ACK and duplicate handling
+- `Weather` - shared packed structs, fixed-point scales and sentinel values
+- `Outbox` - ring buffer for readings awaiting delivery
+- `Ingest` - JSON payload builders
+- `RadioAdapter` - bridges the ARQ radio interface to the CC1101 driver
+
+## Sensors
+
 ## AHT20
 
 - Temperature and humidity sensor

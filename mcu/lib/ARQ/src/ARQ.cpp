@@ -1,9 +1,25 @@
+#include <chrono>
+#include <cstring>
+
+#ifdef ARDUINO
 #include <Arduino.h>
-#include <cc1101.h>
+#endif
 
 #include "ARQ.h"
 
 namespace ARQ {
+
+// milliseconds since an arbitrary fixed epoch. Uses the Arduino timer on the
+// device and the host steady clock in host unit tests.
+uint32_t nowMillis() {
+#ifdef ARDUINO
+    return millis();
+#else
+    using namespace std::chrono;
+    return static_cast<uint32_t>(
+        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+#endif
+}
 
 ARQ* ARQ::instance = nullptr;
 
@@ -29,44 +45,44 @@ Status ARQ::initializeCC1101(uint8_t packetLength) {
     memset(rxPayloadBuffer, 0, this->packetLength);
 
     auto status = radio.begin();
-    if (status != CC1101::STATUS_OK) {
+    if (status != RadioStatus::Ok) {
         return STATUS_CHIP_NOT_FOUND;
     }
 
-    radio.setModulation(CC1101::MOD_GFSK);
+    radio.setModulation(Modulation::Gfsk);
     status = radio.setFrequency(433.5);
-    if (status != CC1101::STATUS_OK) {
+    if (status != RadioStatus::Ok) {
         return STATUS_INVALID_PARAM;
     }
     status = radio.setFrequencyDeviation(5.0);
-    if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
+    if (status != RadioStatus::Ok) return STATUS_INVALID_PARAM;
 
     status = radio.setRxBandwidth(100);
-    if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
+    if (status != RadioStatus::Ok) return STATUS_INVALID_PARAM;
     status = radio.setDataRate(2.0);  // 2 kBaud
-    if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
+    if (status != RadioStatus::Ok) return STATUS_INVALID_PARAM;
     radio.setOutputPower(10);  // 10 dBm
 
-    radio.setPacketLengthMode(CC1101::PKT_LEN_MODE_FIXED, packetLength);
-    radio.setPacketFormat(CC1101::PKT_FORMAT_NORMAL);
-    radio.setAddressFilteringMode(CC1101::ADDR_FILTER_MODE_CHECK_BC_0_255);
+    radio.setPacketLengthMode(PacketLengthMode::Fixed, packetLength);
+    radio.setPacketFormat(PacketFormat::Normal);
+    radio.setAddressFilteringMode(AddressFilteringMode::CheckBroadcast0255);
 
     status = radio.setPreambleLength(64);
-    if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
+    if (status != RadioStatus::Ok) return STATUS_INVALID_PARAM;
     radio.setSyncWord(0xD391);
-    radio.setSyncMode(CC1101::SYNC_MODE_15_16);
+    radio.setSyncMode(SyncMode::Bits1516);
 
     radio.setCrc(true);
     radio.setDataWhitening(true);
     status = radio.setManchester(false);
-    if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
-    status = radio.setFEC(true);
-    if (status != CC1101::STATUS_OK) return STATUS_INVALID_PARAM;
+    if (status != RadioStatus::Ok) return STATUS_INVALID_PARAM;
+    status = radio.setFec(true);
+    if (status != RadioStatus::Ok) return STATUS_INVALID_PARAM;
 
-    radio.setCcaMode(CC1101::CCA_RSSI_AND_NOT_RX);
+    radio.setCcaMode(CcaMode::RssiAndNotRx);
 
-    radio.setReceiveAction(isrHandler, CC1101::GDO0);
-    radio.writeReg(CC1101_REG_IOCFG0, 0x07);
+    radio.setReceiveAction(isrHandler, GdoPin::Gdo0);
+    radio.writeReg(kRegIocfg0, 0x07);
 
     currentState = RadioState::IDLE;
 
@@ -89,7 +105,7 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
     }
 
     currentTxSeq++;
-    txStartTime = millis();
+    txStartTime = nowMillis();
     Message message {
         .version = PROTOCOL_VERSION,
         .source = this->localAddress,
@@ -104,7 +120,7 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
 Status ARQ::enterRxMode() {
     packetDone = false;
     auto status = radio.startReceive(this->localAddress);
-    return (status == CC1101::STATUS_OK) ? STATUS_OK : STATUS_ERROR;
+    return (status == RadioStatus::Ok) ? STATUS_OK : STATUS_ERROR;
 }
 
 Status ARQ::startReceiveData(address_t localAddress) {
@@ -118,9 +134,9 @@ Status ARQ::startReceiveData() {
     }
 
     packetDone = false;
-    opStartTime = millis();
+    opStartTime = nowMillis();
 
-    radio.setReceiveAction(isrHandler, CC1101::GDO0);
+    radio.setReceiveAction(isrHandler, GdoPin::Gdo0);
     auto status = enterRxMode();
     if (status != STATUS_OK) {
         return STATUS_ERROR;
@@ -148,21 +164,21 @@ Status ARQ::handleStateTransmitting() {
 }
 
 Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
-    uint8_t rxBytes = radio.readRegField(CC1101_REG_RXBYTES, 6, 0);
+    uint8_t rxBytes = radio.readRegField(kRegRxBytes, 6, 0);
     if (packetDone || rxBytes >= (this->packetLength + 1)) {
         packetDone = false;
         uint8_t buffer[64];
         size_t bytesRead = 0;
 
         auto status = radio.readData(buffer, this->packetLength, &bytesRead);
-        if (status == CC1101::STATUS_OK && bytesRead >= HEADER_SIZE) {
+        if (status == RadioStatus::Ok && bytesRead >= HEADER_SIZE) {
             version_t ver = buffer[0];
             address_t src = buffer[1];
             MessageType type = static_cast<MessageType>(buffer[2]);
             seq_t seq = static_cast<seq_t>(buffer[3]) | (static_cast<seq_t>(buffer[4]) << 8);
 
             if (ver == PROTOCOL_VERSION && type == ACK && src == currentTarget && seq == currentTxSeq) {
-                lastRTT = millis() - txStartTime;
+                lastRTT = nowMillis() - txStartTime;
                 txSuccessCount++;
                 radio.idle();
                 currentState = RadioState::IDLE;
@@ -175,19 +191,19 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
     }
 
     // Check if timeout for this attempt expired
-    if (millis() - opStartTime >= ackTimeoutMs) {
+    if (nowMillis() - opStartTime >= ackTimeoutMs) {
         retryCount++;
         totalRetries++;
         if (retryCount < MAX_RETRIES) {
             // Retransmit saved txBuffer synchronously (with CCA if enabled)
-            CC1101::Status status;
+            RadioStatus status;
             if (ccaEnabled) {
                 status = radio.transmitWithCca(txBuffer, this->packetLength, currentTarget, 3);
             } else {
                 status = radio.transmit(txBuffer, this->packetLength, currentTarget);
             }
-            if (status != CC1101::STATUS_OK) {
-                if (status == CC1101::STATUS_CHANNEL_BUSY) {
+            if (status != RadioStatus::Ok) {
+                if (status == RadioStatus::ChannelBusy) {
                     enterRxMode();
                     currentState = RadioState::WAITING_ACK;
                     return STATUS_BUSY;
@@ -197,7 +213,7 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
                 return STATUS_ERROR;
             }
             packetDone = false;
-            opStartTime = millis();
+            opStartTime = nowMillis();
             enterRxMode();
             currentState = RadioState::WAITING_ACK;
             return STATUS_BUSY;
@@ -218,7 +234,7 @@ Status ARQ::handleStateSendingAck() {
 }
 
 Status ARQ::handleStateReceiving() {
-    uint8_t rxBytes = radio.readRegField(CC1101_REG_RXBYTES, 6, 0);
+    uint8_t rxBytes = radio.readRegField(kRegRxBytes, 6, 0);
     if (!packetDone && rxBytes < (this->packetLength + 1)) {
         return STATUS_BUSY;
     }
@@ -228,13 +244,13 @@ Status ARQ::handleStateReceiving() {
     size_t bytesRead = 0;
 
     auto status = radio.readData(buffer, this->packetLength, &bytesRead);
-    if (status != CC1101::STATUS_OK || bytesRead < HEADER_SIZE) {
+    if (status != RadioStatus::Ok || bytesRead < HEADER_SIZE) {
         enterRxMode();
         return STATUS_ERROR;
     }
 
-    lastRssi = radio.getRSSI();
-    lastLqi = radio.getLQI();
+    lastRssi = radio.getRssi();
+    lastLqi = radio.getLqi();
 
     version_t ver = buffer[0];
     address_t src = buffer[1];
@@ -335,7 +351,7 @@ Status ARQ::sendMessage(Message& message, address_t target) {
     }
 
     packetDone = false;
-    opStartTime = millis();
+    opStartTime = nowMillis();
     currentTxType = message.type;
     currentTarget = target;
 
@@ -358,15 +374,15 @@ Status ARQ::sendMessage(Message& message, address_t target) {
         retryCount = 0;
     }
 
-    CC1101::Status status;
+    RadioStatus status;
     if (ccaEnabled && message.type == DATA_FRAME) {
         status = radio.transmitWithCca(txBuffer, this->packetLength, target, 5);
     } else {
         status = radio.transmit(txBuffer, this->packetLength, target);
     }
 
-    if (status != CC1101::STATUS_OK) {
-        if (status == CC1101::STATUS_CHANNEL_BUSY) {
+    if (status != RadioStatus::Ok) {
+        if (status == RadioStatus::ChannelBusy) {
             enterRxMode();
             return STATUS_CHANNEL_BUSY;
         }
@@ -382,7 +398,7 @@ Status ARQ::sendMessage(Message& message, address_t target) {
         return STATUS_OK;
     } else {
         packetDone = false;
-        opStartTime = millis();
+        opStartTime = nowMillis();
         auto rxStatus = enterRxMode();
         if (rxStatus != STATUS_OK) {
             radio.idle();
