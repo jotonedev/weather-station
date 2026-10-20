@@ -1,0 +1,43 @@
+{{- if and .Values.networkPolicy.enabled .Values.tailscale.serviceHost.enabled }}
+# Tailscale service-host egress. The node is a VPN client: it must reach the
+# Tailscale control plane and DERP relays. With "allow-all" (recommended) it
+# may connect anywhere; with "restrict" only DNS, control/DERP and the backend.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-tailscale-svc-host
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "tailscale-svc-host") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "tailscale-svc-host") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    {{- if eq .Values.tailscale.serviceHost.egressPolicy "allow-all" }}
+    - {}
+    {{- else }}
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.tailscale.serviceHost.targetPort }}
+    - ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 443
+        - protocol: TCP
+          port: 80
+        - protocol: UDP
+          port: 3478
+    {{- end }}
+{{- end }}

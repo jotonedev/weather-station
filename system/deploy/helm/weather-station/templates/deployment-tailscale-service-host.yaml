@@ -1,0 +1,94 @@
+{{- if .Values.tailscale.serviceHost.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "weather-station.fullname" . }}-tailscale-svc-host
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "tailscale-svc-host") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "tailscale-svc-host") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "tailscale-svc-host") | nindent 8 }}
+    spec:
+      {{- with .Values.tailscale.serviceHost.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tailscale.serviceHost.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tailscale.serviceHost.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: tailscale
+          image: "{{ .Values.tailscale.serviceHost.image.repository }}:{{ .Values.tailscale.serviceHost.image.tag }}"
+          imagePullPolicy: {{ .Values.tailscale.serviceHost.image.pullPolicy }}
+          command: ["/bin/sh", "/config/entrypoint.sh"]
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.tailscale.serviceHost.serviceName | quote }}
+            - name: HOST_DEVICE_NAME
+              value: {{ .Values.tailscale.serviceHost.hostname | quote }}
+            - name: DEVICE_TAG
+              value: {{ .Values.tailscale.serviceHost.tag | quote }}
+            - name: LOCAL_TARGET
+              value: "http://127.0.0.1:{{ .Values.tailscale.serviceHost.localPort }}"
+            {{- $sec := .Values.tailscale.serviceHost.auth.existingSecret }}
+            {{- if $sec }}
+            {{- if and .Values.tailscale.serviceHost.auth.clientIdKey .Values.tailscale.serviceHost.auth.clientSecretKey }}
+            - name: TS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $sec | quote }}
+                  key: {{ .Values.tailscale.serviceHost.auth.clientIdKey | quote }}
+            - name: TS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $sec | quote }}
+                  key: {{ .Values.tailscale.serviceHost.auth.clientSecretKey | quote }}
+            {{- else }}
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $sec | quote }}
+                  key: {{ .Values.tailscale.serviceHost.auth.authKeyKey | quote }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          resources:
+            {{- toYaml .Values.tailscale.serviceHost.resources | nindent 12 }}
+        - name: forwarder
+          image: "{{ .Values.tailscale.serviceHost.forwarderImage.repository }}:{{ .Values.tailscale.serviceHost.forwarderImage.tag }}"
+          imagePullPolicy: {{ .Values.tailscale.serviceHost.forwarderImage.pullPolicy }}
+          {{- $target := .Values.tailscale.serviceHost.targetHost }}
+          {{- if not $target }}
+          {{- $target = printf "%s-frontend.%s.svc.cluster.local" (include "weather-station.fullname" .) .Release.Namespace }}
+          {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              socat TCP-LISTEN:{{ .Values.tailscale.serviceHost.localPort }},fork,reuseaddr
+              TCP:{{ $target }}:{{ .Values.tailscale.serviceHost.targetPort }}
+          resources:
+            {{- toYaml .Values.tailscale.serviceHost.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "weather-station.fullname" . }}-tailscale-svc-host
+            defaultMode: 0755
+{{- end }}

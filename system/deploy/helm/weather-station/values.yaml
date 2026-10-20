@@ -173,6 +173,64 @@ ingress:
   host: "weather.internal"
   tls: []
 
+# Tailscale exposure
+# https://tailscale.com/docs/features/tailscale-services
+tailscale:
+  # Reserved: when using the tailscale-operator Ingress mode instead, an
+  # Ingress named "weather" would expose weather.<tailnet>.ts.net.
+  # This chart currently implements the Service-host path below.
+  serviceHost:
+    enabled: false
+    # The Tailscale Service to advertise (svc:<serviceName>). Must match a
+    # Service you have created in the admin console (Services page).
+    serviceName: "weather"
+    # Tailnet tag applied to the host device (must be tag-ownable by the auth
+    # credentials; see tagOwners in the ACL policy).
+    tag: "k3s-cluster"
+    # Device hostname shown in the admin console.
+    hostname: "weather-svc-host"
+    image:
+      repository: tailscale/tailscale
+      tag: stable
+      pullPolicy: IfNotPresent
+    # Tiny local forwarder: serve L7 can only proxy to 127.0.0.1, so this
+    # forwards localhost:<localPort> to the ClusterIP backend.
+    forwarderImage:
+      repository: alpine/socat
+      tag: "1.8.0.1"
+      pullPolicy: IfNotPresent
+    # Endpoints to advertise on the Service (protocol: https|http).
+    endpoints:
+      - port: 443
+        protocol: https
+      - port: 80
+        protocol: http
+    # Backend the host forwards to (defaults to the frontend Service).
+    targetHost: ""
+    targetPort: 8080
+    localPort: 8080
+    # Authentication: reference an existing Kubernetes secret.
+    #   - OAuth client  -> keys clientId + clientSecret (never expires)
+    #   - auth key      -> key authkey (max 90-day expiry, needs rotation)
+    auth:
+      existingSecret: ""
+      clientIdKey: "clientId"
+      clientSecretKey: "clientSecret"
+      authKeyKey: "authkey"
+    # Egress from the host pod: "allow-all" (recommended for a VPN client) or
+    # "restrict" (DNS + control/DERP + backend only).
+    egressPolicy: "allow-all"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
 # Zero-trust Kubernetes NetworkPolicies
 networkPolicy:
   enabled: true

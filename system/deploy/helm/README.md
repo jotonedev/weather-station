@@ -200,3 +200,58 @@ The chart ships Keel annotations (`keel.enabled: true` in `values.yaml`) so the 
 - To pin an exact build, override the tag via `--set <component>.image.tag=sha-<shortsha>` **and** set `--set keel.enabled=false`, otherwise Keel will roll you back onto `latest` on its next poll.
 - The `verify-latest` job in the CI workflow fails the run if `latest` is missing or does not contain every declared platform (`linux/amd64`, `linux/arm64`), preventing Keel from rolling the cluster onto a partially pushed multi-arch image index.
 
+---
+
+## Tailscale Service host (frontend on the tailnet)
+
+The chart can publish the frontend as a [Tailscale Service](https://tailscale.com/docs/features/tailscale-services), e.g. `https://weather.<tailnet>.ts.net`, reachable only over your tailnet. It does **not** use the tailscale-operator: a dedicated service-host pod joins the tailnet (tagged `k3s-cluster` by default), advertises `svc:<serviceName>` with HTTPS 443 and HTTP 80, and forwards traffic to the frontend ClusterIP through a tiny local `socat` proxy (serve L7 can only proxy to `127.0.0.1`).
+
+### One-time tailnet setup (admin console)
+
+1. Create the Service: **Services → Add Service** named `weather` (this defines `weather.<tailnet>.ts.net`).
+2. ACL: make `tag:k3s-cluster` tag-ownable, e.g. in `tagOwners` add `"tag:k3s-cluster": []` (or `["autogroup:admin"]`).
+3. Create an **OAuth client** (Trust credentials) with `write` scope on **Devices/Core** and **Keys/Auth Keys**, both attached to `tag:k3s-cluster`. (No `General/Services` write is needed: the Service is already defined in the console and the host advertises via the client, not the Services API.)
+4. **Grant** access to the Service (optional, defaults): e.g. `"dst": ["svc:weather"], "src": ["autogroup:member"]`.
+5. After deploying (below), **approve the advertised host** on the Services page, or pre-authorize it with an `autoApprovers.services` policy for `tag:k3s-cluster`.
+
+### Providing credentials
+
+Create a Secret in the `weather-station` namespace with either OAuth client credentials (no expiry):
+
+```bash
+kubectl -n weather-station create secret generic ts-auth \
+  --from-literal=clientId='k123456CNTRL' \
+  --from-literal=clientSecret='tskey-client-k123456CNTRL-abcdef'
+```
+
+or a plain auth key (expires after max 90 days - regular rotation required):
+
+```bash
+kubectl -n weather-station create secret generic ts-auth \
+  --from-literal=authkey='tskey-auth-...'
+```
+
+and reference it in values (`tailscale.serviceHost.auth.existingSecret`). Omit `clientIdKey`/`clientSecretKey` (or leave empty) to use the `authkey` key instead.
+
+### Values
+
+| Value | Default | Description |
+|---|---|---|
+| `tailscale.serviceHost.enabled` | `false` | Enable the service host |
+| `...serviceName` | `weather` | Tailscale Service name (`svc:weather`) |
+| `...tag` | `k3s-cluster` | Tailnet tag for the host device (must be tag-ownable) |
+| `...hostname` | `weather-svc-host` | Device hostname in the admin console |
+| `...endpoints` | `[{443,https},{80,http}]` | Ports/protocols advertised on the Service |
+| `...targetHost` | frontend Service | Backend the host forwards to (ClusterIP FQDN) |
+| `...targetPort` | `8080` | Backend port |
+| `...localPort` | `8080` | Local port the socat forwarder listens on |
+| `...auth.existingSecret` | `""` | Secret holding `clientId`/`clientSecret` or `authkey` |
+| `...egressPolicy` | `allow-all` | `allow-all` or `restrict` host egress |
+| `...nodeSelector`/`tolerations`/`affinity` | `{}` / `[]` / `{}` | Placement |
+
+### Notes & gotchas
+
+- One pod per Service host = one tailnet device. To scale, deploy multiple replicas (each advertises the same Service; Tailscale load-balances and requires an approval per host).
+- `strategy: Recreate` and an in-memory state dir mean each redeploy re-registers the device; with an OAuth client this is automatic and no-ops on the console side.
+- Only TCP is supported (no UDP); do not disable the `forwarder` container - serve L7 targets must be `127.0.0.1`.
+
