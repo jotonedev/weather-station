@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "github.com/marcboeker/go-duckdb"
+	_ "github.com/marcboeker/go-duckdb/v2"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
