@@ -10,7 +10,6 @@ import (
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
@@ -144,15 +143,12 @@ func (c *Controller) RunForecastForNode(ctx context.Context, nodeID string, mode
 	}
 
 	observations := ToTimeSeriesObservations(aggregates)
-	tensorBlob := PackFloat32TensorBlob(observations)
 
 	req := &protoinferencev1.PredictWeatherRequest{
-		NodeId:         nodeID,
-		Mode:           mode,
-		IssueTime:      timestamppb.New(now),
-		History:        observations,
-		DataBlob:       tensorBlob,
-		DataBlobFormat: proto.String("tensor/float32"),
+		NodeId:    nodeID,
+		Mode:      mode,
+		IssueTime: timestamppb.New(now),
+		History:   observations,
 	}
 
 	res, err := c.infGateway.PredictWeather(ctx, req)

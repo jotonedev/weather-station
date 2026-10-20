@@ -1,4 +1,3 @@
-import math
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
@@ -9,6 +8,20 @@ from weather.inference.v1.inference_pb2 import (
     PREDICTION_MODE_NEXT_24_HOURS,
     TimeSeriesObservation,
 )
+
+from inference.validator import ValidationError
+
+# Optional columns enter the model only if they are not too sparse. Their
+# effective missing ratio (absent or non-finite after validation) must be at or
+# below this threshold.
+OPTIONAL_COLUMN_THRESHOLD = 0.30
+
+# Maximum consecutive missing samples bridged with linear interpolation
+# (measured from each side of an interior gap, so the effective bridge is up to
+# twice these values). Longer gaps keep a constant plateau in the middle instead
+# of drawing one long trend across the outage.
+MAX_GAP_HOURLY = 12
+MAX_GAP_DAILY = 3
 
 
 def sort_observations(observations: Sequence[TimeSeriesObservation]) -> list[TimeSeriesObservation]:
@@ -31,42 +44,43 @@ def extract_observation_dataframe(observations: list[TimeSeriesObservation]) -> 
             "rainfall_mm": obs.rainfall_mm if obs.HasField("rainfall_mm") else np.nan,
             "pressure_hpa": obs.pressure_hpa if obs.HasField("pressure_hpa") else np.nan,
         }
-
-        if obs.HasField("wind_speed_mps") and obs.HasField("wind_direction_deg"):
-            rad = math.radians(obs.wind_direction_deg)
-            record["wind_u"] = math.sin(rad)
-            record["wind_v"] = math.cos(rad)
-        else:
-            record["wind_u"] = np.nan
-            record["wind_v"] = np.nan
-
         records.append(record)
 
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    # Normalize NaN and infinities to a single missing representation so that
+    # imputation and sparsity checks treat them uniformly.
+    return df.replace([np.inf, -np.inf], np.nan)
 
 
-def filter_and_impute_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    """filter_and_impute_columns drops sparse columns and imputes missing values."""
+def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -> tuple[pd.DataFrame, list[str]]:
+    """filter_and_impute_columns drops sparse optional columns and imputes missing values."""
     total_rows = len(df)
     surviving_columns = ["temperature_c", "humidity_pct"]
 
-    # Optional rainfall evaluation
-    if "rainfall_mm" in df.columns:
-        rain_missing = df["rainfall_mm"].isna().sum() / total_rows
-        if rain_missing <= 0.30:
-            surviving_columns.append("rainfall_mm")
+    for column_name in ("rainfall_mm", "pressure_hpa"):
+        if column_name in df.columns:
+            missing_ratio = df[column_name].isna().sum() / total_rows
+            if missing_ratio <= OPTIONAL_COLUMN_THRESHOLD:
+                surviving_columns.append(column_name)
 
-    # Optional wind evaluation requiring both components
-    if "wind_u" in df.columns and "wind_v" in df.columns:
-        wind_u_missing = df["wind_u"].isna().sum() / total_rows
-        wind_v_missing = df["wind_v"].isna().sum() / total_rows
-        if wind_u_missing <= 0.30 and wind_v_missing <= 0.30:
-            surviving_columns.extend(["wind_u", "wind_v"])
-
-    # Interpolate and backfill / forward fill
     clean_df = df[surviving_columns].copy()
-    clean_df = clean_df.interpolate(method="linear", limit_direction="both")
-    clean_df = clean_df.bfill().ffill().fillna(0.0)
+    # Interpolate interior gaps linearly up to max_gap from each edge; gaps far
+    # longer than the cap keep a constant plateau in the middle rather than a
+    # single straight line spanning the outage.
+    clean_df = clean_df.interpolate(
+        method="linear",
+        limit=max_gap,
+        limit_direction="both",
+        limit_area="inside",
+    )
+    clean_df = clean_df.bfill().ffill()
+
+    # Required columns must never be silently zero-filled: the validator already
+    # rejects histories whose required columns are too sparse, and non-finite
+    # values are normalized to NaN by the extractor, so any NaN left here
+    # indicates an unexpected imputation failure.
+    if not np.isfinite(clean_df.to_numpy(dtype=float)).all():
+        raise ValidationError("history contains unresolvable missing values after imputation")
 
     return clean_df, surviving_columns
 
@@ -94,10 +108,3 @@ def calculate_temporal_covariates(timestamps: list[datetime]) -> dict[str, np.nd
         "doy_sin": np.sin(doy_angle).astype(np.float32),
         "doy_cos": np.cos(doy_angle).astype(np.float32),
     }
-
-
-def reconstruct_wind_direction(u: float, v: float) -> float:
-    """reconstruct_wind_direction recovers directional degrees from orthogonal u and v vector components."""
-    rad = math.atan2(u, v)
-    deg = math.degrees(rad)
-    return (deg + 360.0) % 360.0

@@ -105,9 +105,6 @@ def test_validate_request_humidity_sparsity() -> None:
         ("humidity_pct", 105.0),
         ("pressure_hpa", 250.0),
         ("pressure_hpa", 1200.0),
-        ("wind_speed_mps", -1.0),
-        ("wind_direction_deg", -10.0),
-        ("wind_direction_deg", 370.0),
         ("rainfall_mm", -0.5),
     ],
 )
@@ -115,5 +112,65 @@ def test_validate_request_out_of_bounds(field_name: str, invalid_value: float) -
     """Test_validate_request_out_of_bounds verifies boundaries for sensor measurements."""
     request = create_valid_request()
     setattr(request.history[0], field_name, invalid_value)
-    with pytest.raises(ValidationError, match="out of bounds|cannot be negative"):
+    with pytest.raises(ValidationError, match="out of bounds"):
+        validate_request(request)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("temperature_c", float("inf")),
+        ("temperature_c", float("-inf")),
+        ("humidity_pct", float("inf")),
+    ],
+)
+def test_validate_request_inf_over_threshold_rejected(field_name: str, invalid_value: float) -> None:
+    """Test_validate_request_inf_over_threshold_rejected rejects required columns dominated by infinities."""
+    request = create_valid_request()
+    # 4 of 10 non-finite (40 percent) exceeds the 30 percent missing threshold.
+    for index in range(4):
+        setattr(request.history[index], field_name, invalid_value)
+
+    with pytest.raises(ValidationError, match="exceeds maximum allowed missing ratio"):
+        validate_request(request)
+
+
+def test_validate_request_all_nan_temperature_rejected() -> None:
+    """Test_validate_request_all_nan_temperature_rejected treats NaN as missing for the sparsity check."""
+    request = create_valid_request()
+    for observation in request.history:
+        observation.temperature_c = float("nan")
+
+    with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
+        validate_request(request)
+
+
+def test_validate_request_all_nan_humidity_rejected() -> None:
+    """Test_validate_request_all_nan_humidity_rejected treats NaN as missing for the sparsity check."""
+    request = create_valid_request()
+    for observation in request.history:
+        observation.humidity_pct = float("nan")
+
+    with pytest.raises(ValidationError, match="humidity_pct exceeds maximum allowed missing ratio"):
+        validate_request(request)
+
+
+def test_validate_request_partial_nan_accepted() -> None:
+    """Test_validate_request_partial_nan_accepted allows non-finite values within the missing threshold."""
+    request = create_valid_request()
+    # 2 of 10 missing (20 percent) is under the 30 percent threshold.
+    request.history[0].temperature_c = float("nan")
+    request.history[1].humidity_pct = float("nan")
+
+    validate_request(request)
+
+
+def test_validate_request_present_and_nan_counts_once() -> None:
+    """Test_validate_request_present_and_nan_counts_once verifies a NaN field is not double counted."""
+    request = create_valid_request()
+    # 4 NaN plus 0 cleared means 4 of 10 (40 percent) - over threshold, rejected.
+    for index in range(4):
+        request.history[index].temperature_c = float("nan")
+
+    with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
         validate_request(request)

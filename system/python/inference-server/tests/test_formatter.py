@@ -21,9 +21,9 @@ def test_format_predictions_hourly_mode() -> None:
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
-    # 4 variates: temp, hum, rain, wind_u, wind_v
+    # 3 variates: temp, hum, rain
     # 24 horizon steps, 3 quantiles (10%, 50%, 90%)
-    quantiles = np.zeros((5, 24, 3), dtype=np.float32)
+    quantiles = np.zeros((3, 24, 3), dtype=np.float32)
 
     # Temperature: median 22.0, spread 4.0
     quantiles[0, :, 0] = 20.0
@@ -40,11 +40,7 @@ def test_format_predictions_hourly_mode() -> None:
     quantiles[2, :, 1] = 1.5
     quantiles[2, :, 2] = 2.5
 
-    # Wind: u=1, v=0 (90 degrees east)
-    quantiles[3, :, 1] = 1.0
-    quantiles[4, :, 1] = 0.0
-
-    target_columns = ["temperature_c", "humidity_pct", "rainfall_mm", "wind_u", "wind_v"]
+    target_columns = ["temperature_c", "humidity_pct", "rainfall_mm"]
 
     predictions = format_predictions(
         node_id="station-one",
@@ -61,7 +57,7 @@ def test_format_predictions_hourly_mode() -> None:
         assert np.isclose(pred.temperature_c, 22.0)
         assert np.isclose(pred.humidity_pct, 60.0)
         assert np.isclose(pred.rainfall_mm, 1.5)
-        assert np.isclose(pred.wind_direction_deg, 90.0, atol=1e-3)
+        assert not pred.HasField("wind_direction_deg")
         assert 0.0 <= pred.temperature_confidence <= 1.0
         assert 0.0 <= pred.humidity_confidence <= 1.0
 

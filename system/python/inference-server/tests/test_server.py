@@ -52,17 +52,17 @@ def test_grpc_predict_weather_success(grpc_service: inference_pb2_grpc.Inference
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
+    # Request mirrors the production shape produced by the Go inference-job
+    # mapper: temperature, humidity and pressure only (no wind, no rainfall).
     observations = []
     for step_index in range(32):
         timestamp = Timestamp()
         timestamp.FromSeconds(1700000000 - ((32 - step_index) * 3600))
         obs = inference_pb2.TimeSeriesObservation(
             timestamp=timestamp,
-            temperature_c=22.0,
+            temperature_c=22.0 + (step_index * 0.1),
             humidity_pct=60.0,
-            rainfall_mm=0.1,
-            wind_speed_mps=3.0,
-            wind_direction_deg=270.0,
+            pressure_hpa=1013.0,
         )
         observations.append(obs)
 
@@ -81,6 +81,9 @@ def test_grpc_predict_weather_success(grpc_service: inference_pb2_grpc.Inference
     assert response.predictions[0].node_id == "station-alpha"
     assert response.predictions[0].horizon_hours == 1
     assert response.predictions[-1].horizon_hours == 24
+    assert not response.predictions[0].HasField("wind_direction_deg")
+    assert response.predictions[0].HasField("temperature_c")
+    assert response.predictions[0].HasField("humidity_pct")
 
 
 def test_grpc_predict_weather_validation_error(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:

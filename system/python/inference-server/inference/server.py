@@ -12,6 +12,8 @@ from inference.backends import create_backend
 from inference.backends.base import ForecastBackend
 from inference.config import Config
 from inference.features import (
+    MAX_GAP_DAILY,
+    MAX_GAP_HOURLY,
     calculate_temporal_covariates,
     extract_observation_dataframe,
     filter_and_impute_columns,
@@ -45,23 +47,31 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             context.set_details(str(validation_err))
             return inference_pb2.PredictWeatherResponse()
 
-        # Sort observations chronologically
-        sorted_observations = sort_observations(request.history)
-        observation_df = extract_observation_dataframe(sorted_observations)
-        clean_df, surviving_columns = filter_and_impute_columns(observation_df)
-
-        if "temperature_c" not in surviving_columns or "humidity_pct" not in surviving_columns:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("required temperature or humidity columns dropped due to sparsity")
-            return inference_pb2.PredictWeatherResponse()
-
+        # Resolution of the mode drives both the forecast horizon and the maximum
+        # interpolation gap (hourly mode permits up to 24h, daily up to 7 days).
         if request.mode == inference_pb2.PREDICTION_MODE_NEXT_24_HOURS:
             prediction_length = 24
+            max_gap = MAX_GAP_HOURLY
         elif request.mode == inference_pb2.PREDICTION_MODE_NEXT_10_DAYS:
             prediction_length = 10
+            max_gap = MAX_GAP_DAILY
         else:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details("invalid prediction mode")
+            return inference_pb2.PredictWeatherResponse()
+
+        # Sort observations chronologically
+        sorted_observations = sort_observations(request.history)
+        observation_df = extract_observation_dataframe(sorted_observations)
+
+        # required temperature/humidity columns always survive column filtering;
+        # a residual imputation failure raises ValidationError rather than
+        # silently zero-filling the model input.
+        try:
+            clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
+        except ValidationError as imputation_err:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(imputation_err))
             return inference_pb2.PredictWeatherResponse()
 
         # Prepare multivariate target array (n_variates, history_length)

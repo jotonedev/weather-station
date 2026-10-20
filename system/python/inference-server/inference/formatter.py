@@ -6,8 +6,6 @@ from weather.inference.v1.inference_pb2 import (
     PREDICTION_MODE_NEXT_24_HOURS,
 )
 
-from inference.features import reconstruct_wind_direction
-
 
 def compute_confidence(spread: float, scale: float) -> float:
     """compute_confidence translates prediction interval spread to a normalized 0 to 1 confidence."""
@@ -65,21 +63,6 @@ def format_predictions(
             rain_spread = float(quantiles[idx, step_idx, 2] - quantiles[idx, step_idx, 0])
             prediction.rainfall_mm = rain_med
             prediction.rainfall_confidence = compute_confidence(rain_spread, 20.0)
-
-        # Wind direction from u and v components
-        if "wind_u" in var_indices and "wind_v" in var_indices:
-            u_idx = var_indices["wind_u"]
-            v_idx = var_indices["wind_v"]
-            u_med = float(quantiles[u_idx, step_idx, 1])
-            v_med = float(quantiles[v_idx, step_idx, 1])
-            wind_deg = float(reconstruct_wind_direction(u_med, v_med))
-
-            u_spread = float(quantiles[u_idx, step_idx, 2] - quantiles[u_idx, step_idx, 0])
-            v_spread = float(quantiles[v_idx, step_idx, 2] - quantiles[v_idx, step_idx, 0])
-            avg_spread = (u_spread + v_spread) / 2.0
-
-            prediction.wind_direction_deg = wind_deg
-            prediction.wind_direction_confidence = compute_confidence(avg_spread, 2.0)
 
         predictions.append(prediction)
 

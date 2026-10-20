@@ -1,6 +1,7 @@
 import math
 from datetime import UTC, datetime
 
+import numpy as np
 from google.protobuf.timestamp_pb2 import Timestamp
 from weather.inference.v1.inference_pb2 import (
     PREDICTION_MODE_NEXT_10_DAYS,
@@ -9,11 +10,11 @@ from weather.inference.v1.inference_pb2 import (
 )
 
 from inference.features import (
+    MAX_GAP_HOURLY,
     calculate_temporal_covariates,
     extract_observation_dataframe,
     filter_and_impute_columns,
     generate_future_timestamps,
-    reconstruct_wind_direction,
     sort_observations,
 )
 
@@ -33,19 +34,8 @@ def test_sort_observations() -> None:
     assert sorted_result[1].timestamp.seconds == 200
 
 
-def test_wind_decomposition_and_reconstruction() -> None:
-    """Test_wind_decomposition_and_reconstruction verifies vector projection and angle recovery."""
-    angles_to_test = [0.0, 45.0, 90.0, 180.0, 270.0, 359.0]
-    for angle in angles_to_test:
-        rad = math.radians(angle)
-        vector_u = math.sin(rad)
-        vector_v = math.cos(rad)
-        recovered_angle = reconstruct_wind_direction(vector_u, vector_v)
-        assert math.isclose(angle, recovered_angle, abs_tol=1e-4)
-
-
-def test_wind_ignored_when_partially_null() -> None:
-    """Test_wind_ignored_when_partially_null ensures wind is excluded when speed or direction is missing."""
+def test_wind_never_modeled() -> None:
+    """Test_wind_never_modeled ensures wind observations do not enter the model input."""
     timestamp = Timestamp()
     timestamp.FromSeconds(1000)
 
@@ -55,13 +45,8 @@ def test_wind_ignored_when_partially_null() -> None:
             temperature_c=20.0,
             humidity_pct=50.0,
             wind_speed_mps=5.0,
-        ),
-        TimeSeriesObservation(
-            timestamp=timestamp,
-            temperature_c=21.0,
-            humidity_pct=52.0,
             wind_direction_deg=90.0,
-        ),
+        )
     ]
 
     dataframe = extract_observation_dataframe(observations)
@@ -106,8 +91,7 @@ def test_column_filtering_dense_column_retained() -> None:
             timestamp=timestamp,
             temperature_c=20.0,
             humidity_pct=50.0,
-            wind_speed_mps=4.0,
-            wind_direction_deg=180.0,
+            pressure_hpa=1013.0,
         )
         # Supply rainfall for 8 out of 10 observations (20 percent missing)
         if step_index < 8:
@@ -119,9 +103,94 @@ def test_column_filtering_dense_column_retained() -> None:
     clean_df, surviving_columns = filter_and_impute_columns(dataframe)
 
     assert "rainfall_mm" in surviving_columns
-    assert "wind_u" in surviving_columns
-    assert "wind_v" in surviving_columns
+    assert "pressure_hpa" in surviving_columns
     assert not clean_df.isna().any().any()
+
+
+def test_pressure_sparse_column_dropped() -> None:
+    """Test_pressure_sparse_column_dropped verifies pressure is excluded above the 30 percent missing ratio."""
+    observations = []
+    for step_index in range(10):
+        timestamp = Timestamp()
+        timestamp.FromSeconds(1000 + (step_index * 3600))
+        observation = TimeSeriesObservation(
+            timestamp=timestamp,
+            temperature_c=20.0,
+            humidity_pct=50.0,
+        )
+        if step_index < 6:
+            observation.pressure_hpa = 1013.0
+
+        observations.append(observation)
+
+    dataframe = extract_observation_dataframe(observations)
+    _clean_df, surviving_columns = filter_and_impute_columns(dataframe)
+
+    assert "pressure_hpa" not in surviving_columns
+
+
+def test_large_gap_not_fully_interpolated() -> None:
+    """Test_large_gap_not_fully_interpolated ensures oversized gaps never become one straight line."""
+    observations = []
+    gap_start = 5
+    # Gap far beyond the bridging cap (2 * MAX_GAP_HOURLY + 20).
+    gap_length = (MAX_GAP_HOURLY * 2) + 20
+    total = gap_start + gap_length + 5
+    for step_index in range(total):
+        timestamp = Timestamp()
+        timestamp.FromSeconds(1000 + (step_index * 3600))
+        if gap_start <= step_index < gap_start + gap_length:
+            temperature = float("nan")
+        else:
+            temperature = 10.0 if step_index < gap_start else 30.0
+        observation = TimeSeriesObservation(
+            timestamp=timestamp,
+            temperature_c=temperature,
+            humidity_pct=60.0,
+        )
+        observations.append(observation)
+
+    dataframe = extract_observation_dataframe(observations)
+    clean_df, _surviving_columns = filter_and_impute_columns(dataframe)
+
+    values = clean_df["temperature_c"].to_numpy()
+    gap_values = values[gap_start : gap_start + gap_length]
+    # A fully interpolated gap would be strictly monotonic (one ramp). The cap
+    # must leave at least one constant plateau inside the gap.
+    assert np.any(np.diff(gap_values) == 0.0)
+    assert values[gap_start - 1] == 10.0
+    assert values[gap_start + gap_length] == 30.0
+    # The edges of the gap must not be bridged all the way to the other side.
+    assert gap_values[0] < 30.0
+    assert np.isfinite(values).all()
+
+
+def test_inf_normalized_to_missing_and_imputed() -> None:
+    """Test_inf_normalized_to_missing_and_imputed ensures infinities never reach the model input."""
+    observations = []
+    for step_index in range(10):
+        timestamp = Timestamp()
+        timestamp.FromSeconds(1000 + (step_index * 3600))
+        temperature = 20.0 + step_index
+        if step_index in (2, 3):
+            temperature = float("inf")
+        observation = TimeSeriesObservation(
+            timestamp=timestamp,
+            temperature_c=temperature,
+            humidity_pct=60.0,
+            pressure_hpa=1013.0,
+        )
+        observations.append(observation)
+
+    dataframe = extract_observation_dataframe(observations)
+    # Extraction normalizes infinities into missing values.
+    assert dataframe["temperature_c"].iloc[2] != float("inf")
+    assert dataframe["temperature_c"].isna().sum() == 2
+    assert dataframe["temperature_c"].isna().sum() <= 3
+
+    clean_df, _surviving_columns = filter_and_impute_columns(dataframe)
+    values = clean_df["temperature_c"].to_numpy()
+    assert np.isfinite(values).all()
 
 
 def test_calculate_temporal_covariates() -> None:
