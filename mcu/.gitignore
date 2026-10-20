@@ -97,6 +97,10 @@ dkms.conf
 !.vscode/extensions.json
 *.code-workspace
 
+# ESP-IDF / PlatformIO generated configs
+sdkconfig
+sdkconfig.*
+
 # End of https://mrkandreev.name/snippets/gitignore-generator/#C,C++,PlatformIO
 .vscode/launch.json
 
