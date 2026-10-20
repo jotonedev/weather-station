@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /grpc-health-probe \
     ./cmd/healthprobe
 
-FROM ghcr.io/astral-sh/uv:0.6.5 AS uv-bin
+FROM ghcr.io/astral-sh/uv:0.13.3 AS uv-bin
 
 FROM python:3.15-slim-bookworm AS build-stage
 
