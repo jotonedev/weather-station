@@ -14,6 +14,49 @@ import (
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 )
 
+func TestHomepageControllerRenderEmptyState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+
+	dbGateway, err := database.New(database.GatewayParams{
+		Logger:        zap.NewNop(),
+		Config:        database.Config{Address: "127.0.0.1:8090"},
+		ReadingClient: mockClient,
+	})
+	if err != nil {
+		t.Fatalf("database.New() unexpected error = %v", err)
+	}
+
+	dataCtrl, err := weatherdata.New(weatherdata.ControllerParams{
+		Logger:   zap.NewNop(),
+		Database: dbGateway,
+	})
+	if err != nil {
+		t.Fatalf("weatherdata.New() unexpected error = %v", err)
+	}
+
+	templateCtrl, err := New(ControllerParams{
+		Logger:      zap.NewNop(),
+		WeatherData: dataCtrl,
+	})
+	if err != nil {
+		t.Fatalf("homepage.New() unexpected error = %v", err)
+	}
+
+	rendered, err := templateCtrl.Render(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Render() unexpected error = %v", err)
+	}
+
+	content := string(rendered)
+	if !strings.Contains(content, "No Weather Stations Available") {
+		t.Fatal("Render() output missing no-stations empty state")
+	}
+	if strings.Contains(content, "Station: <strong>") {
+		t.Fatal("Render() output should not show a station subtitle when no node is selected")
+	}
+}
+
 func TestHomepageControllerRender(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)

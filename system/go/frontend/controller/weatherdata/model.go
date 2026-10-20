@@ -47,6 +47,7 @@ type DashboardData struct {
 	Title          string
 	SelectedNodeID string
 	AvailableNodes []string
+	NoNodes        bool
 	LatestReading  *ReadingView
 	RecentReadings []ReadingView
 	ErrorMessage   string

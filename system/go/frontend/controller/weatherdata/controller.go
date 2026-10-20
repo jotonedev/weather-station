@@ -54,10 +54,13 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 	if selectedNodeID == "" && len(availableNodeIDs) > 0 {
 		selectedNodeID = availableNodeIDs[0]
 	}
-	if selectedNodeID == "" {
-		selectedNodeID = "station-alpha"
-	}
+	data.NoNodes = len(availableNodeIDs) == 0
 	data.SelectedNodeID = selectedNodeID
+
+	if selectedNodeID == "" {
+		// No station is registered yet, so there is no data to query.
+		return data
+	}
 
 	readings, err := c.db.GetLatestReadings(ctx, selectedNodeID, 10)
 	if err != nil {

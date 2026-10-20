@@ -67,20 +67,19 @@ func TestGetDashboardData(t *testing.T) {
 			},
 		},
 		{
-			name:          "handles empty database gracefully with fallback empty state",
+			name:          "handles empty database gracefully with no stations",
 			requestedNode: "",
 			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
 					ListNodeCoordinates(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.ListNodeCoordinatesResponse{}, nil)
-
-				readingClient.EXPECT().
-					GetLatestReadings(gomock.Any(), gomock.Any()).
-					Return(&protodatabasev1.GetLatestReadingsResponse{}, nil)
 			},
 			check: func(t *testing.T, data DashboardData) {
-				if data.SelectedNodeID != "station-alpha" {
-					t.Fatalf("SelectedNodeID = %q, want station-alpha", data.SelectedNodeID)
+				if data.SelectedNodeID != "" {
+					t.Fatalf("SelectedNodeID = %q, want empty", data.SelectedNodeID)
+				}
+				if !data.NoNodes {
+					t.Fatal("expected NoNodes to be true")
 				}
 				if data.LatestReading != nil {
 					t.Fatalf("LatestReading = %v, want nil", data.LatestReading)

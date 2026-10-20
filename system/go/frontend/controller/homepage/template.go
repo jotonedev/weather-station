@@ -224,7 +224,9 @@ const indexHTML = `<!DOCTYPE html>
     <header>
       <div class="title-group">
         <h1>Weather Station</h1>
+        {{ if .SelectedNodeID }}
         <div class="station-subtitle">Station: <strong>{{ .SelectedNodeID }}</strong></div>
+        {{ end }}
       </div>
       {{ if .AvailableNodes }}
       <div class="station-selector">
@@ -398,6 +400,11 @@ const indexHTML = `<!DOCTYPE html>
     </div>
     {{ end }}
 
+    {{ else if .NoNodes }}
+    <div class="empty-state">
+      <h3>No Weather Stations Available</h3>
+      <p>No station has been registered yet. Readings will appear once a station reports data.</p>
+    </div>
     {{ else }}
     <div class="empty-state">
       <h3>No Readings Recorded Yet</h3>

@@ -22,7 +22,7 @@ func TestWebsiteHandlerServeHTTP(t *testing.T) {
 		name           string
 		method         string
 		url            string
-		setup          func(client *mocks.MockReadingDatabaseServiceClient)
+		setup          func(client *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient)
 		wantStatusCode int
 		wantContains   string
 	}{
@@ -30,13 +30,20 @@ func TestWebsiteHandlerServeHTTP(t *testing.T) {
 			name:   "success serving homepage on GET",
 			method: http.MethodGet,
 			url:    "/",
-			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
+			setup: func(client *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				temp := float32(20.0)
+				nodeClient.EXPECT().
+					ListNodeCoordinates(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.ListNodeCoordinatesResponse{
+						Nodes: []*protodatabasev1.NodeCoordinates{
+							{NodeId: "station-omega"},
+						},
+					}, nil)
 				client.EXPECT().
 					GetLatestReadings(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetLatestReadingsResponse{
 						Readings: []*protodatabasev1.Reading{
-							{NodeId: "", Temperature: &temp},
+							{NodeId: "station-omega", Temperature: &temp},
 						},
 					}, nil)
 			},
@@ -47,8 +54,11 @@ func TestWebsiteHandlerServeHTTP(t *testing.T) {
 			name:   "success querying specific station via node_id query param",
 			method: http.MethodGet,
 			url:    "/?node_id=station-omega",
-			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
+			setup: func(client *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				temp := float32(20.0)
+				nodeClient.EXPECT().
+					ListNodeCoordinates(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.ListNodeCoordinatesResponse{}, nil)
 				client.EXPECT().
 					GetLatestReadings(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, in *protodatabasev1.GetLatestReadingsRequest, opts ...any) (*protodatabasev1.GetLatestReadingsResponse, error) {
@@ -63,10 +73,11 @@ func TestWebsiteHandlerServeHTTP(t *testing.T) {
 			wantContains:   "station-omega",
 		},
 		{
-			name:           "method not allowed for POST",
-			method:         http.MethodPost,
-			url:            "/",
-			setup:          func(client *mocks.MockReadingDatabaseServiceClient) {},
+			name:   "method not allowed for POST",
+			method: http.MethodPost,
+			url:    "/",
+			setup: func(client *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
+			},
 			wantStatusCode: http.StatusMethodNotAllowed,
 		},
 	}
@@ -75,12 +86,14 @@ func TestWebsiteHandlerServeHTTP(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
-			testCase.setup(mockClient)
+			nodeClient := mocks.NewMockNodeDatabaseServiceClient(ctrl)
+			testCase.setup(mockClient, nodeClient)
 
 			dbGateway, err := database.New(database.GatewayParams{
 				Logger:        zap.NewNop(),
 				Config:        database.Config{Address: "127.0.0.1:8090"},
 				ReadingClient: mockClient,
+				NodeClient:    nodeClient,
 			})
 			if err != nil {
 				t.Fatalf("database.New() unexpected error = %v", err)
