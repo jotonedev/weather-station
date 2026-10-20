@@ -20,6 +20,10 @@ jobs:
   pytest:
     name: Run pytest
     runs-on: ubuntu-latest
+
+    env:
+      UV_VERSION: "0.13.3"
+      PYTHON_VERSION: "3.15"
     defaults:
       run:
         working-directory: system/python/inference-server
@@ -31,9 +35,11 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup Python
-        run: uv python install 3.13
+        run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
         run: uv sync --all-extras
