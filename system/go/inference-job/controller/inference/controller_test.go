@@ -164,7 +164,6 @@ func TestRunForecastForNode(t *testing.T) {
 						Predictions: []*protodatabasev1.Prediction{
 							{NodeId: "node-1", HorizonHours: 1},
 						},
-						ModelVersion: "chronos-2-bolt-base",
 					}, nil)
 				mockDB.EXPECT().
 					StorePredictions(gomock.Any(), gomock.Len(1)).

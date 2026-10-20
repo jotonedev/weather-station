@@ -26,7 +26,7 @@ from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__
 from weather.database.v1 import prediction_pb2 as weather_dot_database_dot_v1_dot_prediction__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$weather/inference/v1/inference.proto\x12\x14weather.inference.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$weather/database/v1/prediction.proto\"\xe0\x02\n\x15PredictWeatherRequest\x12\x17\n\x07node_id\x18\x01 \x01(\tR\x06nodeId\x12\x38\n\x04mode\x18\x02 \x01(\x0e\x32$.weather.inference.v1.PredictionModeR\x04mode\x12\x39\n\nissue_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\tissueTime\x12\x45\n\x07history\x18\x04 \x03(\x0b\x32+.weather.inference.v1.TimeSeriesObservationR\x07history\x12 \n\tdata_blob\x18\x05 \x01(\x0cH\x00R\x08\x64\x61taBlob\x88\x01\x01\x12-\n\x10\x64\x61ta_blob_format\x18\x06 \x01(\tH\x01R\x0e\x64\x61taBlobFormat\x88\x01\x01\x42\x0c\n\n_data_blobB\x13\n\x11_data_blob_format\"\xbd\x03\n\x15TimeSeriesObservation\x12\x38\n\ttimestamp\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\ttimestamp\x12(\n\rtemperature_c\x18\x02 \x01(\x02H\x00R\x0ctemperatureC\x88\x01\x01\x12&\n\x0chumidity_pct\x18\x03 \x01(\x02H\x01R\x0bhumidityPct\x88\x01\x01\x12&\n\x0cpressure_hpa\x18\x04 \x01(\x02H\x02R\x0bpressureHpa\x88\x01\x01\x12)\n\x0ewind_speed_mps\x18\x05 \x01(\x02H\x03R\x0cwindSpeedMps\x88\x01\x01\x12\x31\n\x12wind_direction_deg\x18\x06 \x01(\x02H\x04R\x10windDirectionDeg\x88\x01\x01\x12$\n\x0brainfall_mm\x18\x07 \x01(\x02H\x05R\nrainfallMm\x88\x01\x01\x42\x10\n\x0e_temperature_cB\x0f\n\r_humidity_pctB\x0f\n\r_pressure_hpaB\x11\n\x0f_wind_speed_mpsB\x15\n\x13_wind_direction_degB\x0e\n\x0c_rainfall_mm\"\xf3\x01\n\x16PredictWeatherResponse\x12\x41\n\x0bpredictions\x18\x01 \x03(\x0b\x32\x1f.weather.database.v1.PredictionR\x0bpredictions\x12#\n\rmodel_version\x18\x02 \x01(\tR\x0cmodelVersion\x12;\n\x0b\x63omputed_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\ncomputedAt\x12$\n\x0boutput_blob\x18\x04 \x01(\x0cH\x00R\noutputBlob\x88\x01\x01\x42\x0e\n\x0c_output_blob\"\x15\n\x13GetModelInfoRequest\"\x86\x01\n\x14GetModelInfoResponse\x12\x1d\n\nmodel_name\x18\x01 \x01(\tR\tmodelName\x12#\n\rmodel_version\x18\x02 \x01(\tR\x0cmodelVersion\x12*\n\x11max_horizon_hours\x18\x03 \x01(\x05R\x0fmaxHorizonHours*v\n\x0ePredictionMode\x12\x1f\n\x1bPREDICTION_MODE_UNSPECIFIED\x10\x00\x12!\n\x1dPREDICTION_MODE_NEXT_24_HOURS\x10\x01\x12 \n\x1cPREDICTION_MODE_NEXT_10_DAYS\x10\x02\x32\xe6\x01\n\x10InferenceService\x12k\n\x0ePredictWeather\x12+.weather.inference.v1.PredictWeatherRequest\x1a,.weather.inference.v1.PredictWeatherResponse\x12\x65\n\x0cGetModelInfo\x12).weather.inference.v1.GetModelInfoRequest\x1a*.weather.inference.v1.GetModelInfoResponseB9Z7weather-station/gen/go/weather/inference/v1;inferencev1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$weather/inference/v1/inference.proto\x12\x14weather.inference.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$weather/database/v1/prediction.proto\"\xe0\x02\n\x15PredictWeatherRequest\x12\x17\n\x07node_id\x18\x01 \x01(\tR\x06nodeId\x12\x38\n\x04mode\x18\x02 \x01(\x0e\x32$.weather.inference.v1.PredictionModeR\x04mode\x12\x39\n\nissue_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\tissueTime\x12\x45\n\x07history\x18\x04 \x03(\x0b\x32+.weather.inference.v1.TimeSeriesObservationR\x07history\x12 \n\tdata_blob\x18\x05 \x01(\x0cH\x00R\x08\x64\x61taBlob\x88\x01\x01\x12-\n\x10\x64\x61ta_blob_format\x18\x06 \x01(\tH\x01R\x0e\x64\x61taBlobFormat\x88\x01\x01\x42\x0c\n\n_data_blobB\x13\n\x11_data_blob_format\"\xbd\x03\n\x15TimeSeriesObservation\x12\x38\n\ttimestamp\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\ttimestamp\x12(\n\rtemperature_c\x18\x02 \x01(\x02H\x00R\x0ctemperatureC\x88\x01\x01\x12&\n\x0chumidity_pct\x18\x03 \x01(\x02H\x01R\x0bhumidityPct\x88\x01\x01\x12&\n\x0cpressure_hpa\x18\x04 \x01(\x02H\x02R\x0bpressureHpa\x88\x01\x01\x12)\n\x0ewind_speed_mps\x18\x05 \x01(\x02H\x03R\x0cwindSpeedMps\x88\x01\x01\x12\x31\n\x12wind_direction_deg\x18\x06 \x01(\x02H\x04R\x10windDirectionDeg\x88\x01\x01\x12$\n\x0brainfall_mm\x18\x07 \x01(\x02H\x05R\nrainfallMm\x88\x01\x01\x42\x10\n\x0e_temperature_cB\x0f\n\r_humidity_pctB\x0f\n\r_pressure_hpaB\x11\n\x0f_wind_speed_mpsB\x15\n\x13_wind_direction_degB\x0e\n\x0c_rainfall_mm\"\xce\x01\n\x16PredictWeatherResponse\x12\x41\n\x0bpredictions\x18\x01 \x03(\x0b\x32\x1f.weather.database.v1.PredictionR\x0bpredictions\x12;\n\x0b\x63omputed_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\ncomputedAt\x12$\n\x0boutput_blob\x18\x04 \x01(\x0cH\x00R\noutputBlob\x88\x01\x01\x42\x0e\n\x0c_output_blob\"\x15\n\x13GetModelInfoRequest\"a\n\x14GetModelInfoResponse\x12\x1d\n\nmodel_name\x18\x01 \x01(\tR\tmodelName\x12*\n\x11max_horizon_hours\x18\x03 \x01(\x05R\x0fmaxHorizonHours*v\n\x0ePredictionMode\x12\x1f\n\x1bPREDICTION_MODE_UNSPECIFIED\x10\x00\x12!\n\x1dPREDICTION_MODE_NEXT_24_HOURS\x10\x01\x12 \n\x1cPREDICTION_MODE_NEXT_10_DAYS\x10\x02\x32\xe6\x01\n\x10InferenceService\x12k\n\x0ePredictWeather\x12+.weather.inference.v1.PredictWeatherRequest\x1a,.weather.inference.v1.PredictWeatherResponse\x12\x65\n\x0cGetModelInfo\x12).weather.inference.v1.GetModelInfoRequest\x1a*.weather.inference.v1.GetModelInfoResponseB9Z7weather-station/gen/go/weather/inference/v1;inferencev1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,18 +34,18 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'weather.inference.v1.infere
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z7weather-station/gen/go/weather/inference/v1;inferencev1'
-  _globals['_PREDICTIONMODE']._serialized_start=1342
-  _globals['_PREDICTIONMODE']._serialized_end=1460
+  _globals['_PREDICTIONMODE']._serialized_start=1267
+  _globals['_PREDICTIONMODE']._serialized_end=1385
   _globals['_PREDICTWEATHERREQUEST']._serialized_start=134
   _globals['_PREDICTWEATHERREQUEST']._serialized_end=486
   _globals['_TIMESERIESOBSERVATION']._serialized_start=489
   _globals['_TIMESERIESOBSERVATION']._serialized_end=934
   _globals['_PREDICTWEATHERRESPONSE']._serialized_start=937
-  _globals['_PREDICTWEATHERRESPONSE']._serialized_end=1180
-  _globals['_GETMODELINFOREQUEST']._serialized_start=1182
-  _globals['_GETMODELINFOREQUEST']._serialized_end=1203
-  _globals['_GETMODELINFORESPONSE']._serialized_start=1206
-  _globals['_GETMODELINFORESPONSE']._serialized_end=1340
-  _globals['_INFERENCESERVICE']._serialized_start=1463
-  _globals['_INFERENCESERVICE']._serialized_end=1693
+  _globals['_PREDICTWEATHERRESPONSE']._serialized_end=1143
+  _globals['_GETMODELINFOREQUEST']._serialized_start=1145
+  _globals['_GETMODELINFOREQUEST']._serialized_end=1166
+  _globals['_GETMODELINFORESPONSE']._serialized_start=1168
+  _globals['_GETMODELINFORESPONSE']._serialized_end=1265
+  _globals['_INFERENCESERVICE']._serialized_start=1388
+  _globals['_INFERENCESERVICE']._serialized_end=1618
 # @@protoc_insertion_point(module_scope)

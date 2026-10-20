@@ -62,11 +62,10 @@ func TestGateway(t *testing.T) {
 	errCall := errors.New("rpc failed")
 
 	tests := []struct {
-		name       string
-		req        *protoinferencev1.PredictWeatherRequest
-		setup      func(client *mocks.MockInferenceServiceClient)
-		wantErr    bool
-		wantModel  string
+		name    string
+		req     *protoinferencev1.PredictWeatherRequest
+		setup   func(client *mocks.MockInferenceServiceClient)
+		wantErr bool
 	}{
 		{
 			name:    "nil request returns error",
@@ -96,12 +95,9 @@ func TestGateway(t *testing.T) {
 			setup: func(client *mocks.MockInferenceServiceClient) {
 				client.EXPECT().
 					PredictWeather(gomock.Any(), gomock.Any()).
-					Return(&protoinferencev1.PredictWeatherResponse{
-						ModelVersion: "chronos-2-bolt-base",
-					}, nil)
+					Return(&protoinferencev1.PredictWeatherResponse{}, nil)
 			},
-			wantErr:   false,
-			wantModel: "chronos-2-bolt-base",
+			wantErr: false,
 		},
 	}
 
@@ -119,12 +115,9 @@ func TestGateway(t *testing.T) {
 				t.Fatalf("unexpected New error: %v", err)
 			}
 
-			res, err := gw.PredictWeather(context.Background(), tt.req)
+			_, err = gw.PredictWeather(context.Background(), tt.req)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("PredictWeather() error = %v, wantErr = %v", err, tt.wantErr)
-			}
-			if !tt.wantErr && res.GetModelVersion() != tt.wantModel {
-				t.Fatalf("PredictWeather() model = %q, want %q", res.GetModelVersion(), tt.wantModel)
 			}
 		})
 	}

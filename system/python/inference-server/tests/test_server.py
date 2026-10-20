@@ -76,7 +76,6 @@ def test_grpc_predict_weather_success(grpc_service: inference_pb2_grpc.Inference
     response = grpc_service.PredictWeather(request)
 
     assert len(response.predictions) == 24
-    assert response.model_version == "test-chronos"
     assert response.HasField("computed_at")
     assert response.predictions[0].node_id == "station-alpha"
     assert response.predictions[0].horizon_hours == 1

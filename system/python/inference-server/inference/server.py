@@ -112,7 +112,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
 
         return inference_pb2.PredictWeatherResponse(
             predictions=predictions,
-            model_version=self.backend.model_name,
             computed_at=computed_at,
         )
 
@@ -124,7 +123,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         """GetModelInfo returns active model identifier and maximum supported horizon."""
         return inference_pb2.GetModelInfoResponse(
             model_name=self.backend.model_name,
-            model_version="1.0.0",
             max_horizon_hours=self.config.max_horizon_hours,
         )
 

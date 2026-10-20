@@ -167,7 +167,6 @@ func (c *Controller) RunForecastForNode(ctx context.Context, nodeID string, mode
 		zap.String("node_id", nodeID),
 		zap.String("mode", mode.String()),
 		zap.Int("predictions", len(predictions)),
-		zap.String("model_version", res.GetModelVersion()),
 	)
 
 	return nil

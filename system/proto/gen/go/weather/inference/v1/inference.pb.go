@@ -271,8 +271,6 @@ type PredictWeatherResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Generated predictions conforming to the database prediction schema.
 	Predictions []*v1.Prediction `protobuf:"bytes,1,rep,name=predictions,proto3" json:"predictions,omitempty"`
-	// Version identifier of the model checkpoint.
-	ModelVersion string `protobuf:"bytes,2,opt,name=model_version,json=modelVersion,proto3" json:"model_version,omitempty"`
 	// Timestamp when inference completed.
 	ComputedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=computed_at,json=computedAt,proto3" json:"computed_at,omitempty"`
 	// Optional raw quantile output tensor payload.
@@ -316,13 +314,6 @@ func (x *PredictWeatherResponse) GetPredictions() []*v1.Prediction {
 		return x.Predictions
 	}
 	return nil
-}
-
-func (x *PredictWeatherResponse) GetModelVersion() string {
-	if x != nil {
-		return x.ModelVersion
-	}
-	return ""
 }
 
 func (x *PredictWeatherResponse) GetComputedAt() *timestamppb.Timestamp {
@@ -381,8 +372,6 @@ type GetModelInfoResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Model name.
 	ModelName string `protobuf:"bytes,1,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
-	// Model checkpoint or release version.
-	ModelVersion string `protobuf:"bytes,2,opt,name=model_version,json=modelVersion,proto3" json:"model_version,omitempty"`
 	// Maximum forecast horizon supported in hours.
 	MaxHorizonHours int32 `protobuf:"varint,3,opt,name=max_horizon_hours,json=maxHorizonHours,proto3" json:"max_horizon_hours,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -426,13 +415,6 @@ func (x *GetModelInfoResponse) GetModelName() string {
 	return ""
 }
 
-func (x *GetModelInfoResponse) GetModelVersion() string {
-	if x != nil {
-		return x.ModelVersion
-	}
-	return ""
-}
-
 func (x *GetModelInfoResponse) GetMaxHorizonHours() int32 {
 	if x != nil {
 		return x.MaxHorizonHours
@@ -470,20 +452,18 @@ const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\r_pressure_hpaB\x11\n" +
 	"\x0f_wind_speed_mpsB\x15\n" +
 	"\x13_wind_direction_degB\x0e\n" +
-	"\f_rainfall_mm\"\xf3\x01\n" +
+	"\f_rainfall_mm\"\xce\x01\n" +
 	"\x16PredictWeatherResponse\x12A\n" +
-	"\vpredictions\x18\x01 \x03(\v2\x1f.weather.database.v1.PredictionR\vpredictions\x12#\n" +
-	"\rmodel_version\x18\x02 \x01(\tR\fmodelVersion\x12;\n" +
+	"\vpredictions\x18\x01 \x03(\v2\x1f.weather.database.v1.PredictionR\vpredictions\x12;\n" +
 	"\vcomputed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"computedAt\x12$\n" +
 	"\voutput_blob\x18\x04 \x01(\fH\x00R\n" +
 	"outputBlob\x88\x01\x01B\x0e\n" +
 	"\f_output_blob\"\x15\n" +
-	"\x13GetModelInfoRequest\"\x86\x01\n" +
+	"\x13GetModelInfoRequest\"a\n" +
 	"\x14GetModelInfoResponse\x12\x1d\n" +
 	"\n" +
-	"model_name\x18\x01 \x01(\tR\tmodelName\x12#\n" +
-	"\rmodel_version\x18\x02 \x01(\tR\fmodelVersion\x12*\n" +
+	"model_name\x18\x01 \x01(\tR\tmodelName\x12*\n" +
 	"\x11max_horizon_hours\x18\x03 \x01(\x05R\x0fmaxHorizonHours*v\n" +
 	"\x0ePredictionMode\x12\x1f\n" +
 	"\x1bPREDICTION_MODE_UNSPECIFIED\x10\x00\x12!\n" +

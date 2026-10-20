@@ -55,27 +55,23 @@ class TimeSeriesObservation(_message.Message):
     def __init__(self, timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., temperature_c: _Optional[float] = ..., humidity_pct: _Optional[float] = ..., pressure_hpa: _Optional[float] = ..., wind_speed_mps: _Optional[float] = ..., wind_direction_deg: _Optional[float] = ..., rainfall_mm: _Optional[float] = ...) -> None: ...
 
 class PredictWeatherResponse(_message.Message):
-    __slots__ = ("predictions", "model_version", "computed_at", "output_blob")
+    __slots__ = ("predictions", "computed_at", "output_blob")
     PREDICTIONS_FIELD_NUMBER: _ClassVar[int]
-    MODEL_VERSION_FIELD_NUMBER: _ClassVar[int]
     COMPUTED_AT_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_BLOB_FIELD_NUMBER: _ClassVar[int]
     predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.Prediction]
-    model_version: str
     computed_at: _timestamp_pb2.Timestamp
     output_blob: bytes
-    def __init__(self, predictions: _Optional[_Iterable[_Union[_prediction_pb2.Prediction, _Mapping]]] = ..., model_version: _Optional[str] = ..., computed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., output_blob: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, predictions: _Optional[_Iterable[_Union[_prediction_pb2.Prediction, _Mapping]]] = ..., computed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., output_blob: _Optional[bytes] = ...) -> None: ...
 
 class GetModelInfoRequest(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class GetModelInfoResponse(_message.Message):
-    __slots__ = ("model_name", "model_version", "max_horizon_hours")
+    __slots__ = ("model_name", "max_horizon_hours")
     MODEL_NAME_FIELD_NUMBER: _ClassVar[int]
-    MODEL_VERSION_FIELD_NUMBER: _ClassVar[int]
     MAX_HORIZON_HOURS_FIELD_NUMBER: _ClassVar[int]
     model_name: str
-    model_version: str
     max_horizon_hours: int
-    def __init__(self, model_name: _Optional[str] = ..., model_version: _Optional[str] = ..., max_horizon_hours: _Optional[int] = ...) -> None: ...
+    def __init__(self, model_name: _Optional[str] = ..., max_horizon_hours: _Optional[int] = ...) -> None: ...
