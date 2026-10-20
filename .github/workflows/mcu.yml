@@ -1,0 +1,77 @@
+name: MCU Tests and Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/mcu.yml'
+      - 'mcu/**'
+  pull_request:
+    paths:
+      - '.github/workflows/mcu.yml'
+      - 'mcu/**'
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Host unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcu
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install PlatformIO
+        run: pip install -q platformio
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('mcu/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+
+      - name: Run native unit tests
+        run: pio test -e native
+
+  build:
+    name: Build firmware
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcu
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install PlatformIO
+        run: pip install -q platformio
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('mcu/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+
+      - name: Build control node
+        run: pio run -e control-node
+
+      - name: Build base station
+        run: pio run -e base-station
