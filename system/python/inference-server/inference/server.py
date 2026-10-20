@@ -85,6 +85,16 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         past_covariates = calculate_temporal_covariates(past_timestamps)
         future_covariates = calculate_temporal_covariates(future_timestamps)
 
+        max_recommended = self.backend.max_recommended_horizon()
+        if max_recommended is not None and prediction_length > max_recommended:
+            logger.warning(
+                "prediction length %d exceeds the recommended maximum of %d for model %s; "
+                "longer forecasts may degrade in quality",
+                prediction_length,
+                max_recommended,
+                self.backend.model_name,
+            )
+
         try:
             quantiles, _ = self.backend.predict(
                 target=target,

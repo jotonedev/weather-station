@@ -16,6 +16,13 @@ class Chronos2Backend(ForecastBackend[Chronos2Pipeline]):
             torch_dtype=torch.float32,
         )
 
+    def max_recommended_horizon(self) -> int | None:
+        """max_recommended_horizon returns the library's recommended prediction length cap."""
+        # The chronos library warns, but does not fail, when the requested prediction
+        # length exceeds the checkpoint's trained horizon. Reading the loaded pipeline
+        # keeps this truthful per checkpoint rather than hardcoding a value.
+        return self.get_pipeline().model_prediction_length
+
     def _predict_loaded(
         self,
         pipeline: Chronos2Pipeline,

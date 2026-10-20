@@ -61,6 +61,10 @@ class ForecastBackend[PipelineT](abc.ABC):
         with self._lock:
             return self._pipeline is not None
 
+    def max_recommended_horizon(self) -> int | None:
+        """max_recommended_horizon returns the recommended prediction horizon cap or None when unbounded."""
+        return None
+
     def maybe_unload_idle(self, now: float | None = None) -> bool:
         """maybe_unload_idle unloads the model from memory if idle time exceeds timeout."""
         current_time = time.time() if now is None else now

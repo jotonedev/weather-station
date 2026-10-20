@@ -1,3 +1,4 @@
+import logging
 from concurrent import futures
 
 import grpc
@@ -126,6 +127,91 @@ def test_grpc_predict_weather_daily_mode(grpc_service: inference_pb2_grpc.Infere
     assert len(response.predictions) == 10
     assert response.predictions[0].horizon_hours == 24
     assert response.predictions[-1].horizon_hours == 240
+
+
+def test_grpc_predict_weather_warns_when_horizon_exceeds_recommendation(
+    grpc_service: inference_pb2_grpc.InferenceServiceStub,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test_grpc_predict_weather_warns_when_horizon_exceeds_recommendation logs an explicit horizon warning."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    observations = []
+    for step_index in range(32):
+        timestamp = Timestamp()
+        timestamp.FromSeconds(1700000000 - ((32 - step_index) * 3600))
+        obs = inference_pb2.TimeSeriesObservation(
+            timestamp=timestamp,
+            temperature_c=20.0 + (step_index * 0.05),
+            humidity_pct=60.0,
+        )
+        observations.append(obs)
+
+    request = inference_pb2.PredictWeatherRequest(
+        node_id="station-alpha",
+        mode=inference_pb2.PREDICTION_MODE_NEXT_24_HOURS,
+        issue_time=issue_time,
+        history=observations,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="inference.server"):
+        response = grpc_service.PredictWeather(request)
+
+    assert len(response.predictions) == 24
+    assert any("exceeds the recommended maximum" in record.message for record in caplog.records)
+
+
+def test_grpc_predict_weather_no_horizon_warning_with_timestral(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test_grpc_predict_weather_no_horizon_warning_with_timestral verifies no cap warning is logged."""
+    from inference.backends.timestral import TimestralBackend
+    from tests.helpers import create_synthetic_timestral_forecaster
+
+    forecaster = create_synthetic_timestral_forecaster()
+    backend = TimestralBackend(model_name="test-timestral", pipeline=forecaster)
+    config = Config(host="127.0.0.1", port=0, model_name="test-timestral", max_horizon_hours=240)
+
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+    servicer = InferenceServicer(backend, config)
+    inference_pb2_grpc.add_InferenceServiceServicer_to_server(servicer, server)
+    port = server.add_insecure_port("127.0.0.1:0")
+    server.start()
+
+    channel = grpc.insecure_channel(f"127.0.0.1:{port}")
+    stub = inference_pb2_grpc.InferenceServiceStub(channel)
+
+    try:
+        issue_time = Timestamp()
+        issue_time.FromSeconds(1700000000)
+
+        observations = []
+        for step_index in range(32):
+            timestamp = Timestamp()
+            timestamp.FromSeconds(1700000000 - ((32 - step_index) * 3600))
+            obs = inference_pb2.TimeSeriesObservation(
+                timestamp=timestamp,
+                temperature_c=20.0 + (step_index * 0.05),
+                humidity_pct=60.0,
+            )
+            observations.append(obs)
+
+        request = inference_pb2.PredictWeatherRequest(
+            node_id="station-alpha",
+            mode=inference_pb2.PREDICTION_MODE_NEXT_24_HOURS,
+            issue_time=issue_time,
+            history=observations,
+        )
+
+        with caplog.at_level(logging.WARNING, logger="inference.server"):
+            response = stub.PredictWeather(request)
+
+        assert len(response.predictions) == 24
+        assert not any("exceeds the recommended maximum" in record.message for record in caplog.records)
+    finally:
+        channel.close()
+        server.stop(grace=None)
 
 
 def test_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

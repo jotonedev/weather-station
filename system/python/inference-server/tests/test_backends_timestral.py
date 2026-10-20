@@ -58,6 +58,14 @@ def test_stack_known_covariates_missing_future_keys_raises() -> None:
         _stack_known_covariates(past, {})
 
 
+def test_timestral_max_recommended_horizon_unbounded() -> None:
+    """Test_timestral_max_recommended_horizon_unbounded reports no prediction length cap."""
+    forecaster = create_synthetic_timestral_forecaster()
+    backend = TimestralBackend(model_name="synthetic-test", pipeline=forecaster)
+
+    assert backend.max_recommended_horizon() is None
+
+
 def test_timestral_predict_with_synthetic_model() -> None:
     """Test_timestral_predict_with_synthetic_model verifies a full CPU forecast through the backend."""
     forecaster = create_synthetic_timestral_forecaster()
