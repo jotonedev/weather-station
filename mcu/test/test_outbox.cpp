@@ -141,7 +141,7 @@ TEST(Outbox, BackfillTimestampsUpdatesOnlyZeroEpochEntries) {
     outbox.push(e2);
     outbox.push(e3);
 
-    size_t updated = outbox.backfillTimestamps(1700000100u, 30000u);
+    size_t const updated = outbox.backfillTimestamps(1700000100u, 30000u);
     EXPECT_EQ(updated, 2);
 
     PendingReading out;

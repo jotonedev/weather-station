@@ -1,6 +1,6 @@
 #include "Outbox.h"
 
-Outbox::Outbox(size_t capacity) : capacity_(capacity), ownsBuffer_(true) {
+Outbox::Outbox(size_t capacity) : capacity_(capacity) {
     buffer_ = (capacity_ > 0) ? new PendingReading[capacity_] : nullptr;
 }
 
