@@ -45,6 +45,7 @@ class WindVane {
     uint8_t getLastAGC();
     uint16_t getAGCVariance();
     uint32_t getGlitchCount();
+    uint32_t getLastHeartbeatMs();
 
     // Synchronous / legacy fallback
     float readAngle();
@@ -62,6 +63,8 @@ class WindVane {
     portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
     bool initialized = false;
+    bool sensorReady = false;
+    uint32_t lastHeartbeatMs = 0;
     float currentAngle = 0.0f;
     float rawAngleDegrees = 0.0f;
 

@@ -20,8 +20,11 @@ void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
     // Disable fast filter so noise spikes don't bypass slow filter
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
 
+    uint32_t nowMs = millis();
     portENTER_CRITICAL(&spinlock);
     initialized = true;
+    sensorReady = false;
+    lastHeartbeatMs = nowMs;
     currentAngle = 0.0f;
     rawAngleDegrees = 0.0f;
     vecX = 1.0f;
@@ -35,6 +38,12 @@ void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
 }
 
 bool WindVane::ready() {
+    if (taskHandle != nullptr) {
+        portENTER_CRITICAL(&spinlock);
+        bool r = sensorReady;
+        portEXIT_CRITICAL(&spinlock);
+        return r;
+    }
     return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
            !as5600.magnetTooWeak();
 }
@@ -91,7 +100,12 @@ void WindVane::taskLoop(uint32_t samplePeriodMs) {
 }
 
 void WindVane::update() {
+    uint32_t nowMs = millis();
     if (!as5600.isConnected()) {
+        portENTER_CRITICAL(&spinlock);
+        lastHeartbeatMs = nowMs;
+        sensorReady = false;
+        portEXIT_CRITICAL(&spinlock);
         return;
     }
 
@@ -100,10 +114,14 @@ void WindVane::update() {
     uint8_t status = as5600.readStatus();
     uint8_t agc = as5600.readAGC();
 
-    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10)
+    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10),
+    // bit 3 = Magnet High/Strong (0x08)
     bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
+    bool fullReady = hwMagnetOk && !(status & 0x08);
 
     portENTER_CRITICAL(&spinlock);
+    lastHeartbeatMs = nowMs;
+    sensorReady = fullReady;
     lastStatus = status;
     lastAgc = agc;
 
@@ -220,6 +238,13 @@ uint16_t WindVane::getAGCVariance() {
 uint32_t WindVane::getGlitchCount() {
     portENTER_CRITICAL(&spinlock);
     uint32_t val = glitchCount;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
+uint32_t WindVane::getLastHeartbeatMs() {
+    portENTER_CRITICAL(&spinlock);
+    uint32_t val = lastHeartbeatMs;
     portEXIT_CRITICAL(&spinlock);
     return val;
 }

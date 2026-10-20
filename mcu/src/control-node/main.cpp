@@ -1,7 +1,12 @@
 #include <Arduino.h>
 #include <Preferences.h>
+#include <WiFi.h>
 #include <Wire.h>
+#include <cmath>
 #include <esp_task_wdt.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #include <ARQ.h>
 #include <AS5600.h>
@@ -36,15 +41,32 @@ RainMeter rainMeter(Wire1);
 SoftTwoWire softWireWindVane(WIND_VANE_SDA_PIN, WIND_VANE_SCL_PIN);
 WindVane windVane(softWireWindVane, WIND_VANE_CALIBRATION_OFFSET);
 
-// The BMP085 divides by calibration coefficients loaded during begin(). With
-// a failed begin they stay zero and readPressure() would divide by zero, so
-// reads are gated on the init result.
-static bool bmpOk = false;
+// Mutex protecting the shared Wire bus between AnemometerTask (Core 0) and loop (Core 1).
+static SemaphoreHandle_t wireMutex = nullptr;
 
-// Cached air quality, refreshed continuously from the PMS7003 stream.
+// Sensor initialization states, allowing hot-plug recovery on transient failures.
+static bool ahtOk = false;
+static bool bmpOk = false;
+static bool sgpOk = false;
+
+// Cached SGP30 TVOC from the required 1 Hz IAQmeasure loop.
+static uint16_t latestTvoc = weather::kInvalidUint16;
+static bool sgpHasData = false;
+static uint32_t lastSgpMeasureMs = 0;
+static uint32_t lastSgpBaselineSaveMs = 0;
+
+// PMS7003 15-minute duty cycle state machine to preserve fan and laser lifespan.
+enum class PmsState : uint8_t {
+    Sleeping,
+    WarmingUp,
+    Reading,
+};
+
+static PmsState pmsState = PmsState::WarmingUp;
+static uint32_t pmsCycleStartMs = 0;
+static uint32_t pmsStateStartMs = 0;
 static PMS::DATA latestPms = {};
-static bool pmsHasData = false;
-static uint32_t lastPmsMs = 0;
+static bool pmsPendingReport = false;
 
 // Boot counter kept in NVS to spot crash loops on a hard to reach node.
 static Preferences prefs;
@@ -117,6 +139,115 @@ void storeLastError(const char* tag) {
     }
 }
 
+// Compute absolute humidity in mg/m^3 for SGP30 on-chip compensation.
+uint32_t computeAbsoluteHumidityMgM3(float temperatureC, float relativeHumidityPct) {
+    if (std::isnan(temperatureC) || std::isnan(relativeHumidityPct) ||
+        relativeHumidityPct <= 0.0f) {
+        return 0;
+    }
+    const float absHumidityGramsM3 =
+        216.7f *
+        ((relativeHumidityPct / 100.0f) * 6.112f *
+         std::exp((17.62f * temperatureC) / (243.12f + temperatureC)) / (273.15f + temperatureC));
+    return static_cast<uint32_t>(1000.0f * absHumidityGramsM3);
+}
+
+void initSgp30WithBaseline() {
+    if (!sgp.begin(&Wire, true) || !sgp.IAQinit()) {
+        sgpOk = false;
+        return;
+    }
+    sgpOk = true;
+    if (prefs.begin(NVS_NAMESPACE, true)) {
+        uint16_t eco2Base = prefs.getUShort(NVS_KEY_SGP_ECO2, 0);
+        uint16_t tvocBase = prefs.getUShort(NVS_KEY_SGP_TVOC, 0);
+        prefs.end();
+        if (eco2Base != 0 && tvocBase != 0) {
+            sgp.setIAQBaseline(eco2Base, tvocBase);
+        }
+    }
+}
+
+void saveSgpBaselineIfDue(uint32_t nowMs) {
+    if (!sgpOk || nowMs < SGP_WARMUP_BEFORE_SAVE_MS ||
+        (nowMs - lastSgpBaselineSaveMs) < SGP_BASELINE_SAVE_INTERVAL_MS) {
+        return;
+    }
+    lastSgpBaselineSaveMs = nowMs;
+
+    uint16_t eco2Base = 0;
+    uint16_t tvocBase = 0;
+    bool ok = false;
+    if (xSemaphoreTake(wireMutex, portMAX_DELAY) == pdTRUE) {
+        ok = sgp.getIAQBaseline(&eco2Base, &tvocBase);
+        xSemaphoreGive(wireMutex);
+    }
+    if (ok && eco2Base != 0 && tvocBase != 0 && prefs.begin(NVS_NAMESPACE, false)) {
+        prefs.putUShort(NVS_KEY_SGP_ECO2, eco2Base);
+        prefs.putUShort(NVS_KEY_SGP_TVOC, tvocBase);
+        prefs.end();
+    }
+}
+
+void updateSgp30(uint32_t nowMs) {
+    if (nowMs - lastSgpMeasureMs < SGP_MEASURE_INTERVAL_MS) {
+        return;
+    }
+    lastSgpMeasureMs = nowMs;
+    if (!sgpOk) {
+        return;
+    }
+
+    if (xSemaphoreTake(wireMutex, portMAX_DELAY) == pdTRUE) {
+        if (sgp.IAQmeasure()) {
+            latestTvoc = sgp.TVOC;
+            sgpHasData = true;
+        } else {
+            sgpOk = false;
+            sgpHasData = false;
+        }
+        xSemaphoreGive(wireMutex);
+    }
+
+    saveSgpBaselineIfDue(nowMs);
+}
+
+void updatePms(uint32_t nowMs) {
+    switch (pmsState) {
+    case PmsState::Sleeping:
+        if (nowMs - pmsCycleStartMs >= (PMS_SAMPLE_INTERVAL_MS - PMS_WARMUP_MS)) {
+            pmsCycleStartMs = nowMs;
+            pmsStateStartMs = nowMs;
+            pms.wakeUp();
+            pmsState = PmsState::WarmingUp;
+        }
+        break;
+
+    case PmsState::WarmingUp: {
+        // Drain frames emitted while fan and laser stabilize.
+        PMS::DATA discard;
+        pms.read(discard);
+        if (nowMs - pmsStateStartMs >= PMS_WARMUP_MS) {
+            pmsStateStartMs = nowMs;
+            pmsState = PmsState::Reading;
+        }
+        break;
+    }
+
+    case PmsState::Reading:
+        if (pms.read(latestPms)) {
+            pmsPendingReport = true;
+            pms.sleep();
+            pmsState = PmsState::Sleeping;
+        } else if (nowMs - pmsStateStartMs >= PMS_READ_TIMEOUT_MS) {
+            Serial.println("[WARN] PMS7003 read timed out, returning to sleep");
+            pms.sleep();
+            pmsState = PmsState::Sleeping;
+        }
+        break;
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     delay(200);
@@ -124,18 +255,33 @@ void setup() {
     Serial.println("  Control Node Starting");
     Serial.println("==================================");
 
+    // Power down unused WiFi and Bluetooth radios to cut idle draw and self-heating.
+    WiFi.mode(WIFI_OFF);
+    btStop();
+
     setupWatchdog();
     loadBootCounter();
 
-    Wire.begin(SENSOR_I2C_SDA_PIN, SENSOR_I2C_SCL_PIN);
-    Wire1.begin(RAIN_METER_SDA_PIN, RAIN_METER_SCL_PIN);
+    wireMutex = xSemaphoreCreateMutex();
+    Wire.begin(SENSOR_I2C_SDA_PIN, SENSOR_I2C_SCL_PIN, I2C_CLOCK_HZ);
+    Wire.setTimeOut(I2C_TIMEOUT_MS);
+    Wire1.begin(RAIN_METER_SDA_PIN, RAIN_METER_SCL_PIN, I2C_CLOCK_HZ);
+    Wire1.setTimeOut(I2C_TIMEOUT_MS);
     Serial2.begin(PMS::BAUD_RATE, SERIAL_8N1, PMS_RX_PIN, PMS_TX_PIN);
     softWireWindVane.beginSoftwareI2C();
 
-    bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
-    sgp.begin(&Wire, true);
-    sgp.IAQinit();
+    pms.activeMode();
+    pms.wakeUp();
+    uint32_t nowMs = millis();
+    pmsCycleStartMs = nowMs;
+    pmsStateStartMs = nowMs;
+    pmsState = PmsState::WarmingUp;
 
+    ahtOk = aht.begin(&Wire);
+    bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
+    initSgp30WithBaseline();
+
+    anemometer.setBusMutex(wireMutex);
     anemometer.initialize();
     windVane.initialize();
     rainMeter.initialize();
@@ -189,20 +335,50 @@ WeatherData sampleSensors() {
             static_cast<uint16_t>(windVane.getAGCVariance());
     }
 
-    sensors_event_t humidityEvent;
-    sensors_event_t temperatureEvent;
-    if (aht.getEvent(&humidityEvent, &temperatureEvent)) {
-        reading.airData.temperature = weather::encodeTemperature(temperatureEvent.temperature);
-        reading.airData.humidity = weather::encodeHumidity(humidityEvent.relative_humidity);
-    }
-    if (bmpOk) {
-        int32_t pascal = bmp180.readPressure();
-        if (pascal > 0) {
-            reading.airData.pressure = weather::encodePressure(static_cast<float>(pascal) / 100.0f);
+    if (xSemaphoreTake(wireMutex, portMAX_DELAY) == pdTRUE) {
+        if (!ahtOk) {
+            ahtOk = aht.begin(&Wire);
         }
+        if (ahtOk) {
+            sensors_event_t humidityEvent;
+            sensors_event_t temperatureEvent;
+            if (aht.getEvent(&humidityEvent, &temperatureEvent)) {
+                reading.airData.temperature =
+                    weather::encodeTemperature(temperatureEvent.temperature);
+                reading.airData.humidity = weather::encodeHumidity(humidityEvent.relative_humidity);
+                if (sgpOk) {
+                    uint32_t absHum = computeAbsoluteHumidityMgM3(temperatureEvent.temperature,
+                                                                  humidityEvent.relative_humidity);
+                    if (absHum > 0) {
+                        sgp.setHumidity(absHum);
+                    }
+                }
+            } else {
+                ahtOk = false;
+            }
+        }
+
+        if (!bmpOk) {
+            bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
+        }
+        if (bmpOk) {
+            int32_t pascal = bmp180.readPressure();
+            if (pascal > 0) {
+                reading.airData.pressure =
+                    weather::encodePressure(static_cast<float>(pascal) / 100.0f);
+            } else {
+                bmpOk = false;
+            }
+        }
+
+        if (!sgpOk) {
+            initSgp30WithBaseline();
+        }
+        xSemaphoreGive(wireMutex);
     }
-    if (sgp.IAQmeasure()) {
-        reading.airQualityData.voc = sgp.TVOC;
+
+    if (sgpHasData) {
+        reading.airQualityData.voc = latestTvoc;
     }
 
     if (rainMeter.ready()) {
@@ -213,10 +389,11 @@ WeatherData sampleSensors() {
         reading.rainData.magnetStatus = rain.magnetStatus;
     }
 
-    if (pmsHasData && (millis() - lastPmsMs) < PMS_DATA_FRESH_MS) {
+    if (pmsPendingReport) {
         reading.airQualityData.pm1_0 = latestPms.PM_SP_UG_1_0;
         reading.airQualityData.pm2_5 = latestPms.PM_SP_UG_2_5;
         reading.airQualityData.pm10_0 = latestPms.PM_SP_UG_10_0;
+        pmsPendingReport = false;
     }
 
     return reading;
@@ -331,20 +508,39 @@ void printDiagnostics(uint32_t nowMs) {
     Serial.printf("[Diag] up=%lu boots=%lu txok=%lu txdrop=%lu resyncs=%lu state=%d rssi=%d\n",
                   nowMs / 1000uL, bootCount, linkState.sentOk, linkState.sentDropped,
                   linkState.radioResyncs, static_cast<int>(arq.getState()), arq.getLastRSSI());
-    Serial.printf("[Diag] anemo=%d vane=%d rain=%d pms=%d\n", anemometer.ready() ? 1 : 0,
-                  windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0, pmsHasData ? 1 : 0);
+    Serial.printf("[Diag] anemo=%d vane=%d rain=%d aht=%d bmp=%d sgp=%d pmsState=%d\n",
+                  anemometer.ready() ? 1 : 0, windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0,
+                  ahtOk ? 1 : 0, bmpOk ? 1 : 0, sgpOk ? 1 : 0, static_cast<int>(pmsState));
+}
+
+bool tasksHealthy(uint32_t nowMs) {
+    if (nowMs - anemometer.getLastHeartbeatMs() > WATCHDOG_TIMEOUT_MS) {
+        Serial.println("[ERROR] Anemometer task stalled");
+        storeLastError("anemo_wdt");
+        return false;
+    }
+    if (nowMs - windVane.getLastHeartbeatMs() > WATCHDOG_TIMEOUT_MS) {
+        Serial.println("[ERROR] WindVane task stalled");
+        storeLastError("vane_wdt");
+        return false;
+    }
+    if (nowMs - rainMeter.getLastHeartbeatMs() > WATCHDOG_TIMEOUT_MS) {
+        Serial.println("[ERROR] RainMeter task stalled");
+        storeLastError("rain_wdt");
+        return false;
+    }
+    return true;
 }
 
 void loop() {
-    esp_task_wdt_reset();
-
     uint32_t nowMs = millis();
 
-    // Keep the air quality stream fresh, non-blocking per call.
-    if (pms.read(latestPms)) {
-        pmsHasData = true;
-        lastPmsMs = nowMs;
+    if (tasksHealthy(nowMs)) {
+        esp_task_wdt_reset();
     }
+
+    updatePms(nowMs);
+    updateSgp30(nowMs);
 
     handleTx();
 
@@ -359,4 +555,9 @@ void loop() {
         lastDiagMs = nowMs;
         printDiagnostics(nowMs);
     }
+
+    // Pace the main loop so Core 1 enters light idle between events while staying
+    // responsive during active radio ACK polling.
+    uint32_t delayMs = (linkState.phase == SendPhase::Transmitting) ? 1u : 10u;
+    vTaskDelay(pdMS_TO_TICKS(delayMs));
 }

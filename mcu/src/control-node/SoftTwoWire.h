@@ -18,6 +18,8 @@ class SoftTwoWire : public TwoWire {
     }
 
     bool beginSoftwareI2C() {
+        _softWire.setTimeout_ms(20);
+        _softWire.setDelay_us(5);
         _softWire.begin();
         return true;
     }
@@ -29,8 +31,11 @@ class SoftTwoWire : public TwoWire {
         if (scl >= 0) {
             _softWire.setScl(scl);
         }
+        _softWire.setTimeout_ms(20);
         if (frequency > 0) {
             _softWire.setClock(frequency);
+        } else {
+            _softWire.setDelay_us(5);
         }
         _softWire.begin();
         return true;

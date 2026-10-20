@@ -1,8 +1,35 @@
 #include <Arduino.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <esp_attr.h>
+#include <esp_rom_crc.h>
 
 #include "rainmeter.h"
+
+namespace {
+
+constexpr uint32_t kRainRtcMagic = 0x5241494Eu; // "RAIN"
+
+// Retained in RTC Slow SRAM across watchdog resets and software reboots without wearing flash.
+struct RainRtcState {
+    uint32_t magic;
+    float minuteBins[60];
+    float hourBins[24];
+    uint16_t currentMinuteIdx;
+    uint16_t currentHourIdx;
+    float currentRainRate;
+    uint32_t crc;
+};
+
+RTC_NOINIT_ATTR RainRtcState s_rtcRainState;
+
+uint32_t computeRainRtcCrc(const RainRtcState& state) {
+    return esp_rom_crc32_le(0, reinterpret_cast<const uint8_t*>(&state),
+                            offsetof(RainRtcState, crc));
+}
+
+} // namespace
 
 RainMeter::RainMeter(TwoWire& wire, float mmPerTip)
     : wire(wire), as5600(&wire), mmPerTip(mmPerTip) {}
@@ -23,8 +50,11 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
 
     loadNvsCalibration();
 
+    uint32_t nowMs = millis();
     portENTER_CRITICAL(&spinlock);
     initialized = true;
+    sensorReady = false;
+    lastHeartbeatMs = nowMs;
     currentPos = 0;
     prevPos = 0;
     filteredPos = 0.0f;
@@ -33,18 +63,24 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
     transitStartMs = 0;
     lastTipMs = 0;
     prevTipMs = 0;
-    currentRainRate = 0.0f;
-    lastMinuteTickMs = millis();
-    lastHourTickMs = millis();
+    lastMinuteTickMs = nowMs;
+    lastHourTickMs = nowMs;
     glitchCount = 0;
     consecutiveGlitches = 0;
     agcCount = 0;
     agcMean = 0.0;
     agcM2 = 0.0;
+    loadRtcRollingBins();
     portEXIT_CRITICAL(&spinlock);
 }
 
 bool RainMeter::ready() {
+    if (taskHandle != nullptr) {
+        portENTER_CRITICAL(&spinlock);
+        bool r = sensorReady;
+        portEXIT_CRITICAL(&spinlock);
+        return r;
+    }
     return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
            !as5600.magnetTooWeak();
 }
@@ -101,20 +137,29 @@ void RainMeter::taskLoop(uint32_t samplePeriodMs) {
 }
 
 void RainMeter::update() {
+    uint32_t nowMs = millis();
     if (!as5600.isConnected()) {
+        portENTER_CRITICAL(&spinlock);
+        lastHeartbeatMs = nowMs;
+        sensorReady = false;
+        updateRollingWindows(nowMs);
+        portEXIT_CRITICAL(&spinlock);
         return;
     }
 
-    uint32_t nowMs = millis();
     uint16_t raw = as5600.readAngle();
     bool i2cOk = (as5600.lastError() == AS5600_OK);
     uint8_t status = as5600.readStatus();
     uint8_t agc = as5600.readAGC();
 
-    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10)
+    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10),
+    // bit 3 = Magnet High/Strong (0x08)
     bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
+    bool fullReady = hwMagnetOk && !(status & 0x08);
 
     portENTER_CRITICAL(&spinlock);
+    lastHeartbeatMs = nowMs;
+    sensorReady = fullReady;
     lastStatus = status;
     lastAgc = agc;
 
@@ -314,29 +359,48 @@ void RainMeter::recordTip(uint32_t nowMs) {
 
     prevTipMs = lastTipMs;
     lastTipMs = nowMs;
+    saveRtcRollingBins();
 }
 
 void RainMeter::updateRollingWindows(uint32_t nowMs) {
-    // 1-minute bucket rotation
-    if (nowMs - lastMinuteTickMs >= 60000) {
+    bool rotated = false;
+
+    // 1-minute bucket rotation (drift-free step increments, bounded to 60 steps)
+    size_t minSteps = 0;
+    while (nowMs - lastMinuteTickMs >= 60000uL && minSteps < 60) {
         currentMinuteIdx = (currentMinuteIdx + 1) % 60;
         minuteBins[currentMinuteIdx] = 0.0f;
-        lastMinuteTickMs = nowMs;
+        lastMinuteTickMs += 60000uL;
+        minSteps++;
+        rotated = true;
 
         // Exponential decay of instantaneous rain rate when dry for > 10 min
-        if (nowMs - lastTipMs > 600000) {
+        if (nowMs - lastTipMs > 600000uL) {
             currentRainRate *= 0.80f;
             if (currentRainRate < 0.05f) {
                 currentRainRate = 0.0f;
             }
         }
     }
+    if (nowMs - lastMinuteTickMs >= 60000uL) {
+        lastMinuteTickMs = nowMs;
+    }
 
-    // 1-hour bucket rotation
-    if (nowMs - lastHourTickMs >= 3600000) {
+    // 1-hour bucket rotation (drift-free step increments, bounded to 24 steps)
+    size_t hourSteps = 0;
+    while (nowMs - lastHourTickMs >= 3600000uL && hourSteps < 24) {
         currentHourIdx = (currentHourIdx + 1) % 24;
         hourBins[currentHourIdx] = 0.0f;
+        lastHourTickMs += 3600000uL;
+        hourSteps++;
+        rotated = true;
+    }
+    if (nowMs - lastHourTickMs >= 3600000uL) {
         lastHourTickMs = nowMs;
+    }
+
+    if (rotated) {
+        saveRtcRollingBins();
     }
 }
 
@@ -489,6 +553,13 @@ uint32_t RainMeter::getGlitchCount() {
     return val;
 }
 
+uint32_t RainMeter::getLastHeartbeatMs() {
+    portENTER_CRITICAL(&spinlock);
+    uint32_t val = lastHeartbeatMs;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
 void RainMeter::resetStats() {
     portENTER_CRITICAL(&spinlock);
     agcCount = 0;
@@ -541,4 +612,34 @@ void RainMeter::saveNvsCalibration() {
     preferences.putInt("restL", restLeft);
     preferences.putInt("restR", restRight);
     preferences.end();
+}
+
+void RainMeter::loadRtcRollingBins() {
+    if (s_rtcRainState.magic == kRainRtcMagic &&
+        s_rtcRainState.crc == computeRainRtcCrc(s_rtcRainState) &&
+        s_rtcRainState.currentMinuteIdx < 60 && s_rtcRainState.currentHourIdx < 24) {
+        std::memcpy(minuteBins, s_rtcRainState.minuteBins, sizeof(minuteBins));
+        std::memcpy(hourBins, s_rtcRainState.hourBins, sizeof(hourBins));
+        currentMinuteIdx = s_rtcRainState.currentMinuteIdx;
+        currentHourIdx = s_rtcRainState.currentHourIdx;
+        currentRainRate = s_rtcRainState.currentRainRate;
+        return;
+    }
+
+    std::memset(minuteBins, 0, sizeof(minuteBins));
+    std::memset(hourBins, 0, sizeof(hourBins));
+    currentMinuteIdx = 0;
+    currentHourIdx = 0;
+    currentRainRate = 0.0f;
+    saveRtcRollingBins();
+}
+
+void RainMeter::saveRtcRollingBins() {
+    s_rtcRainState.magic = kRainRtcMagic;
+    std::memcpy(s_rtcRainState.minuteBins, minuteBins, sizeof(minuteBins));
+    std::memcpy(s_rtcRainState.hourBins, hourBins, sizeof(hourBins));
+    s_rtcRainState.currentMinuteIdx = static_cast<uint16_t>(currentMinuteIdx);
+    s_rtcRainState.currentHourIdx = static_cast<uint16_t>(currentHourIdx);
+    s_rtcRainState.currentRainRate = currentRainRate;
+    s_rtcRainState.crc = computeRainRtcCrc(s_rtcRainState);
 }

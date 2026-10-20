@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 class Anemometer {
@@ -12,6 +13,7 @@ class Anemometer {
     Anemometer(TwoWire& wire);
     ~Anemometer();
 
+    void setBusMutex(SemaphoreHandle_t mutex);
     void initialize(uint8_t directionPin = AS5600_SW_DIRECTION_PIN,
                     uint8_t direction = AS5600_CLOCK_WISE);
     bool ready();
@@ -45,6 +47,7 @@ class Anemometer {
     uint16_t getAGCVariance();
     uint32_t getGlitchCount();
     int64_t getCumulativeCounts();
+    uint32_t getLastHeartbeatMs();
 
     // Synchronous / legacy fallback methods
     float readWindRPM();
@@ -53,6 +56,8 @@ class Anemometer {
   private:
     TwoWire& wire;
     AS5600 as5600;
+    SemaphoreHandle_t busMutex = nullptr;
+    uint32_t samplePeriodMs = 10;
 
     TaskHandle_t taskHandle = nullptr;
     static void taskTrampoline(void* arg);
@@ -61,6 +66,8 @@ class Anemometer {
     portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
     bool initialized = false;
+    bool sensorReady = false;
+    uint32_t lastHeartbeatMs = 0;
     int32_t lastRawAngle = -1;
     uint32_t lastValidMicros = 0;
     int64_t cumulativeCounts = 0;

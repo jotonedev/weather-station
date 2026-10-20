@@ -68,6 +68,7 @@ class RainMeter {
     uint8_t getLastAGC();
     uint16_t getAGCVariance();
     uint32_t getGlitchCount();
+    uint32_t getLastHeartbeatMs();
 
     // Maintenance & Calibration Controls
     void resetStats();
@@ -88,6 +89,8 @@ class RainMeter {
     portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
     bool initialized = false;
+    bool sensorReady = false;
+    uint32_t lastHeartbeatMs = 0;
     float mmPerTip = RAIN_METER_CALIBRATION_MM_PER_TIP;
 
     // Angular tracking & unwrap logic
@@ -157,6 +160,8 @@ class RainMeter {
 
     void loadNvsCalibration();
     void saveNvsCalibration();
+    void loadRtcRollingBins();
+    void saveRtcRollingBins();
     void recordTip(uint32_t nowMs);
     void updateRollingWindows(uint32_t nowMs);
     void recomputeGeometry();

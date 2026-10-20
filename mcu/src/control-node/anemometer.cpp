@@ -10,7 +10,14 @@ Anemometer::~Anemometer() {
     stopTask();
 }
 
+void Anemometer::setBusMutex(SemaphoreHandle_t mutex) {
+    busMutex = mutex;
+}
+
 void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
     as5600.begin(directionPin);
     as5600.setDirection(direction);
     // Enable 3 LSB hysteresis to suppress standstill noise at silicon level
@@ -19,9 +26,15 @@ void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
     // Disable fast filter so noise spikes don't bypass slow filter
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
 
+    uint32_t nowMs = millis();
     portENTER_CRITICAL(&spinlock);
     initialized = true;
+    sensorReady = false;
+    lastHeartbeatMs = nowMs;
     lastRawAngle = -1;
     lastValidMicros = 0;
     cumulativeCounts = 0;
@@ -37,24 +50,65 @@ void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
 }
 
 bool Anemometer::ready() {
-    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
-           !as5600.magnetTooWeak();
+    if (taskHandle != nullptr) {
+        portENTER_CRITICAL(&spinlock);
+        bool r = sensorReady;
+        portEXIT_CRITICAL(&spinlock);
+        return r;
+    }
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
+    bool r = as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
+             !as5600.magnetTooWeak();
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
+    return r;
 }
 
 bool Anemometer::isConnected() {
-    return as5600.isConnected();
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
+    bool res = as5600.isConnected();
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
+    return res;
 }
 
 bool Anemometer::magnetDetected() {
-    return as5600.magnetDetected();
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
+    bool res = as5600.magnetDetected();
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
+    return res;
 }
 
 bool Anemometer::magnetTooStrong() {
-    return as5600.magnetTooStrong();
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
+    bool res = as5600.magnetTooStrong();
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
+    return res;
 }
 
 bool Anemometer::magnetTooWeak() {
-    return as5600.magnetTooWeak();
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
+    bool res = as5600.magnetTooWeak();
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
+    return res;
 }
 
 int Anemometer::getLastError() {
@@ -63,13 +117,14 @@ int Anemometer::getLastError() {
 
 void Anemometer::taskTrampoline(void* arg) {
     auto* self = static_cast<Anemometer*>(arg);
-    self->taskLoop(10);
+    self->taskLoop(self->samplePeriodMs);
 }
 
 bool Anemometer::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseType_t core) {
     if (taskHandle != nullptr) {
         return true;
     }
+    this->samplePeriodMs = samplePeriodMs;
     BaseType_t res = xTaskCreatePinnedToCore(taskTrampoline, "AnemometerTask", 4096, this, priority,
                                              &taskHandle, core);
     return res == pdPASS;
@@ -92,7 +147,18 @@ void Anemometer::taskLoop(uint32_t samplePeriodMs) {
 }
 
 void Anemometer::update() {
+    uint32_t nowMs = millis();
+    if (busMutex != nullptr) {
+        xSemaphoreTake(busMutex, portMAX_DELAY);
+    }
     if (!as5600.isConnected()) {
+        if (busMutex != nullptr) {
+            xSemaphoreGive(busMutex);
+        }
+        portENTER_CRITICAL(&spinlock);
+        lastHeartbeatMs = nowMs;
+        sensorReady = false;
+        portEXIT_CRITICAL(&spinlock);
         return;
     }
 
@@ -101,11 +167,18 @@ void Anemometer::update() {
     bool i2cOk = (as5600.lastError() == AS5600_OK);
     uint8_t status = as5600.readStatus();
     uint8_t agc = as5600.readAGC();
+    if (busMutex != nullptr) {
+        xSemaphoreGive(busMutex);
+    }
 
-    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10)
+    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10),
+    // bit 3 = Magnet High/Strong (0x08)
     bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
+    bool fullReady = hwMagnetOk && !(status & 0x08);
 
     portENTER_CRITICAL(&spinlock);
+    lastHeartbeatMs = nowMs;
+    sensorReady = fullReady;
     lastStatus = status;
     lastAgc = agc;
 
@@ -309,6 +382,13 @@ uint32_t Anemometer::getGlitchCount() {
 int64_t Anemometer::getCumulativeCounts() {
     portENTER_CRITICAL(&spinlock);
     int64_t val = cumulativeCounts;
+    portEXIT_CRITICAL(&spinlock);
+    return val;
+}
+
+uint32_t Anemometer::getLastHeartbeatMs() {
+    portENTER_CRITICAL(&spinlock);
+    uint32_t val = lastHeartbeatMs;
     portEXIT_CRITICAL(&spinlock);
     return val;
 }

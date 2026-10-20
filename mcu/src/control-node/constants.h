@@ -71,13 +71,26 @@
 #define RADIO_REINIT_THRESHOLD 3
 // The board restarts when the loop stalls this long.
 #define WATCHDOG_TIMEOUT_MS 10000uL
-// A cached air quality value stays valid this long.
-#define PMS_DATA_FRESH_MS 30000uL
+// Hardware and software I2C transaction timeout to recover from bus glitches.
+#define I2C_TIMEOUT_MS 20u
+#define I2C_CLOCK_HZ 100000uL
 
-// NVS keys for the boot counter and the last failure tag.
+// PMS7003 duty-cycling policy: wake for 30s every 15 minutes to preserve laser and fan lifespan.
+#define PMS_SAMPLE_INTERVAL_MS 900000uL
+#define PMS_WARMUP_MS 30000uL
+#define PMS_READ_TIMEOUT_MS 10000uL
+
+// SGP30 requires a 1 Hz IAQmeasure tick and periodic baseline persistence to NVS.
+#define SGP_MEASURE_INTERVAL_MS 1000uL
+#define SGP_WARMUP_BEFORE_SAVE_MS 3600000uL
+#define SGP_BASELINE_SAVE_INTERVAL_MS 21600000uL
+
+// NVS keys for the boot counter, last failure tag, and SGP30 IAQ baseline.
 #define NVS_NAMESPACE "control"
 #define NVS_KEY_BOOTS "boots"
 #define NVS_KEY_LAST_ERR "lasterr"
+#define NVS_KEY_SGP_ECO2 "sgp_eco2"
+#define NVS_KEY_SGP_TVOC "sgp_tvoc"
 // Boots in a row without a successful send flag a crash loop.
 #define BOOT_CRASH_THRESHOLD 4
 
