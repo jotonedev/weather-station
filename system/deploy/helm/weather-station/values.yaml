@@ -194,7 +194,7 @@ tailscale:
     # forwards localhost:<localPort> to the ClusterIP backend.
     forwarderImage:
       repository: alpine/socat
-      tag: "1.8.0.1"
+      tag: "1.8.1.3"
       pullPolicy: IfNotPresent
     # Endpoints to advertise on the Service (protocol: https|http).
     endpoints:
