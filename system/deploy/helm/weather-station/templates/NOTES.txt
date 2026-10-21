@@ -2,10 +2,13 @@
 
 2. Access the Web Frontend:
 {{- if .Values.ingress.enabled }}
-  Host: http://{{ .Values.ingress.host }}
   Ingress Controller: {{ .Values.ingress.className | default "traefik" }}
-  - Web UI: http://{{ .Values.ingress.host }}/
-  - Ingestion endpoint: http://{{ .Values.ingress.host }}/reading
+  {{- range $host := .Values.ingress.hosts }}
+  Host: http://{{ $host }}
+  - Web UI: http://{{ $host }}/
+  - Single ingestion endpoint: http://{{ $host }}/reading
+  - Batch ingestion endpoint: http://{{ $host }}/readings
+  {{- end }}
 {{- else }}
   Forward frontend port to localhost:
   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "weather-station.fullname" . }}-frontend 8080:8080

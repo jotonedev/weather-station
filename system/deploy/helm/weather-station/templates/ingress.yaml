@@ -24,21 +24,30 @@ spec:
     {{- end }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+    {{- range $host := .Values.ingress.hosts }}
+    - host: {{ $host | quote }}
       http:
         paths:
           - path: /reading
             pathType: Prefix
             backend:
               service:
-                name: {{ include "weather-station.fullname" . }}-data-ingest
+                name: {{ include "weather-station.fullname" $ }}-data-ingest
                 port:
-                  number: {{ .Values.dataIngest.httpPort }}
+                  number: {{ $.Values.dataIngest.httpPort }}
+          - path: /readings
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "weather-station.fullname" $ }}-data-ingest
+                port:
+                  number: {{ $.Values.dataIngest.httpPort }}
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "weather-station.fullname" . }}-frontend
+                name: {{ include "weather-station.fullname" $ }}-frontend
                 port:
-                  number: {{ .Values.frontend.httpPort }}
+                  number: {{ $.Values.frontend.httpPort }}
+    {{- end }}
 {{- end }}

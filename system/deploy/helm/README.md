@@ -15,12 +15,9 @@ system/deploy/helm/weather-station/
     ├── deployment-webapp.yaml          # data-ingest + frontend
     ├── deployment-database.yaml        # embedded DuckDB
     ├── deployment-inference-server.yaml
-    ├── deployment-tailscale-service-host.yaml
-    ├── configmap-tailscale-service-host.yaml
     ├── cronjob-inference.yaml
     ├── ingress.yaml
     ├── networkpolicy.yaml              # the 7 zero-trust policies
-    ├── networkpolicy-tailscale-service-host.yaml
     ├── pvc-database.yaml
     └── pvc-model-cache.yaml
 ```
@@ -33,8 +30,3 @@ The chart ships with values configured for my k8s cluster, so they may not fit e
 
 Deployments reference `image.tag: latest`.
 Keel polls the registry every 15 minutes and rolls out the new image when the digest changes.
-
-## Tailscale service host (optional)
-
-The service host exposes the frontend as a [Tailscale Service](https://tailscale.com/docs/features/tailscale-services).
-Enable with `--set tailscale.serviceHost.enabled=true` and provide credentials.
