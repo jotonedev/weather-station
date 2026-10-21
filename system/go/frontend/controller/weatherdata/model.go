@@ -78,6 +78,8 @@ type DashboardData struct {
 	NoNodes          bool
 	LatestReading    *ReadingView
 	Forecast         []ForecastItemView
+	HourlyForecast   []ForecastItemView
+	DailyForecast    []ForecastItemView
 	ForecastIssuedAt string
 	ErrorMessage     string
 }

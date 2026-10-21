@@ -69,21 +69,71 @@ func classifyWeatherCondition(tempC, humidityPct, rainfallMm *float32) (string, 
 	return "wi-day-sunny", "Clear Sky"
 }
 
-// classifyAirQuality returns an air quality label and level class from a PM2.5 reading.
-func classifyAirQuality(pm25 *int32) (string, string) {
-	if pm25 == nil {
+// classifyAirQuality returns an air quality label and level class from PM2.5 and PM10 readings
+// using the European Air Quality Index (EAQI) worst-of logic.
+func classifyAirQuality(pm25, pm10 *int32) (string, string) {
+	if pm25 == nil && pm10 == nil {
 		return "No Data", "unknown"
 	}
-	val := *pm25
-	switch {
-	case val <= 12:
+
+	scorePM25 := 0
+	if pm25 != nil {
+		val := *pm25
+		switch {
+		case val <= 5:
+			scorePM25 = 1
+		case val <= 15:
+			scorePM25 = 2
+		case val <= 50:
+			scorePM25 = 3
+		case val <= 90:
+			scorePM25 = 4
+		case val <= 140:
+			scorePM25 = 5
+		default:
+			scorePM25 = 6
+		}
+	}
+
+	scorePM10 := 0
+	if pm10 != nil {
+		val := *pm10
+		switch {
+		case val <= 15:
+			scorePM10 = 1
+		case val <= 45:
+			scorePM10 = 2
+		case val <= 120:
+			scorePM10 = 3
+		case val <= 195:
+			scorePM10 = 4
+		case val <= 270:
+			scorePM10 = 5
+		default:
+			scorePM10 = 6
+		}
+	}
+
+	worst := scorePM25
+	if scorePM10 > worst {
+		worst = scorePM10
+	}
+
+	switch worst {
+	case 1:
 		return "Good", "good"
-	case val <= 35:
+	case 2:
+		return "Fair", "fair"
+	case 3:
 		return "Moderate", "moderate"
-	case val <= 55:
-		return "Sensitive", "sensitive"
+	case 4:
+		return "Poor", "poor"
+	case 5:
+		return "Very Poor", "very-poor"
+	case 6:
+		return "Extremely Poor", "extremely-poor"
 	default:
-		return "Poor", "unhealthy"
+		return "No Data", "unknown"
 	}
 }
 
@@ -168,7 +218,7 @@ func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 	}
 	condIcon, condLabel := classifyWeatherCondition(reading.Temperature, reading.Humidity, rainIndicator)
 	windCardinal, windRot, hasWind := degreesToCardinal(reading.WindAngle)
-	aqLabel, aqLevel := classifyAirQuality(reading.Pm25)
+	aqLabel, aqLevel := classifyAirQuality(reading.Pm25, reading.Pm10)
 
 	return ReadingView{
 		NodeID:        reading.NodeId,

@@ -80,6 +80,12 @@ func TestGetDashboardData(t *testing.T) {
 				if len(data.Forecast) != 1 {
 					t.Fatalf("Forecast length = %d, want 1", len(data.Forecast))
 				}
+				if len(data.HourlyForecast) != 1 {
+					t.Fatalf("HourlyForecast length = %d, want 1", len(data.HourlyForecast))
+				}
+				if len(data.DailyForecast) != 0 {
+					t.Fatalf("DailyForecast length = %d, want 0", len(data.DailyForecast))
+				}
 				if data.Forecast[0].Temperature != "19.5 °C" {
 					t.Fatalf("Forecast[0].Temperature = %q, want 19.5 °C", data.Forecast[0].Temperature)
 				}

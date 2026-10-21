@@ -20,7 +20,7 @@ func TestPBReadingToView(t *testing.T) {
 	rainRate := float32(5.2)
 	lightRain := float32(1.0)
 	pm25 := int32(15)
-	goodPm25 := int32(8)
+	goodPm25 := int32(4)
 
 	testCases := []struct {
 		name    string
@@ -64,8 +64,8 @@ func TestPBReadingToView(t *testing.T) {
 				if view.PM2_5 != "15 µg/m³" {
 					t.Fatalf("PM2_5 = %q, want 15 µg/m³", view.PM2_5)
 				}
-				if view.AirQualityLabel != "Moderate" || view.AirQualityLevel != "moderate" {
-					t.Fatalf("AirQuality = %q/%q, want Moderate/moderate", view.AirQualityLabel, view.AirQualityLevel)
+				if view.AirQualityLabel != "Fair" || view.AirQualityLevel != "fair" {
+					t.Fatalf("AirQuality = %q/%q, want Fair/fair", view.AirQualityLabel, view.AirQualityLevel)
 				}
 				if view.ConditionIcon != "wi-day-cloudy" {
 					t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)
@@ -211,6 +211,43 @@ func TestPBPredictionToView(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			view := pbPredictionToView(testCase.prediction)
 			testCase.check(t, view)
+		})
+	}
+}
+
+func TestClassifyAirQuality(t *testing.T) {
+	val := func(n int32) *int32 { return &n }
+
+	tests := []struct {
+		name      string
+		pm25      *int32
+		pm10      *int32
+		wantLabel string
+		wantLevel string
+	}{
+		{"both nil", nil, nil, "No Data", "unknown"},
+		{"pm25 good", val(3), nil, "Good", "good"},
+		{"pm25 fair", val(10), nil, "Fair", "fair"},
+		{"pm25 moderate", val(30), nil, "Moderate", "moderate"},
+		{"pm25 poor", val(70), nil, "Poor", "poor"},
+		{"pm25 very poor", val(110), nil, "Very Poor", "very-poor"},
+		{"pm25 extremely poor", val(160), nil, "Extremely Poor", "extremely-poor"},
+		{"pm10 good", nil, val(12), "Good", "good"},
+		{"pm10 fair", nil, val(35), "Fair", "fair"},
+		{"pm10 moderate", nil, val(80), "Moderate", "moderate"},
+		{"pm10 poor", nil, val(150), "Poor", "poor"},
+		{"pm10 very poor", nil, val(220), "Very Poor", "very-poor"},
+		{"pm10 extremely poor", nil, val(300), "Extremely Poor", "extremely-poor"},
+		{"worst of chooses higher severity (pm25 good, pm10 poor)", val(4), val(160), "Poor", "poor"},
+		{"worst of chooses higher severity (pm25 moderate, pm10 fair)", val(25), val(20), "Moderate", "moderate"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			label, level := classifyAirQuality(tt.pm25, tt.pm10)
+			if label != tt.wantLabel || level != tt.wantLevel {
+				t.Errorf("classifyAirQuality(%v, %v) = (%q, %q), want (%q, %q)", tt.pm25, tt.pm10, label, level, tt.wantLabel, tt.wantLevel)
+			}
 		})
 	}
 }

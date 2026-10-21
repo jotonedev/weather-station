@@ -251,6 +251,21 @@ header {
   color: var(--text-muted);
 }
 
+.forecast-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.forecast-subtitle {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
 .forecast-strip {
   display: grid;
   grid-auto-flow: column;
@@ -392,7 +407,11 @@ header {
 }
 
 .aq-good { background: rgba(74, 222, 128, 0.16); color: var(--green); }
+.aq-fair { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
 .aq-moderate { background: rgba(250, 204, 21, 0.16); color: var(--amber); }
+.aq-poor { background: rgba(251, 146, 60, 0.16); color: var(--orange); }
+.aq-very-poor { background: rgba(248, 113, 113, 0.16); color: var(--red); }
+.aq-extremely-poor { background: rgba(192, 132, 252, 0.16); color: #c084fc; }
 .aq-sensitive { background: rgba(251, 146, 60, 0.16); color: var(--orange); }
 .aq-unhealthy { background: rgba(248, 113, 113, 0.16); color: var(--red); }
 .aq-unknown { background: var(--accent-dim); color: var(--text-muted); }

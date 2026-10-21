@@ -95,7 +95,105 @@
           {{ end }}
         </div>
 
-        {{ if .Forecast }}
+        {{ if or .HourlyForecast .DailyForecast }}
+        <div class="forecast-group">
+          {{ if .HourlyForecast }}
+          <div>
+            <div class="forecast-subtitle">Hourly Forecast (Next 24 Hours)</div>
+            <div class="forecast-strip">
+              {{ range .HourlyForecast }}
+              <div class="forecast-card">
+                <span class="forecast-time">{{ .HorizonLabel }}</span>
+                <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
+                <div class="forecast-icon-wrap">
+                  <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
+                </div>
+                <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
+                <span class="forecast-temp">{{ .Temperature }}</span>
+
+                <div class="forecast-details">
+                  <div class="forecast-detail-row">
+                    <span>Rain</span>
+                    <strong>{{ .Rainfall }}</strong>
+                  </div>
+                  <div class="forecast-detail-row">
+                    <span>Humidity</span>
+                    <strong>{{ .Humidity }}</strong>
+                  </div>
+                  {{ if .HasWindDirection }}
+                  <div class="forecast-detail-row">
+                    <span>Wind Dir</span>
+                    <strong>
+                      <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
+                      {{ .WindCardinal }} ({{ .WindDirection }})
+                    </strong>
+                  </div>
+                  {{ end }}
+                  <div class="confidence-bar-wrap">
+                    <div class="forecast-detail-row">
+                      <span>Confidence</span>
+                      <strong>{{ .Confidence }}</strong>
+                    </div>
+                    <div class="confidence-bar-track">
+                      <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+          </div>
+          {{ end }}
+
+          {{ if .DailyForecast }}
+          <div>
+            <div class="forecast-subtitle">Daily Forecast (Next 10 Days)</div>
+            <div class="forecast-strip">
+              {{ range .DailyForecast }}
+              <div class="forecast-card">
+                <span class="forecast-time">{{ .HorizonLabel }}</span>
+                <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
+                <div class="forecast-icon-wrap">
+                  <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
+                </div>
+                <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
+                <span class="forecast-temp">{{ .Temperature }}</span>
+
+                <div class="forecast-details">
+                  <div class="forecast-detail-row">
+                    <span>Rain</span>
+                    <strong>{{ .Rainfall }}</strong>
+                  </div>
+                  <div class="forecast-detail-row">
+                    <span>Humidity</span>
+                    <strong>{{ .Humidity }}</strong>
+                  </div>
+                  {{ if .HasWindDirection }}
+                  <div class="forecast-detail-row">
+                    <span>Wind Dir</span>
+                    <strong>
+                      <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
+                      {{ .WindCardinal }} ({{ .WindDirection }})
+                    </strong>
+                  </div>
+                  {{ end }}
+                  <div class="confidence-bar-wrap">
+                    <div class="forecast-detail-row">
+                      <span>Confidence</span>
+                      <strong>{{ .Confidence }}</strong>
+                    </div>
+                    <div class="confidence-bar-track">
+                      <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+          </div>
+          {{ end }}
+        </div>
+        {{ else if .Forecast }}
         <div class="forecast-strip">
           {{ range .Forecast }}
           <div class="forecast-card">

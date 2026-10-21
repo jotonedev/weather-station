@@ -82,6 +82,8 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 
 	if len(predictions) > 0 {
 		forecast := make([]ForecastItemView, 0, len(predictions))
+		hourly := make([]ForecastItemView, 0)
+		daily := make([]ForecastItemView, 0)
 		for _, pred := range predictions {
 			if pred == nil {
 				continue
@@ -92,9 +94,17 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 					data.ForecastIssuedAt = issueTime.UTC().Format("2006-01-02 15:04 UTC")
 				}
 			}
-			forecast = append(forecast, pbPredictionToView(pred))
+			view := pbPredictionToView(pred)
+			forecast = append(forecast, view)
+			if pred.HorizonHours < 24 {
+				hourly = append(hourly, view)
+			} else {
+				daily = append(daily, view)
+			}
 		}
 		data.Forecast = forecast
+		data.HourlyForecast = hourly
+		data.DailyForecast = daily
 	}
 
 	return data

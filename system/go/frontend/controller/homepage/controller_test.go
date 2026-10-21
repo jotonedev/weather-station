@@ -18,7 +18,7 @@ func TestHomepageControllerRender(t *testing.T) {
 	temp := float32(21.5)
 	forecastTemp := float32(17.2)
 	forecastRain := float32(2.4)
-	pm25 := int32(9)
+	pm25 := int32(4)
 
 	testCases := []struct {
 		name          string
@@ -77,6 +77,7 @@ func TestHomepageControllerRender(t *testing.T) {
 					"21.5 °C",
 					"Good",
 					"Weather Forecast",
+					"Hourly Forecast",
 					"17.2 °C",
 					"2.4 mm",
 					"wi-showers",
