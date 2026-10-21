@@ -23,11 +23,6 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     PYTHONUNBUFFERED=1
 
-# git is required to fetch the timestral dependency from its GitHub repository
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy package metadata first to optimize Docker layer caching
 COPY proto/gen/python/pyproject.toml proto/gen/python/README.md ./proto/gen/python/
 COPY proto/gen/python/weather/ ./proto/gen/python/weather/
