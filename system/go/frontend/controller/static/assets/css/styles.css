@@ -333,6 +333,12 @@ header {
   color: var(--text);
 }
 
+.forecast-temp-min {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .forecast-details {
   width: 100%;
   border-top: 1px solid var(--border);

@@ -25,7 +25,7 @@
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
   </div>
   <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
-  <span class="forecast-temp">{{ .Temperature }}</span>
+  <span class="forecast-temp">{{ .MaxTemperature }} <span class="forecast-temp-min">/ {{ .MinTemperature }}</span></span>
 
   <div class="forecast-details">
     <div class="forecast-detail-row">

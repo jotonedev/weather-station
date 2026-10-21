@@ -11,10 +11,7 @@ import (
 func TestPBPredictionToView(t *testing.T) {
 	issueTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	temp := float32(18.4)
-	humidity := float32(72.0)
 	rain := float32(1.2)
-	windDir := float32(90.0)
-	confTemp := float32(0.8)
 	confRain := float32(0.9)
 
 	testCases := []struct {
@@ -25,15 +22,12 @@ func TestPBPredictionToView(t *testing.T) {
 		{
 			name: "converts hourly forecast prediction with light rain and confidence",
 			prediction: &protodatabasev1.Prediction{
-				NodeId:                "station-1",
-				IssueTime:             pb.Time(issueTime),
-				HorizonHours:          3,
-				TemperatureC:          &temp,
-				HumidityPct:           &humidity,
-				RainfallMm:            &rain,
-				WindDirectionDeg:      &windDir,
-				TemperatureConfidence: &confTemp,
-				RainfallConfidence:    &confRain,
+				NodeId:             "station-1",
+				IssueTime:          pb.Time(issueTime),
+				HorizonHours:       3,
+				TemperatureC:       &temp,
+				RainfallMm:         &rain,
+				RainfallConfidence: &confRain,
 			},
 			check: func(t *testing.T, view ForecastItemView) {
 				if view.HorizonLabel != "15:04 UTC" && view.HorizonLabel != "15:00 UTC" {
@@ -57,21 +51,19 @@ func TestPBPredictionToView(t *testing.T) {
 				if view.Rainfall != "1.2 mm" {
 					t.Fatalf("Rainfall = %q, want 1.2 mm", view.Rainfall)
 				}
-				if view.WindCardinal != "E" || !view.HasWindDirection {
-					t.Fatalf("WindCardinal = %q (%v), want E (true)", view.WindCardinal, view.HasWindDirection)
-				}
-				if view.Confidence != "85%" || view.ConfidencePct != 85 {
-					t.Fatalf("Confidence = %q (%d), want 85%% (85)", view.Confidence, view.ConfidencePct)
+				if view.Confidence != "90%" || view.ConfidencePct != 90 {
+					t.Fatalf("Confidence = %q (%d), want 90%% (90)", view.Confidence, view.ConfidencePct)
 				}
 			},
 		},
 		{
-			name: "converts multi-day horizon label",
+			name: "converts multi-day horizon label with min and max temperature",
 			prediction: &protodatabasev1.Prediction{
-				NodeId:       "station-1",
-				IssueTime:    pb.Time(issueTime),
-				HorizonHours: 48,
-				TemperatureC: &temp,
+				NodeId:          "station-1",
+				IssueTime:       pb.Time(issueTime),
+				HorizonHours:    48,
+				MinTemperatureC: &temp,
+				MaxTemperatureC: &temp,
 			},
 			check: func(t *testing.T, view ForecastItemView) {
 				if view.HorizonLabel != "Mon 12 Oct" {
@@ -85,6 +77,9 @@ func TestPBPredictionToView(t *testing.T) {
 				}
 				if view.TimeSubLabel != "+2d" {
 					t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)
+				}
+				if view.MinTemperature != "18.4 °C" || view.MaxTemperature != "18.4 °" {
+					t.Fatalf("Min/Max = %q / %q, want 18.4 °C / 18.4 °", view.MinTemperature, view.MaxTemperature)
 				}
 				if view.ConditionIcon != "wi-day-cloudy" {
 					t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)

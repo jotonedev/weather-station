@@ -55,22 +55,20 @@ type ReadingView struct {
 
 // ForecastItemView represents a single horizon forecast prediction for display.
 type ForecastItemView struct {
-	HorizonHours     int32
-	HorizonLabel     string
-	TimeSubLabel     string
-	TargetTimeISO    string
-	IsDaily          bool
-	ConditionIcon    string
-	ConditionLabel   string
-	Temperature      string
-	Rainfall         string
-	Humidity         string
-	WindDirection    string
-	WindCardinal     string
-	WindRotationDeg  int
-	HasWindDirection bool
-	Confidence       string
-	ConfidencePct    int
+	HorizonHours   int32
+	HorizonLabel   string
+	TimeSubLabel   string
+	TargetTimeISO  string
+	IsDaily        bool
+	ConditionIcon  string
+	ConditionLabel string
+	Temperature    string
+	MinTemperature string
+	MaxTemperature string
+	Rainfall       string
+	Confidence     string
+	ConfidencePct  int
+	HasConfidence  bool
 }
 
 // DashboardData represents the weather data context retrieved from the database.

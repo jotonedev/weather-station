@@ -32,6 +32,14 @@ func formatInt(value *int32, unit string) string {
 	return formatted
 }
 
+func formatWindSpeedKmH(speedMps *float32) string {
+	if speedMps == nil {
+		return "—"
+	}
+	kmh := *speedMps * 3.6
+	return fmt.Sprintf("%.1f km/h", kmh)
+}
+
 // degreesToCardinal converts a compass angle in degrees to an 8-point cardinal label and normalized rotation.
 func degreesToCardinal(angle *float32) (string, int, bool) {
 	if angle == nil {
@@ -140,25 +148,12 @@ func clampPercent(value *float32) int {
 	return rounded
 }
 
-// averageConfidence calculates the mean confidence percentage across available forecast metrics.
-func averageConfidence(pred *protodatabasev1.Prediction) (string, int) {
-	var sum float64
-	var count int
-	for _, conf := range []*float32{
-		pred.TemperatureConfidence,
-		pred.HumidityConfidence,
-		pred.RainfallConfidence,
-		pred.WindDirectionConfidence,
-	} {
-		if conf != nil {
-			sum += float64(*conf)
-			count++
-		}
-	}
-	if count == 0 {
+// formatConfidence formats the rainfall confidence score as a percentage.
+func formatConfidence(conf *float32) (string, int) {
+	if conf == nil {
 		return "—", 0
 	}
-	pct := int(math.Round((sum / float64(count)) * 100.0))
+	pct := int(math.Round(float64(*conf) * 100.0))
 	if pct < 0 {
 		pct = 0
 	}
@@ -226,13 +221,13 @@ func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 		HumidityPercent: clampPercent(reading.Humidity),
 		Pressure:        formatFloat(reading.Pressure, "%.1f", "hPa"),
 
-		// Wind
-		WindSpeed:       formatFloat(reading.WindSpeed, "%.1f", "m/s"),
+		// Wind (converted to km/h from m/s)
+		WindSpeed:       formatWindSpeedKmH(reading.WindSpeed),
 		WindAngle:       formatFloat(reading.WindAngle, "%.0f", "°"),
 		WindCardinal:    windCardinal,
 		WindRotationDeg: windRot,
 		HasWindAngle:    hasWind,
-		RawWindSpeed:    formatFloat(reading.RawWindSpeed, "%.1f", "m/s"),
+		RawWindSpeed:    formatWindSpeedKmH(reading.RawWindSpeed),
 		RawWindAngle:    formatFloat(reading.RawWindAngle, "%.0f", "°"),
 
 		// Air Quality
@@ -279,26 +274,31 @@ func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
 		targetTime := issueTime.UTC().Add(time.Duration(pred.HorizonHours) * time.Hour)
 		targetTimeISO = targetTime.Format(time.RFC3339)
 	}
-	condIcon, condLabel := classifyWeatherCondition(pred.TemperatureC, pred.HumidityPct, pred.RainfallMm)
-	windCardinal, windRot, hasWind := degreesToCardinal(pred.WindDirectionDeg)
-	confText, confPct := averageConfidence(pred)
+	condIcon, condLabel := classifyWeatherCondition(pred.TemperatureC, nil, pred.RainfallMm)
+	confText, confPct := formatConfidence(pred.RainfallConfidence)
+
+	var minTemp, maxTemp string
+	if pred.MinTemperatureC != nil {
+		minTemp = formatFloat(pred.MinTemperatureC, "%.1f", "°C")
+	}
+	if pred.MaxTemperatureC != nil {
+		maxTemp = formatFloat(pred.MaxTemperatureC, "%.1f", "°")
+	}
 
 	return ForecastItemView{
-		HorizonHours:     pred.HorizonHours,
-		HorizonLabel:     horizonLabel,
-		TimeSubLabel:     subLabel,
-		TargetTimeISO:    targetTimeISO,
-		IsDaily:          isDaily,
-		ConditionIcon:    condIcon,
-		ConditionLabel:   condLabel,
-		Temperature:      formatFloat(pred.TemperatureC, "%.1f", "°C"),
-		Rainfall:         formatFloat(pred.RainfallMm, "%.1f", "mm"),
-		Humidity:         formatFloat(pred.HumidityPct, "%.0f", "%"),
-		WindDirection:    formatFloat(pred.WindDirectionDeg, "%.0f", "°"),
-		WindCardinal:     windCardinal,
-		WindRotationDeg:  windRot,
-		HasWindDirection: hasWind,
-		Confidence:       confText,
-		ConfidencePct:    confPct,
+		HorizonHours:   pred.HorizonHours,
+		HorizonLabel:   horizonLabel,
+		TimeSubLabel:   subLabel,
+		TargetTimeISO:  targetTimeISO,
+		IsDaily:        isDaily,
+		ConditionIcon:  condIcon,
+		ConditionLabel: condLabel,
+		Temperature:    formatFloat(pred.TemperatureC, "%.1f", "°C"),
+		MinTemperature: minTemp,
+		MaxTemperature: maxTemp,
+		Rainfall:       formatFloat(pred.RainfallMm, "%.1f", "mm"),
+		Confidence:     confText,
+		ConfidencePct:  confPct,
+		HasConfidence:  pred.RainfallConfidence != nil,
 	}
 }
