@@ -2,6 +2,7 @@ package weatherdata
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -88,10 +89,25 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 			if pred == nil {
 				continue
 			}
-			if data.ForecastIssuedAt == "" && pred.IssueTime != nil {
-				issueTime := pred.IssueTime.AsTime()
-				if !issueTime.IsZero() {
-					data.ForecastIssuedAt = issueTime.UTC().Format("2006-01-02 15:04 UTC")
+			var issueTime time.Time
+			if pred.IssueTime != nil {
+				issueTime = pred.IssueTime.AsTime()
+			}
+			if !issueTime.IsZero() {
+				utcIssue := issueTime.UTC()
+				formattedIssue := utcIssue.Format("2006-01-02 15:04 UTC")
+				isoIssue := utcIssue.Format(time.RFC3339)
+				if data.ForecastIssuedAt == "" {
+					data.ForecastIssuedAt = formattedIssue
+					data.ForecastIssuedAtISO = isoIssue
+				}
+				if pred.HorizonHours < 24 && data.HourlyIssuedAt == "" {
+					data.HourlyIssuedAt = formattedIssue
+					data.HourlyIssuedAtISO = isoIssue
+				}
+				if pred.HorizonHours >= 24 && data.DailyIssuedAt == "" {
+					data.DailyIssuedAt = formattedIssue
+					data.DailyIssuedAtISO = isoIssue
 				}
 			}
 			view := pbPredictionToView(pred)

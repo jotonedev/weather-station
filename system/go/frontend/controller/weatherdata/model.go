@@ -6,6 +6,7 @@ import "time"
 type ReadingView struct {
 	NodeID        string
 	Timestamp     time.Time
+	TimestampISO  string
 	FormattedTime string
 
 	// Derived condition
@@ -57,6 +58,8 @@ type ForecastItemView struct {
 	HorizonHours     int32
 	HorizonLabel     string
 	TimeSubLabel     string
+	TargetTimeISO    string
+	IsDaily          bool
 	ConditionIcon    string
 	ConditionLabel   string
 	Temperature      string
@@ -72,14 +75,19 @@ type ForecastItemView struct {
 
 // DashboardData represents the weather data context retrieved from the database.
 type DashboardData struct {
-	Title            string
-	SelectedNodeID   string
-	AvailableNodes   []string
-	NoNodes          bool
-	LatestReading    *ReadingView
-	Forecast         []ForecastItemView
-	HourlyForecast   []ForecastItemView
-	DailyForecast    []ForecastItemView
-	ForecastIssuedAt string
-	ErrorMessage     string
+	Title                string
+	SelectedNodeID       string
+	AvailableNodes       []string
+	NoNodes              bool
+	LatestReading        *ReadingView
+	Forecast             []ForecastItemView
+	HourlyForecast       []ForecastItemView
+	DailyForecast        []ForecastItemView
+	ForecastIssuedAt     string
+	ForecastIssuedAtISO  string
+	HourlyIssuedAt       string
+	HourlyIssuedAtISO    string
+	DailyIssuedAt        string
+	DailyIssuedAtISO     string
+	ErrorMessage         string
 }

@@ -43,6 +43,9 @@ func TestPBReadingToView(t *testing.T) {
 				if view.NodeID != "station-1" {
 					t.Fatalf("NodeID = %q, want station-1", view.NodeID)
 				}
+				if view.TimestampISO != "2026-10-10T14:30:00Z" {
+					t.Fatalf("TimestampISO = %q, want 2026-10-10T14:30:00Z", view.TimestampISO)
+				}
 				if view.Temperature != "22.5 °C" {
 					t.Fatalf("Temperature = %q, want 22.5 °C", view.Temperature)
 				}
@@ -156,6 +159,12 @@ func TestPBPredictionToView(t *testing.T) {
 				if view.HorizonLabel != "15:04 UTC" && view.HorizonLabel != "15:00 UTC" {
 					t.Fatalf("HorizonLabel = %q, want 15:00 UTC", view.HorizonLabel)
 				}
+				if view.TargetTimeISO != "2026-10-10T15:00:00Z" {
+					t.Fatalf("TargetTimeISO = %q, want 2026-10-10T15:00:00Z", view.TargetTimeISO)
+				}
+				if view.IsDaily {
+					t.Fatal("expected IsDaily to be false for 3h horizon")
+				}
 				if view.TimeSubLabel != "+3h" {
 					t.Fatalf("TimeSubLabel = %q, want +3h", view.TimeSubLabel)
 				}
@@ -187,6 +196,12 @@ func TestPBPredictionToView(t *testing.T) {
 			check: func(t *testing.T, view ForecastItemView) {
 				if view.HorizonLabel != "Mon 12 Oct" {
 					t.Fatalf("HorizonLabel = %q, want Mon 12 Oct", view.HorizonLabel)
+				}
+				if view.TargetTimeISO != "2026-10-12T12:00:00Z" {
+					t.Fatalf("TargetTimeISO = %q, want 2026-10-12T12:00:00Z", view.TargetTimeISO)
+				}
+				if !view.IsDaily {
+					t.Fatal("expected IsDaily to be true for 48h horizon")
 				}
 				if view.TimeSubLabel != "+2d" {
 					t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)

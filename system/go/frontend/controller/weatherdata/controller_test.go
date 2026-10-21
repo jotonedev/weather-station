@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
+	"weather-station/common/pb"
 	"weather-station/frontend/gateway/database"
 	"weather-station/frontend/internal/mocks"
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
@@ -16,6 +18,8 @@ import (
 func TestGetDashboardData(t *testing.T) {
 	temp := float32(23.4)
 	forecastTemp := float32(19.5)
+	dailyForecastTemp := float32(16.0)
+	issueTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 
 	testCases := []struct {
 		name          string
@@ -58,8 +62,15 @@ func TestGetDashboardData(t *testing.T) {
 						Predictions: []*protodatabasev1.Prediction{
 							{
 								NodeId:       "station-beta",
+								IssueTime:    pb.Time(issueTime),
 								HorizonHours: 1,
 								TemperatureC: &forecastTemp,
+							},
+							{
+								NodeId:       "station-beta",
+								IssueTime:    pb.Time(issueTime),
+								HorizonHours: 24,
+								TemperatureC: &dailyForecastTemp,
 							},
 						},
 					}, nil)
@@ -77,17 +88,20 @@ func TestGetDashboardData(t *testing.T) {
 				if data.LatestReading.Temperature != "23.4 °C" {
 					t.Fatalf("Temperature = %q, want 23.4 °C", data.LatestReading.Temperature)
 				}
-				if len(data.Forecast) != 1 {
-					t.Fatalf("Forecast length = %d, want 1", len(data.Forecast))
+				if len(data.Forecast) != 2 {
+					t.Fatalf("Forecast length = %d, want 2", len(data.Forecast))
 				}
-				if len(data.HourlyForecast) != 1 {
-					t.Fatalf("HourlyForecast length = %d, want 1", len(data.HourlyForecast))
+				if len(data.HourlyForecast) != 1 || data.HourlyForecast[0].Temperature != "19.5 °C" {
+					t.Fatalf("HourlyForecast = %+v, want 1 item with 19.5 °C", data.HourlyForecast)
 				}
-				if len(data.DailyForecast) != 0 {
-					t.Fatalf("DailyForecast length = %d, want 0", len(data.DailyForecast))
+				if len(data.DailyForecast) != 1 || data.DailyForecast[0].Temperature != "16.0 °C" {
+					t.Fatalf("DailyForecast = %+v, want 1 item with 16.0 °C", data.DailyForecast)
 				}
-				if data.Forecast[0].Temperature != "19.5 °C" {
-					t.Fatalf("Forecast[0].Temperature = %q, want 19.5 °C", data.Forecast[0].Temperature)
+				if data.HourlyIssuedAtISO != "2026-10-10T12:00:00Z" {
+					t.Fatalf("HourlyIssuedAtISO = %q, want 2026-10-10T12:00:00Z", data.HourlyIssuedAtISO)
+				}
+				if data.DailyIssuedAtISO != "2026-10-10T12:00:00Z" {
+					t.Fatalf("DailyIssuedAtISO = %q, want 2026-10-10T12:00:00Z", data.DailyIssuedAtISO)
 				}
 			},
 		},

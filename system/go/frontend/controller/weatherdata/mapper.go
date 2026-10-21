@@ -208,8 +208,11 @@ func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 	}
 
 	formattedTime := "—"
+	var timestampISO string
 	if !timestamp.IsZero() {
-		formattedTime = timestamp.UTC().Format("2006-01-02 15:04:05 UTC")
+		utcTime := timestamp.UTC()
+		formattedTime = utcTime.Format("2006-01-02 15:04:05 UTC")
+		timestampISO = utcTime.Format(time.RFC3339)
 	}
 
 	rainIndicator := reading.RainRate
@@ -223,6 +226,7 @@ func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 	return ReadingView{
 		NodeID:        reading.NodeId,
 		Timestamp:     timestamp,
+		TimestampISO:  timestampISO,
 		FormattedTime: formattedTime,
 
 		ConditionIcon:  condIcon,
@@ -281,6 +285,12 @@ func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
 	}
 
 	horizonLabel, subLabel := formatHorizonLabels(issueTime, pred.HorizonHours)
+	isDaily := pred.HorizonHours >= 24 && pred.HorizonHours%24 == 0
+	var targetTimeISO string
+	if !issueTime.IsZero() {
+		targetTime := issueTime.UTC().Add(time.Duration(pred.HorizonHours) * time.Hour)
+		targetTimeISO = targetTime.Format(time.RFC3339)
+	}
 	condIcon, condLabel := classifyWeatherCondition(pred.TemperatureC, pred.HumidityPct, pred.RainfallMm)
 	windCardinal, windRot, hasWind := degreesToCardinal(pred.WindDirectionDeg)
 	confText, confPct := averageConfidence(pred)
@@ -289,6 +299,8 @@ func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
 		HorizonHours:     pred.HorizonHours,
 		HorizonLabel:     horizonLabel,
 		TimeSubLabel:     subLabel,
+		TargetTimeISO:    targetTimeISO,
+		IsDaily:          isDaily,
 		ConditionIcon:    condIcon,
 		ConditionLabel:   condLabel,
 		Temperature:      formatFloat(pred.TemperatureC, "%.1f", "°C"),

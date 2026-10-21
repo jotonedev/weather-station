@@ -251,21 +251,6 @@ header {
   color: var(--text-muted);
 }
 
-.forecast-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.forecast-subtitle {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  margin-bottom: 0.75rem;
-}
-
 .forecast-strip {
   display: grid;
   grid-auto-flow: column;

@@ -1,4 +1,47 @@
-<!DOCTYPE html>
+{{ define "forecast-card" }}
+<div class="forecast-card">
+  {{ if .TargetTimeISO }}
+  <time class="forecast-time" datetime="{{ .TargetTimeISO }}" data-time-format="{{ if .IsDaily }}date{{ else }}time{{ end }}">{{ .HorizonLabel }}</time>
+  {{ else }}
+  <span class="forecast-time">{{ .HorizonLabel }}</span>
+  {{ end }}
+  <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
+  <div class="forecast-icon-wrap">
+    <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
+  </div>
+  <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
+  <span class="forecast-temp">{{ .Temperature }}</span>
+
+  <div class="forecast-details">
+    <div class="forecast-detail-row">
+      <span>Rain</span>
+      <strong>{{ .Rainfall }}</strong>
+    </div>
+    <div class="forecast-detail-row">
+      <span>Humidity</span>
+      <strong>{{ .Humidity }}</strong>
+    </div>
+    {{ if .HasWindDirection }}
+    <div class="forecast-detail-row">
+      <span>Wind Dir</span>
+      <strong>
+        <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
+        {{ .WindCardinal }} ({{ .WindDirection }})
+      </strong>
+    </div>
+    {{ end }}
+    <div class="confidence-bar-wrap">
+      <div class="forecast-detail-row">
+        <span>Confidence</span>
+        <strong>{{ .Confidence }}</strong>
+      </div>
+      <div class="confidence-bar-track">
+        <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -52,7 +95,7 @@
             <div class="hero-temp">{{ .LatestReading.Temperature }}</div>
             <div class="hero-condition">{{ .LatestReading.ConditionLabel }}</div>
             <div class="hero-meta">
-              Latest sample taken at <strong>{{ .LatestReading.FormattedTime }}</strong>
+              Latest sample taken at <strong>{{ if .LatestReading.TimestampISO }}<time datetime="{{ .LatestReading.TimestampISO }}" data-time-format="datetime-sec">{{ .LatestReading.FormattedTime }}</time>{{ else }}{{ .LatestReading.FormattedTime }}{{ end }}</strong>
             </div>
           </div>
         </div>
@@ -86,158 +129,43 @@
       </section>
       {{ end }}
 
-      <!-- Weather Forecast Section -->
-      <section class="section-card" aria-label="Weather forecast">
+      <!-- Hourly Weather Forecast Section -->
+      <section class="section-card" aria-label="Hourly weather forecast">
         <div class="section-header">
-          <h2 class="section-title">Weather Forecast</h2>
-          {{ if .ForecastIssuedAt }}
-          <span class="section-subtitle">Issued {{ .ForecastIssuedAt }}</span>
+          <h2 class="section-title">Hourly Forecast (Next 24 Hours)</h2>
+          {{ if .HourlyIssuedAt }}
+          <span class="section-subtitle">Issued {{ if .HourlyIssuedAtISO }}<time datetime="{{ .HourlyIssuedAtISO }}" data-time-format="datetime">{{ .HourlyIssuedAt }}</time>{{ else }}{{ .HourlyIssuedAt }}{{ end }}</span>
           {{ end }}
         </div>
 
-        {{ if or .HourlyForecast .DailyForecast }}
-        <div class="forecast-group">
-          {{ if .HourlyForecast }}
-          <div>
-            <div class="forecast-subtitle">Hourly Forecast (Next 24 Hours)</div>
-            <div class="forecast-strip">
-              {{ range .HourlyForecast }}
-              <div class="forecast-card">
-                <span class="forecast-time">{{ .HorizonLabel }}</span>
-                <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
-                <div class="forecast-icon-wrap">
-                  <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
-                </div>
-                <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
-                <span class="forecast-temp">{{ .Temperature }}</span>
-
-                <div class="forecast-details">
-                  <div class="forecast-detail-row">
-                    <span>Rain</span>
-                    <strong>{{ .Rainfall }}</strong>
-                  </div>
-                  <div class="forecast-detail-row">
-                    <span>Humidity</span>
-                    <strong>{{ .Humidity }}</strong>
-                  </div>
-                  {{ if .HasWindDirection }}
-                  <div class="forecast-detail-row">
-                    <span>Wind Dir</span>
-                    <strong>
-                      <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
-                      {{ .WindCardinal }} ({{ .WindDirection }})
-                    </strong>
-                  </div>
-                  {{ end }}
-                  <div class="confidence-bar-wrap">
-                    <div class="forecast-detail-row">
-                      <span>Confidence</span>
-                      <strong>{{ .Confidence }}</strong>
-                    </div>
-                    <div class="confidence-bar-track">
-                      <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {{ end }}
-            </div>
-          </div>
-          {{ end }}
-
-          {{ if .DailyForecast }}
-          <div>
-            <div class="forecast-subtitle">Daily Forecast (Next 10 Days)</div>
-            <div class="forecast-strip">
-              {{ range .DailyForecast }}
-              <div class="forecast-card">
-                <span class="forecast-time">{{ .HorizonLabel }}</span>
-                <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
-                <div class="forecast-icon-wrap">
-                  <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
-                </div>
-                <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
-                <span class="forecast-temp">{{ .Temperature }}</span>
-
-                <div class="forecast-details">
-                  <div class="forecast-detail-row">
-                    <span>Rain</span>
-                    <strong>{{ .Rainfall }}</strong>
-                  </div>
-                  <div class="forecast-detail-row">
-                    <span>Humidity</span>
-                    <strong>{{ .Humidity }}</strong>
-                  </div>
-                  {{ if .HasWindDirection }}
-                  <div class="forecast-detail-row">
-                    <span>Wind Dir</span>
-                    <strong>
-                      <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
-                      {{ .WindCardinal }} ({{ .WindDirection }})
-                    </strong>
-                  </div>
-                  {{ end }}
-                  <div class="confidence-bar-wrap">
-                    <div class="forecast-detail-row">
-                      <span>Confidence</span>
-                      <strong>{{ .Confidence }}</strong>
-                    </div>
-                    <div class="confidence-bar-track">
-                      <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {{ end }}
-            </div>
-          </div>
-          {{ end }}
-        </div>
-        {{ else if .Forecast }}
+        {{ if .HourlyForecast }}
         <div class="forecast-strip">
-          {{ range .Forecast }}
-          <div class="forecast-card">
-            <span class="forecast-time">{{ .HorizonLabel }}</span>
-            <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
-            <div class="forecast-icon-wrap">
-              <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
-            </div>
-            <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
-            <span class="forecast-temp">{{ .Temperature }}</span>
-
-            <div class="forecast-details">
-              <div class="forecast-detail-row">
-                <span>Rain</span>
-                <strong>{{ .Rainfall }}</strong>
-              </div>
-              <div class="forecast-detail-row">
-                <span>Humidity</span>
-                <strong>{{ .Humidity }}</strong>
-              </div>
-              {{ if .HasWindDirection }}
-              <div class="forecast-detail-row">
-                <span>Wind Dir</span>
-                <strong>
-                  <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
-                  {{ .WindCardinal }} ({{ .WindDirection }})
-                </strong>
-              </div>
-              {{ end }}
-              <div class="confidence-bar-wrap">
-                <div class="forecast-detail-row">
-                  <span>Confidence</span>
-                  <strong>{{ .Confidence }}</strong>
-                </div>
-                <div class="confidence-bar-track">
-                  <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {{ range .HourlyForecast }}
+          {{ template "forecast-card" . }}
           {{ end }}
         </div>
         {{ else }}
-        <p class="section-subtitle">No forecast predictions available for this station yet.</p>
+        <p class="section-subtitle">No hourly forecast predictions available for this station yet.</p>
+        {{ end }}
+      </section>
+
+      <!-- Daily Weather Forecast Section -->
+      <section class="section-card" aria-label="Daily weather forecast">
+        <div class="section-header">
+          <h2 class="section-title">Daily Forecast (Next 10 Days)</h2>
+          {{ if .DailyIssuedAt }}
+          <span class="section-subtitle">Issued {{ if .DailyIssuedAtISO }}<time datetime="{{ .DailyIssuedAtISO }}" data-time-format="datetime">{{ .DailyIssuedAt }}</time>{{ else }}{{ .DailyIssuedAt }}{{ end }}</span>
+          {{ end }}
+        </div>
+
+        {{ if .DailyForecast }}
+        <div class="forecast-strip">
+          {{ range .DailyForecast }}
+          {{ template "forecast-card" . }}
+          {{ end }}
+        </div>
+        {{ else }}
+        <p class="section-subtitle">No daily forecast predictions available for this station yet.</p>
         {{ end }}
       </section>
 
@@ -380,5 +308,36 @@
       Weather icons by <a href="https://erikflowers.github.io/weather-icons/" target="_blank" rel="noopener noreferrer">Erik Flowers (Weather Icons)</a>, licensed under <a href="/static/WEATHER_ICONS_LICENSE.txt">SIL OFL 1.1 &amp; MIT</a>.
     </footer>
   </div>
+  <script>
+    (function () {
+      var pad = function (n) { return String(n).padStart(2, "0"); };
+      var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      var elements = document.querySelectorAll("time[datetime][data-time-format]");
+      for (var i = 0; i < elements.length; i++) {
+        var el = elements[i];
+        var iso = el.getAttribute("datetime");
+        if (!iso) continue;
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) continue;
+        var fmt = el.getAttribute("data-time-format");
+        var yyyy = d.getFullYear();
+        var mm = pad(d.getMonth() + 1);
+        var dd = pad(d.getDate());
+        var hh = pad(d.getHours());
+        var min = pad(d.getMinutes());
+        var ss = pad(d.getSeconds());
+        if (fmt === "datetime-sec") {
+          el.textContent = yyyy + "-" + mm + "-" + dd + " " + hh + ":" + min + ":" + ss;
+        } else if (fmt === "datetime") {
+          el.textContent = yyyy + "-" + mm + "-" + dd + " " + hh + ":" + min;
+        } else if (fmt === "time") {
+          el.textContent = hh + ":" + min;
+        } else if (fmt === "date") {
+          el.textContent = days[d.getDay()] + " " + dd + " " + months[d.getMonth()];
+        }
+      }
+    })();
+  </script>
 </body>
 </html>
