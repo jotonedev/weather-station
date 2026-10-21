@@ -10,16 +10,19 @@ import (
 // modelClimateToPB converts a repository ClimateAggregate into a proto aggregate.
 func modelClimateToPB(aggregate repository.ClimateAggregate) *protodatabasev1.ClimateAggregate {
 	return &protodatabasev1.ClimateAggregate{
-		NodeId:          aggregate.NodeID,
-		BucketStart:     pb.Time(aggregate.BucketStart),
-		AvgTemperatureC: aggregate.AvgTemperatureC,
-		MinTemperatureC: aggregate.MinTemperatureC,
-		MaxTemperatureC: aggregate.MaxTemperatureC,
-		AvgHumidityPct:  aggregate.AvgHumidityPct,
-		MinHumidityPct:  aggregate.MinHumidityPct,
-		MaxHumidityPct:  aggregate.MaxHumidityPct,
-		AvgPressureHpa:  aggregate.AvgPressureHpa,
-		SampleCount:     aggregate.SampleCount,
+		NodeId:              aggregate.NodeID,
+		BucketStart:         pb.Time(aggregate.BucketStart),
+		AvgTemperatureC:     aggregate.AvgTemperatureC,
+		MinTemperatureC:     aggregate.MinTemperatureC,
+		MaxTemperatureC:     aggregate.MaxTemperatureC,
+		AvgHumidityPct:      aggregate.AvgHumidityPct,
+		MinHumidityPct:      aggregate.MinHumidityPct,
+		MaxHumidityPct:      aggregate.MaxHumidityPct,
+		AvgPressureHpa:      aggregate.AvgPressureHpa,
+		TotalRainfallMm:     aggregate.TotalRainfallMm,
+		AvgWindSpeedMps:     aggregate.AvgWindSpeedMps,
+		AvgWindDirectionDeg: aggregate.AvgWindDirectionDeg,
+		SampleCount:         aggregate.SampleCount,
 	}
 }
 

@@ -26,19 +26,22 @@ const (
 // Metric fields are optional: a bucket with no samples for a metric reports it
 // as not present, matching the nullable source columns.
 type ClimateAggregate struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	NodeId          string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	BucketStart     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=bucket_start,json=bucketStart,proto3" json:"bucket_start,omitempty"`
-	AvgTemperatureC *float32               `protobuf:"fixed32,3,opt,name=avg_temperature_c,json=avgTemperatureC,proto3,oneof" json:"avg_temperature_c,omitempty"`
-	MinTemperatureC *float32               `protobuf:"fixed32,4,opt,name=min_temperature_c,json=minTemperatureC,proto3,oneof" json:"min_temperature_c,omitempty"`
-	MaxTemperatureC *float32               `protobuf:"fixed32,5,opt,name=max_temperature_c,json=maxTemperatureC,proto3,oneof" json:"max_temperature_c,omitempty"`
-	AvgHumidityPct  *float32               `protobuf:"fixed32,6,opt,name=avg_humidity_pct,json=avgHumidityPct,proto3,oneof" json:"avg_humidity_pct,omitempty"`
-	MinHumidityPct  *float32               `protobuf:"fixed32,7,opt,name=min_humidity_pct,json=minHumidityPct,proto3,oneof" json:"min_humidity_pct,omitempty"`
-	MaxHumidityPct  *float32               `protobuf:"fixed32,8,opt,name=max_humidity_pct,json=maxHumidityPct,proto3,oneof" json:"max_humidity_pct,omitempty"`
-	AvgPressureHpa  *float32               `protobuf:"fixed32,9,opt,name=avg_pressure_hpa,json=avgPressureHpa,proto3,oneof" json:"avg_pressure_hpa,omitempty"`
-	SampleCount     uint64                 `protobuf:"varint,10,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	NodeId              string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	BucketStart         *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=bucket_start,json=bucketStart,proto3" json:"bucket_start,omitempty"`
+	AvgTemperatureC     *float32               `protobuf:"fixed32,3,opt,name=avg_temperature_c,json=avgTemperatureC,proto3,oneof" json:"avg_temperature_c,omitempty"`
+	MinTemperatureC     *float32               `protobuf:"fixed32,4,opt,name=min_temperature_c,json=minTemperatureC,proto3,oneof" json:"min_temperature_c,omitempty"`
+	MaxTemperatureC     *float32               `protobuf:"fixed32,5,opt,name=max_temperature_c,json=maxTemperatureC,proto3,oneof" json:"max_temperature_c,omitempty"`
+	AvgHumidityPct      *float32               `protobuf:"fixed32,6,opt,name=avg_humidity_pct,json=avgHumidityPct,proto3,oneof" json:"avg_humidity_pct,omitempty"`
+	MinHumidityPct      *float32               `protobuf:"fixed32,7,opt,name=min_humidity_pct,json=minHumidityPct,proto3,oneof" json:"min_humidity_pct,omitempty"`
+	MaxHumidityPct      *float32               `protobuf:"fixed32,8,opt,name=max_humidity_pct,json=maxHumidityPct,proto3,oneof" json:"max_humidity_pct,omitempty"`
+	AvgPressureHpa      *float32               `protobuf:"fixed32,9,opt,name=avg_pressure_hpa,json=avgPressureHpa,proto3,oneof" json:"avg_pressure_hpa,omitempty"`
+	SampleCount         uint64                 `protobuf:"varint,10,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
+	TotalRainfallMm     *float32               `protobuf:"fixed32,11,opt,name=total_rainfall_mm,json=totalRainfallMm,proto3,oneof" json:"total_rainfall_mm,omitempty"`
+	AvgWindSpeedMps     *float32               `protobuf:"fixed32,12,opt,name=avg_wind_speed_mps,json=avgWindSpeedMps,proto3,oneof" json:"avg_wind_speed_mps,omitempty"`
+	AvgWindDirectionDeg *float32               `protobuf:"fixed32,13,opt,name=avg_wind_direction_deg,json=avgWindDirectionDeg,proto3,oneof" json:"avg_wind_direction_deg,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ClimateAggregate) Reset() {
@@ -137,6 +140,27 @@ func (x *ClimateAggregate) GetAvgPressureHpa() float32 {
 func (x *ClimateAggregate) GetSampleCount() uint64 {
 	if x != nil {
 		return x.SampleCount
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetTotalRainfallMm() float32 {
+	if x != nil && x.TotalRainfallMm != nil {
+		return *x.TotalRainfallMm
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetAvgWindSpeedMps() float32 {
+	if x != nil && x.AvgWindSpeedMps != nil {
+		return *x.AvgWindSpeedMps
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetAvgWindDirectionDeg() float32 {
+	if x != nil && x.AvgWindDirectionDeg != nil {
+		return *x.AvgWindDirectionDeg
 	}
 	return 0
 }
@@ -243,7 +267,7 @@ var File_weather_database_v1_aggregate_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\n" +
-	"#weather/database/v1/aggregate.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf2\x04\n" +
+	"#weather/database/v1/aggregate.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd7\x06\n" +
 	"\x10ClimateAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12/\n" +
@@ -255,14 +279,20 @@ const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\x10max_humidity_pct\x18\b \x01(\x02H\x05R\x0emaxHumidityPct\x88\x01\x01\x12-\n" +
 	"\x10avg_pressure_hpa\x18\t \x01(\x02H\x06R\x0eavgPressureHpa\x88\x01\x01\x12!\n" +
 	"\fsample_count\x18\n" +
-	" \x01(\x04R\vsampleCountB\x14\n" +
+	" \x01(\x04R\vsampleCount\x12/\n" +
+	"\x11total_rainfall_mm\x18\v \x01(\x02H\aR\x0ftotalRainfallMm\x88\x01\x01\x120\n" +
+	"\x12avg_wind_speed_mps\x18\f \x01(\x02H\bR\x0favgWindSpeedMps\x88\x01\x01\x128\n" +
+	"\x16avg_wind_direction_deg\x18\r \x01(\x02H\tR\x13avgWindDirectionDeg\x88\x01\x01B\x14\n" +
 	"\x12_avg_temperature_cB\x14\n" +
 	"\x12_min_temperature_cB\x14\n" +
 	"\x12_max_temperature_cB\x13\n" +
 	"\x11_avg_humidity_pctB\x13\n" +
 	"\x11_min_humidity_pctB\x13\n" +
 	"\x11_max_humidity_pctB\x13\n" +
-	"\x11_avg_pressure_hpa\"\xbe\x02\n" +
+	"\x11_avg_pressure_hpaB\x14\n" +
+	"\x12_total_rainfall_mmB\x15\n" +
+	"\x13_avg_wind_speed_mpsB\x19\n" +
+	"\x17_avg_wind_direction_deg\"\xbe\x02\n" +
 	"\x13AirQualityAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12\x1c\n" +

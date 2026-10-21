@@ -43,6 +43,7 @@ def extract_observation_dataframe(observations: list[TimeSeriesObservation]) -> 
             "humidity_pct": obs.humidity_pct if obs.HasField("humidity_pct") else np.nan,
             "rainfall_mm": obs.rainfall_mm if obs.HasField("rainfall_mm") else np.nan,
             "pressure_hpa": obs.pressure_hpa if obs.HasField("pressure_hpa") else np.nan,
+            "wind_direction_deg": obs.wind_direction_deg if obs.HasField("wind_direction_deg") else np.nan,
         }
         records.append(record)
 
@@ -57,7 +58,7 @@ def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -
     total_rows = len(df)
     surviving_columns = ["temperature_c", "humidity_pct"]
 
-    for column_name in ("rainfall_mm", "pressure_hpa"):
+    for column_name in ("rainfall_mm", "pressure_hpa", "wind_direction_deg"):
         if column_name in df.columns:
             missing_ratio = df[column_name].isna().sum() / total_rows
             if missing_ratio <= OPTIONAL_COLUMN_THRESHOLD:

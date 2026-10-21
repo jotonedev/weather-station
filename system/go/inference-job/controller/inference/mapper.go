@@ -18,10 +18,13 @@ func ToTimeSeriesObservations(aggregates []*protodatabasev1.ClimateAggregate) []
 		}
 
 		obs := &protoinferencev1.TimeSeriesObservation{
-			Timestamp:      aggregate.GetBucketStart(),
-			TemperatureC:   aggregate.AvgTemperatureC,
-			HumidityPct:    aggregate.AvgHumidityPct,
-			PressureHpa:    aggregate.AvgPressureHpa,
+			Timestamp:        aggregate.GetBucketStart(),
+			TemperatureC:     aggregate.AvgTemperatureC,
+			HumidityPct:      aggregate.AvgHumidityPct,
+			PressureHpa:      aggregate.AvgPressureHpa,
+			WindSpeedMps:     aggregate.AvgWindSpeedMps,
+			WindDirectionDeg: aggregate.AvgWindDirectionDeg,
+			RainfallMm:       aggregate.TotalRainfallMm,
 		}
 		observations = append(observations, obs)
 	}

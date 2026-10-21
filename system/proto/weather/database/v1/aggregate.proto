@@ -20,6 +20,9 @@ message ClimateAggregate {
   optional float max_humidity_pct = 8;
   optional float avg_pressure_hpa = 9;
   uint64 sample_count = 10;
+  optional float total_rainfall_mm = 11;
+  optional float avg_wind_speed_mps = 12;
+  optional float avg_wind_direction_deg = 13;
 }
 
 // AirQualityAggregate is a bucket of aggregated air quality metrics for a node.

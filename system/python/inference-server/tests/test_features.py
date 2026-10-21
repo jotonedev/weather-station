@@ -34,8 +34,8 @@ def test_sort_observations() -> None:
     assert sorted_result[1].timestamp.seconds == 200
 
 
-def test_wind_never_modeled() -> None:
-    """Test_wind_never_modeled ensures wind observations do not enter the model input."""
+def test_wind_direction_modeled_and_wind_speed_ignored() -> None:
+    """Test_wind_direction_modeled_and_wind_speed_ignored ensures wind_direction_deg enters the model while wind_speed_mps does not."""
     timestamp = Timestamp()
     timestamp.FromSeconds(1000)
 
@@ -52,6 +52,8 @@ def test_wind_never_modeled() -> None:
     dataframe = extract_observation_dataframe(observations)
     _clean_df, surviving_columns = filter_and_impute_columns(dataframe)
 
+    assert "wind_direction_deg" in surviving_columns
+    assert "wind_speed_mps" not in surviving_columns
     assert "wind_u" not in surviving_columns
     assert "wind_v" not in surviving_columns
 

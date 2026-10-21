@@ -20,7 +20,7 @@ func New(client *duckdb.Client, log *zap.Logger) *Repository {
 	return &Repository{client: client, log: log}
 }
 
-// GetClimateAggregates returns temperature, humidity and pressure aggregates per time bucket for a node.
+// GetClimateAggregates returns temperature, humidity, pressure, rainfall and wind aggregates per time bucket for a node.
 func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds uint32) ([]ClimateAggregate, error) {
 	bucket := fmt.Sprintf("time_bucket(INTERVAL '%d seconds', ts)", bucketSeconds)
 	query := "SELECT " + bucket + ` AS bucket_start,
@@ -31,13 +31,16 @@ func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, st
 		min(humidity) AS min_humidity_pct,
 		max(humidity) AS max_humidity_pct,
 		avg(pressure) AS avg_pressure_hpa,
+		avg(rain_1h) * (? / 3600.0) AS total_rainfall_mm,
+		avg(wind_speed) AS avg_wind_speed_mps,
+		fmod(degrees(atan2(avg(sin(radians(wind_angle))), avg(cos(radians(wind_angle))))) + 360.0, 360.0) AS avg_wind_direction_deg,
 		count(*) AS sample_count
 	FROM weather
 	WHERE node_id = ? AND ts >= ? AND ts <= ?
 	GROUP BY bucket_start
 	ORDER BY bucket_start ASC`
 
-	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, start, end)
+	rows, err := r.client.DB().QueryContext(ctx, query, float64(bucketSeconds), nodeID, start, end)
 	if err != nil {
 		r.log.Error("failed to query climate aggregates", zap.String("node_id", nodeID), zap.Error(err))
 		return nil, err
@@ -53,6 +56,9 @@ func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, st
 			&aggregate.AvgTemperatureC, &aggregate.MinTemperatureC, &aggregate.MaxTemperatureC,
 			&aggregate.AvgHumidityPct, &aggregate.MinHumidityPct, &aggregate.MaxHumidityPct,
 			&aggregate.AvgPressureHpa,
+			&aggregate.TotalRainfallMm,
+			&aggregate.AvgWindSpeedMps,
+			&aggregate.AvgWindDirectionDeg,
 			&aggregate.SampleCount,
 		); err != nil {
 			r.log.Error("failed to scan climate aggregate", zap.String("node_id", nodeID), zap.Error(err))

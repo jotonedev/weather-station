@@ -68,14 +68,20 @@ var predictionSelectColumns = `node_id, ts, horizon_hours,
 	rainfall_mm, temperature_c, humidity_pct, wind_direction_deg,
 	rainfall_confidence, temperature_confidence, humidity_confidence, wind_direction_confidence`
 
-// GetForecast returns the forecast predictions for the most recent issue time of a node, by horizon.
+// GetForecast returns the latest short-range (<24h) and long-range (>=24h) forecast predictions for a node, ordered by horizon.
 func (r *Repository) GetForecast(ctx context.Context, nodeID string) ([]Prediction, error) {
 	query := `SELECT ` + predictionSelectColumns + `
 		FROM predictions
-		WHERE node_id = ? AND ts = (SELECT MAX(ts) FROM predictions WHERE node_id = ?)
+		WHERE node_id = ?
+		  AND (
+		    (horizon_hours < 24 AND ts = (SELECT MAX(ts) FROM predictions WHERE node_id = ? AND horizon_hours < 24))
+		    OR
+		    (horizon_hours >= 24 AND ts = (SELECT MAX(ts) FROM predictions WHERE node_id = ? AND horizon_hours >= 24))
+		  )
+		QUALIFY row_number() OVER (PARTITION BY horizon_hours ORDER BY ts DESC) = 1
 		ORDER BY horizon_hours ASC`
 
-	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID)
+	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID, nodeID)
 	if err != nil {
 		r.log.Error("failed to query forecast", zap.String("node_id", nodeID), zap.Error(err))
 		return nil, err

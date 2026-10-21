@@ -13,12 +13,13 @@ class ValidationError(ValueError):
 
 
 # Only fields actually used by the model are validated. Fields that are
-# received but not modeled (e.g. wind) must not reject a forecast.
+# received but not modeled (e.g. wind speed) must not reject a forecast.
 SENSOR_BOUNDS = (
     ("temperature_c", -90.0, 70.0),
     ("humidity_pct", 0.0, 100.0),
     ("pressure_hpa", 300.0, 1100.0),
     ("rainfall_mm", 0.0, float("inf")),
+    ("wind_direction_deg", 0.0, 360.0),
 )
 
 

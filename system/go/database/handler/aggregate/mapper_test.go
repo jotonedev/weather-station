@@ -11,12 +11,18 @@ import (
 func TestModelClimateToPB(t *testing.T) {
 	bucketStart := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
 	avgTemp := float32(21.5)
+	rainfall := float32(2.4)
+	windSpeed := float32(4.2)
+	windDir := float32(270.0)
 
 	aggregate := repository.ClimateAggregate{
-		NodeID:          "n1",
-		BucketStart:     bucketStart,
-		AvgTemperatureC: &avgTemp,
-		SampleCount:     3,
+		NodeID:              "n1",
+		BucketStart:         bucketStart,
+		AvgTemperatureC:     &avgTemp,
+		TotalRainfallMm:     &rainfall,
+		AvgWindSpeedMps:     &windSpeed,
+		AvgWindDirectionDeg: &windDir,
+		SampleCount:         3,
 	}
 
 	response := modelClimateToPB(aggregate)
@@ -28,6 +34,15 @@ func TestModelClimateToPB(t *testing.T) {
 	}
 	if response.AvgTemperatureC == nil || *response.AvgTemperatureC != avgTemp {
 		t.Errorf("AvgTemperatureC = %v, want %v", response.AvgTemperatureC, avgTemp)
+	}
+	if response.TotalRainfallMm == nil || *response.TotalRainfallMm != rainfall {
+		t.Errorf("TotalRainfallMm = %v, want %v", response.TotalRainfallMm, rainfall)
+	}
+	if response.AvgWindSpeedMps == nil || *response.AvgWindSpeedMps != windSpeed {
+		t.Errorf("AvgWindSpeedMps = %v, want %v", response.AvgWindSpeedMps, windSpeed)
+	}
+	if response.AvgWindDirectionDeg == nil || *response.AvgWindDirectionDeg != windDir {
+		t.Errorf("AvgWindDirectionDeg = %v, want %v", response.AvgWindDirectionDeg, windDir)
 	}
 	if response.SampleCount != 3 {
 		t.Errorf("SampleCount = %d, want 3", response.SampleCount)

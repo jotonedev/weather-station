@@ -35,10 +35,13 @@ func TestToTimeSeriesObservations(t *testing.T) {
 			aggregates: []*protodatabasev1.ClimateAggregate{
 				nil,
 				{
-					BucketStart:      now,
-					AvgTemperatureC:  float32Ptr(21.5),
-					AvgHumidityPct:   float32Ptr(55.0),
-					AvgPressureHpa:   float32Ptr(1013.2),
+					BucketStart:         now,
+					AvgTemperatureC:     float32Ptr(21.5),
+					AvgHumidityPct:      float32Ptr(55.0),
+					AvgPressureHpa:      float32Ptr(1013.2),
+					TotalRainfallMm:     float32Ptr(1.8),
+					AvgWindSpeedMps:     float32Ptr(4.5),
+					AvgWindDirectionDeg: float32Ptr(225.0),
 				},
 				nil,
 			},
@@ -62,6 +65,15 @@ func TestToTimeSeriesObservations(t *testing.T) {
 				}
 				if obs.GetPressureHpa() != 1013.2 {
 					t.Fatalf("PressureHpa = %v, want 1013.2", obs.GetPressureHpa())
+				}
+				if obs.GetRainfallMm() != 1.8 {
+					t.Fatalf("RainfallMm = %v, want 1.8", obs.GetRainfallMm())
+				}
+				if obs.GetWindSpeedMps() != 4.5 {
+					t.Fatalf("WindSpeedMps = %v, want 4.5", obs.GetWindSpeedMps())
+				}
+				if obs.GetWindDirectionDeg() != 225.0 {
+					t.Fatalf("WindDirectionDeg = %v, want 225.0", obs.GetWindDirectionDeg())
 				}
 			}
 		})

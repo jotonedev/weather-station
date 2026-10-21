@@ -106,6 +106,8 @@ def test_validate_request_humidity_sparsity() -> None:
         ("pressure_hpa", 250.0),
         ("pressure_hpa", 1200.0),
         ("rainfall_mm", -0.5),
+        ("wind_direction_deg", -10.0),
+        ("wind_direction_deg", 370.0),
     ],
 )
 def test_validate_request_out_of_bounds(field_name: str, invalid_value: float) -> None:

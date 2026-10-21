@@ -64,6 +64,14 @@ def format_predictions(
             prediction.rainfall_mm = rain_med
             prediction.rainfall_confidence = compute_confidence(rain_spread, 20.0)
 
+        # Wind direction
+        if "wind_direction_deg" in var_indices:
+            idx = var_indices["wind_direction_deg"]
+            wind_med = float(np.mod(quantiles[idx, step_idx, 1], 360.0))
+            wind_spread = float(quantiles[idx, step_idx, 2] - quantiles[idx, step_idx, 0])
+            prediction.wind_direction_deg = wind_med
+            prediction.wind_direction_confidence = compute_confidence(wind_spread, 180.0)
+
         predictions.append(prediction)
 
     return predictions
