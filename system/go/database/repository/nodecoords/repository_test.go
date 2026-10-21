@@ -17,3 +17,10 @@ func TestUpsertEmpty(t *testing.T) {
 		t.Errorf("rows = %d, want 0", stored)
 	}
 }
+
+func TestDeleteNodeEmptyID(t *testing.T) {
+	repo := &Repository{client: nil, log: zap.NewNop()}
+	if err := repo.DeleteNode(context.Background(), ""); err == nil {
+		t.Fatal("DeleteNode(\"\") expected error, got nil")
+	}
+}

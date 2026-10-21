@@ -39,6 +39,8 @@ service NodeDatabaseService {
   rpc CreateNode(CreateNodeRequest) returns (CreateNodeResponse);
   // Update the location metadata of an existing node.
   rpc UpdateNode(UpdateNodeRequest) returns (UpdateNodeResponse);
+  // Delete a node and all of its stored readings and predictions.
+  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
   // Return the location metadata for a single node.
   rpc GetNodeCoordinates(GetNodeCoordinatesRequest) returns (GetNodeCoordinatesResponse);
   // Return the location metadata for all nodes.
@@ -136,3 +138,9 @@ message GetAirQualityAggregatesRequest {
 message GetAirQualityAggregatesResponse {
   repeated AirQualityAggregate aggregates = 1;
 }
+
+message DeleteNodeRequest {
+  string node_id = 1;
+}
+
+message DeleteNodeResponse {}

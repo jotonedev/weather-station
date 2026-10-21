@@ -500,6 +500,7 @@ var ReadingAggregateService_ServiceDesc = grpc.ServiceDesc{
 const (
 	NodeDatabaseService_CreateNode_FullMethodName          = "/weather.database.v1.NodeDatabaseService/CreateNode"
 	NodeDatabaseService_UpdateNode_FullMethodName          = "/weather.database.v1.NodeDatabaseService/UpdateNode"
+	NodeDatabaseService_DeleteNode_FullMethodName          = "/weather.database.v1.NodeDatabaseService/DeleteNode"
 	NodeDatabaseService_GetNodeCoordinates_FullMethodName  = "/weather.database.v1.NodeDatabaseService/GetNodeCoordinates"
 	NodeDatabaseService_ListNodeCoordinates_FullMethodName = "/weather.database.v1.NodeDatabaseService/ListNodeCoordinates"
 )
@@ -512,6 +513,8 @@ type NodeDatabaseServiceClient interface {
 	CreateNode(ctx context.Context, in *CreateNodeRequest, opts ...grpc.CallOption) (*CreateNodeResponse, error)
 	// Update the location metadata of an existing node.
 	UpdateNode(ctx context.Context, in *UpdateNodeRequest, opts ...grpc.CallOption) (*UpdateNodeResponse, error)
+	// Delete a node and all of its stored readings and predictions.
+	DeleteNode(ctx context.Context, in *DeleteNodeRequest, opts ...grpc.CallOption) (*DeleteNodeResponse, error)
 	// Return the location metadata for a single node.
 	GetNodeCoordinates(ctx context.Context, in *GetNodeCoordinatesRequest, opts ...grpc.CallOption) (*GetNodeCoordinatesResponse, error)
 	// Return the location metadata for all nodes.
@@ -546,6 +549,16 @@ func (c *nodeDatabaseServiceClient) UpdateNode(ctx context.Context, in *UpdateNo
 	return out, nil
 }
 
+func (c *nodeDatabaseServiceClient) DeleteNode(ctx context.Context, in *DeleteNodeRequest, opts ...grpc.CallOption) (*DeleteNodeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteNodeResponse)
+	err := c.cc.Invoke(ctx, NodeDatabaseService_DeleteNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeDatabaseServiceClient) GetNodeCoordinates(ctx context.Context, in *GetNodeCoordinatesRequest, opts ...grpc.CallOption) (*GetNodeCoordinatesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetNodeCoordinatesResponse)
@@ -574,6 +587,8 @@ type NodeDatabaseServiceServer interface {
 	CreateNode(context.Context, *CreateNodeRequest) (*CreateNodeResponse, error)
 	// Update the location metadata of an existing node.
 	UpdateNode(context.Context, *UpdateNodeRequest) (*UpdateNodeResponse, error)
+	// Delete a node and all of its stored readings and predictions.
+	DeleteNode(context.Context, *DeleteNodeRequest) (*DeleteNodeResponse, error)
 	// Return the location metadata for a single node.
 	GetNodeCoordinates(context.Context, *GetNodeCoordinatesRequest) (*GetNodeCoordinatesResponse, error)
 	// Return the location metadata for all nodes.
@@ -593,6 +608,9 @@ func (UnimplementedNodeDatabaseServiceServer) CreateNode(context.Context, *Creat
 }
 func (UnimplementedNodeDatabaseServiceServer) UpdateNode(context.Context, *UpdateNodeRequest) (*UpdateNodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateNode not implemented")
+}
+func (UnimplementedNodeDatabaseServiceServer) DeleteNode(context.Context, *DeleteNodeRequest) (*DeleteNodeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteNode not implemented")
 }
 func (UnimplementedNodeDatabaseServiceServer) GetNodeCoordinates(context.Context, *GetNodeCoordinatesRequest) (*GetNodeCoordinatesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNodeCoordinates not implemented")
@@ -657,6 +675,24 @@ func _NodeDatabaseService_UpdateNode_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeDatabaseService_DeleteNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeDatabaseServiceServer).DeleteNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeDatabaseService_DeleteNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeDatabaseServiceServer).DeleteNode(ctx, req.(*DeleteNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeDatabaseService_GetNodeCoordinates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetNodeCoordinatesRequest)
 	if err := dec(in); err != nil {
@@ -707,6 +743,10 @@ var NodeDatabaseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateNode",
 			Handler:    _NodeDatabaseService_UpdateNode_Handler,
+		},
+		{
+			MethodName: "DeleteNode",
+			Handler:    _NodeDatabaseService_DeleteNode_Handler,
 		},
 		{
 			MethodName: "GetNodeCoordinates",

@@ -41,6 +41,11 @@ func (c *Controller) UpdateNode(ctx context.Context, node nodecoords.NodeCoordin
 	return err
 }
 
+// DeleteNode deletes a node and all of its stored readings and predictions.
+func (c *Controller) DeleteNode(ctx context.Context, nodeID string) error {
+	return c.repo.DeleteNode(ctx, nodeID)
+}
+
 // GetNodeCoordinates returns the stored coordinates for a node.
 func (c *Controller) GetNodeCoordinates(ctx context.Context, nodeID string) (nodecoords.NodeCoordinates, error) {
 	node, err := c.repo.GetNodeCoordinates(ctx, nodeID)

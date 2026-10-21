@@ -103,3 +103,38 @@ func (r *Repository) ListNodeCoordinates(ctx context.Context) ([]NodeCoordinates
 	}
 	return nodes, nil
 }
+
+// DeleteNode removes the node coordinate entry along with all readings and predictions for the node.
+func (r *Repository) DeleteNode(ctx context.Context, nodeID string) error {
+	if nodeID == "" {
+		return fmt.Errorf("node_id is required")
+	}
+
+	tx, err := r.client.DB().BeginTx(ctx, nil)
+	if err != nil {
+		r.log.Error("failed to start transaction for node deletion", zap.String("node_id", nodeID), zap.Error(err))
+		return err
+	}
+	defer tx.Rollback()
+
+	statements := []string{
+		`DELETE FROM weather WHERE node_id = ?;`,
+		`DELETE FROM predictions WHERE node_id = ?;`,
+		`DELETE FROM node_coordinates WHERE node_id = ?;`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt, nodeID); err != nil {
+			r.log.Error("failed to delete node rows", zap.String("node_id", nodeID), zap.Error(err))
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		r.log.Error("failed to commit node deletion transaction", zap.String("node_id", nodeID), zap.Error(err))
+		return err
+	}
+
+	r.log.Debug("deleted node and associated records", zap.String("node_id", nodeID))
+	return nil
+}

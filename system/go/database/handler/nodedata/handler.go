@@ -54,6 +54,14 @@ func (h *Handler) UpdateNode(ctx context.Context, req *protodatabasev1.UpdateNod
 	return &protodatabasev1.UpdateNodeResponse{}, nil
 }
 
+// DeleteNode deletes a node and all of its associated readings and predictions.
+func (h *Handler) DeleteNode(ctx context.Context, req *protodatabasev1.DeleteNodeRequest) (*protodatabasev1.DeleteNodeResponse, error) {
+	if err := h.con.DeleteNode(ctx, req.GetNodeId()); err != nil {
+		return nil, err
+	}
+	return &protodatabasev1.DeleteNodeResponse{}, nil
+}
+
 // GetNodeCoordinates returns coordinates for a node.
 func (h *Handler) GetNodeCoordinates(ctx context.Context, req *protodatabasev1.GetNodeCoordinatesRequest) (*protodatabasev1.GetNodeCoordinatesResponse, error) {
 	node, err := h.con.GetNodeCoordinates(ctx, req.NodeId)

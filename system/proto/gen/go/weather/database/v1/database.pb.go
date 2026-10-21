@@ -1038,6 +1038,86 @@ func (x *GetAirQualityAggregatesResponse) GetAggregates() []*AirQualityAggregate
 	return nil
 }
 
+type DeleteNodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteNodeRequest) Reset() {
+	*x = DeleteNodeRequest{}
+	mi := &file_weather_database_v1_database_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteNodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteNodeRequest) ProtoMessage() {}
+
+func (x *DeleteNodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_database_v1_database_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteNodeRequest.ProtoReflect.Descriptor instead.
+func (*DeleteNodeRequest) Descriptor() ([]byte, []int) {
+	return file_weather_database_v1_database_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *DeleteNodeRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+type DeleteNodeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteNodeResponse) Reset() {
+	*x = DeleteNodeResponse{}
+	mi := &file_weather_database_v1_database_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteNodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteNodeResponse) ProtoMessage() {}
+
+func (x *DeleteNodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_database_v1_database_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteNodeResponse.ProtoReflect.Descriptor instead.
+func (*DeleteNodeResponse) Descriptor() ([]byte, []int) {
+	return file_weather_database_v1_database_proto_rawDescGZIP(), []int{23}
+}
+
 var File_weather_database_v1_database_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_database_proto_rawDesc = "" +
@@ -1099,7 +1179,10 @@ const file_weather_database_v1_database_proto_rawDesc = "" +
 	"\x1fGetAirQualityAggregatesResponse\x12H\n" +
 	"\n" +
 	"aggregates\x18\x01 \x03(\v2(.weather.database.v1.AirQualityAggregateR\n" +
-	"aggregates2\xd8\x02\n" +
+	"aggregates\",\n" +
+	"\x11DeleteNodeRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"\x14\n" +
+	"\x12DeleteNodeResponse2\xd8\x02\n" +
 	"\x16ReadingDatabaseService\x12f\n" +
 	"\rStoreReadings\x12).weather.database.v1.StoreReadingsRequest\x1a*.weather.database.v1.StoreReadingsResponse\x12b\n" +
 	"\vGetReadings\x12'.weather.database.v1.GetReadingsRequest\x1a(.weather.database.v1.GetReadingsResponse0\x01\x12r\n" +
@@ -1109,12 +1192,14 @@ const file_weather_database_v1_database_proto_rawDesc = "" +
 	"\vGetForecast\x12'.weather.database.v1.GetForecastRequest\x1a(.weather.database.v1.GetForecastResponse2\x9d\x02\n" +
 	"\x17ReadingAggregateService\x12{\n" +
 	"\x14GetClimateAggregates\x120.weather.database.v1.GetClimateAggregatesRequest\x1a1.weather.database.v1.GetClimateAggregatesResponse\x12\x84\x01\n" +
-	"\x17GetAirQualityAggregates\x123.weather.database.v1.GetAirQualityAggregatesRequest\x1a4.weather.database.v1.GetAirQualityAggregatesResponse2\xc4\x03\n" +
+	"\x17GetAirQualityAggregates\x123.weather.database.v1.GetAirQualityAggregatesRequest\x1a4.weather.database.v1.GetAirQualityAggregatesResponse2\xa3\x04\n" +
 	"\x13NodeDatabaseService\x12]\n" +
 	"\n" +
 	"CreateNode\x12&.weather.database.v1.CreateNodeRequest\x1a'.weather.database.v1.CreateNodeResponse\x12]\n" +
 	"\n" +
-	"UpdateNode\x12&.weather.database.v1.UpdateNodeRequest\x1a'.weather.database.v1.UpdateNodeResponse\x12u\n" +
+	"UpdateNode\x12&.weather.database.v1.UpdateNodeRequest\x1a'.weather.database.v1.UpdateNodeResponse\x12]\n" +
+	"\n" +
+	"DeleteNode\x12&.weather.database.v1.DeleteNodeRequest\x1a'.weather.database.v1.DeleteNodeResponse\x12u\n" +
 	"\x12GetNodeCoordinates\x12..weather.database.v1.GetNodeCoordinatesRequest\x1a/.weather.database.v1.GetNodeCoordinatesResponse\x12x\n" +
 	"\x13ListNodeCoordinates\x12/.weather.database.v1.ListNodeCoordinatesRequest\x1a0.weather.database.v1.ListNodeCoordinatesResponseB7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
 
@@ -1130,7 +1215,7 @@ func file_weather_database_v1_database_proto_rawDescGZIP() []byte {
 	return file_weather_database_v1_database_proto_rawDescData
 }
 
-var file_weather_database_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_weather_database_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_weather_database_v1_database_proto_goTypes = []any{
 	(*StoreReadingsRequest)(nil),            // 0: weather.database.v1.StoreReadingsRequest
 	(*StoreReadingsResponse)(nil),           // 1: weather.database.v1.StoreReadingsResponse
@@ -1154,31 +1239,33 @@ var file_weather_database_v1_database_proto_goTypes = []any{
 	(*GetClimateAggregatesResponse)(nil),    // 19: weather.database.v1.GetClimateAggregatesResponse
 	(*GetAirQualityAggregatesRequest)(nil),  // 20: weather.database.v1.GetAirQualityAggregatesRequest
 	(*GetAirQualityAggregatesResponse)(nil), // 21: weather.database.v1.GetAirQualityAggregatesResponse
-	(*Reading)(nil),                         // 22: weather.database.v1.Reading
-	(*Prediction)(nil),                      // 23: weather.database.v1.Prediction
-	(*NodeCoordinates)(nil),                 // 24: weather.database.v1.NodeCoordinates
-	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
-	(*ClimateAggregate)(nil),                // 26: weather.database.v1.ClimateAggregate
-	(*AirQualityAggregate)(nil),             // 27: weather.database.v1.AirQualityAggregate
+	(*DeleteNodeRequest)(nil),               // 22: weather.database.v1.DeleteNodeRequest
+	(*DeleteNodeResponse)(nil),              // 23: weather.database.v1.DeleteNodeResponse
+	(*Reading)(nil),                         // 24: weather.database.v1.Reading
+	(*Prediction)(nil),                      // 25: weather.database.v1.Prediction
+	(*NodeCoordinates)(nil),                 // 26: weather.database.v1.NodeCoordinates
+	(*timestamppb.Timestamp)(nil),           // 27: google.protobuf.Timestamp
+	(*ClimateAggregate)(nil),                // 28: weather.database.v1.ClimateAggregate
+	(*AirQualityAggregate)(nil),             // 29: weather.database.v1.AirQualityAggregate
 }
 var file_weather_database_v1_database_proto_depIdxs = []int32{
-	22, // 0: weather.database.v1.StoreReadingsRequest.readings:type_name -> weather.database.v1.Reading
-	23, // 1: weather.database.v1.StorePredictionsRequest.predictions:type_name -> weather.database.v1.Prediction
-	24, // 2: weather.database.v1.CreateNodeRequest.node:type_name -> weather.database.v1.NodeCoordinates
-	24, // 3: weather.database.v1.UpdateNodeRequest.node:type_name -> weather.database.v1.NodeCoordinates
-	25, // 4: weather.database.v1.GetReadingsRequest.start_time:type_name -> google.protobuf.Timestamp
-	25, // 5: weather.database.v1.GetReadingsRequest.end_time:type_name -> google.protobuf.Timestamp
-	22, // 6: weather.database.v1.GetReadingsResponse.reading:type_name -> weather.database.v1.Reading
-	22, // 7: weather.database.v1.GetLatestReadingsResponse.readings:type_name -> weather.database.v1.Reading
-	23, // 8: weather.database.v1.GetForecastResponse.predictions:type_name -> weather.database.v1.Prediction
-	24, // 9: weather.database.v1.GetNodeCoordinatesResponse.node:type_name -> weather.database.v1.NodeCoordinates
-	24, // 10: weather.database.v1.ListNodeCoordinatesResponse.nodes:type_name -> weather.database.v1.NodeCoordinates
-	25, // 11: weather.database.v1.GetClimateAggregatesRequest.start_time:type_name -> google.protobuf.Timestamp
-	25, // 12: weather.database.v1.GetClimateAggregatesRequest.end_time:type_name -> google.protobuf.Timestamp
-	26, // 13: weather.database.v1.GetClimateAggregatesResponse.aggregates:type_name -> weather.database.v1.ClimateAggregate
-	25, // 14: weather.database.v1.GetAirQualityAggregatesRequest.start_time:type_name -> google.protobuf.Timestamp
-	25, // 15: weather.database.v1.GetAirQualityAggregatesRequest.end_time:type_name -> google.protobuf.Timestamp
-	27, // 16: weather.database.v1.GetAirQualityAggregatesResponse.aggregates:type_name -> weather.database.v1.AirQualityAggregate
+	24, // 0: weather.database.v1.StoreReadingsRequest.readings:type_name -> weather.database.v1.Reading
+	25, // 1: weather.database.v1.StorePredictionsRequest.predictions:type_name -> weather.database.v1.Prediction
+	26, // 2: weather.database.v1.CreateNodeRequest.node:type_name -> weather.database.v1.NodeCoordinates
+	26, // 3: weather.database.v1.UpdateNodeRequest.node:type_name -> weather.database.v1.NodeCoordinates
+	27, // 4: weather.database.v1.GetReadingsRequest.start_time:type_name -> google.protobuf.Timestamp
+	27, // 5: weather.database.v1.GetReadingsRequest.end_time:type_name -> google.protobuf.Timestamp
+	24, // 6: weather.database.v1.GetReadingsResponse.reading:type_name -> weather.database.v1.Reading
+	24, // 7: weather.database.v1.GetLatestReadingsResponse.readings:type_name -> weather.database.v1.Reading
+	25, // 8: weather.database.v1.GetForecastResponse.predictions:type_name -> weather.database.v1.Prediction
+	26, // 9: weather.database.v1.GetNodeCoordinatesResponse.node:type_name -> weather.database.v1.NodeCoordinates
+	26, // 10: weather.database.v1.ListNodeCoordinatesResponse.nodes:type_name -> weather.database.v1.NodeCoordinates
+	27, // 11: weather.database.v1.GetClimateAggregatesRequest.start_time:type_name -> google.protobuf.Timestamp
+	27, // 12: weather.database.v1.GetClimateAggregatesRequest.end_time:type_name -> google.protobuf.Timestamp
+	28, // 13: weather.database.v1.GetClimateAggregatesResponse.aggregates:type_name -> weather.database.v1.ClimateAggregate
+	27, // 14: weather.database.v1.GetAirQualityAggregatesRequest.start_time:type_name -> google.protobuf.Timestamp
+	27, // 15: weather.database.v1.GetAirQualityAggregatesRequest.end_time:type_name -> google.protobuf.Timestamp
+	29, // 16: weather.database.v1.GetAirQualityAggregatesResponse.aggregates:type_name -> weather.database.v1.AirQualityAggregate
 	0,  // 17: weather.database.v1.ReadingDatabaseService.StoreReadings:input_type -> weather.database.v1.StoreReadingsRequest
 	8,  // 18: weather.database.v1.ReadingDatabaseService.GetReadings:input_type -> weather.database.v1.GetReadingsRequest
 	10, // 19: weather.database.v1.ReadingDatabaseService.GetLatestReadings:input_type -> weather.database.v1.GetLatestReadingsRequest
@@ -1188,21 +1275,23 @@ var file_weather_database_v1_database_proto_depIdxs = []int32{
 	20, // 23: weather.database.v1.ReadingAggregateService.GetAirQualityAggregates:input_type -> weather.database.v1.GetAirQualityAggregatesRequest
 	4,  // 24: weather.database.v1.NodeDatabaseService.CreateNode:input_type -> weather.database.v1.CreateNodeRequest
 	6,  // 25: weather.database.v1.NodeDatabaseService.UpdateNode:input_type -> weather.database.v1.UpdateNodeRequest
-	14, // 26: weather.database.v1.NodeDatabaseService.GetNodeCoordinates:input_type -> weather.database.v1.GetNodeCoordinatesRequest
-	16, // 27: weather.database.v1.NodeDatabaseService.ListNodeCoordinates:input_type -> weather.database.v1.ListNodeCoordinatesRequest
-	1,  // 28: weather.database.v1.ReadingDatabaseService.StoreReadings:output_type -> weather.database.v1.StoreReadingsResponse
-	9,  // 29: weather.database.v1.ReadingDatabaseService.GetReadings:output_type -> weather.database.v1.GetReadingsResponse
-	11, // 30: weather.database.v1.ReadingDatabaseService.GetLatestReadings:output_type -> weather.database.v1.GetLatestReadingsResponse
-	3,  // 31: weather.database.v1.PredictionDatabaseService.StorePredictions:output_type -> weather.database.v1.StorePredictionsResponse
-	13, // 32: weather.database.v1.PredictionDatabaseService.GetForecast:output_type -> weather.database.v1.GetForecastResponse
-	19, // 33: weather.database.v1.ReadingAggregateService.GetClimateAggregates:output_type -> weather.database.v1.GetClimateAggregatesResponse
-	21, // 34: weather.database.v1.ReadingAggregateService.GetAirQualityAggregates:output_type -> weather.database.v1.GetAirQualityAggregatesResponse
-	5,  // 35: weather.database.v1.NodeDatabaseService.CreateNode:output_type -> weather.database.v1.CreateNodeResponse
-	7,  // 36: weather.database.v1.NodeDatabaseService.UpdateNode:output_type -> weather.database.v1.UpdateNodeResponse
-	15, // 37: weather.database.v1.NodeDatabaseService.GetNodeCoordinates:output_type -> weather.database.v1.GetNodeCoordinatesResponse
-	17, // 38: weather.database.v1.NodeDatabaseService.ListNodeCoordinates:output_type -> weather.database.v1.ListNodeCoordinatesResponse
-	28, // [28:39] is the sub-list for method output_type
-	17, // [17:28] is the sub-list for method input_type
+	22, // 26: weather.database.v1.NodeDatabaseService.DeleteNode:input_type -> weather.database.v1.DeleteNodeRequest
+	14, // 27: weather.database.v1.NodeDatabaseService.GetNodeCoordinates:input_type -> weather.database.v1.GetNodeCoordinatesRequest
+	16, // 28: weather.database.v1.NodeDatabaseService.ListNodeCoordinates:input_type -> weather.database.v1.ListNodeCoordinatesRequest
+	1,  // 29: weather.database.v1.ReadingDatabaseService.StoreReadings:output_type -> weather.database.v1.StoreReadingsResponse
+	9,  // 30: weather.database.v1.ReadingDatabaseService.GetReadings:output_type -> weather.database.v1.GetReadingsResponse
+	11, // 31: weather.database.v1.ReadingDatabaseService.GetLatestReadings:output_type -> weather.database.v1.GetLatestReadingsResponse
+	3,  // 32: weather.database.v1.PredictionDatabaseService.StorePredictions:output_type -> weather.database.v1.StorePredictionsResponse
+	13, // 33: weather.database.v1.PredictionDatabaseService.GetForecast:output_type -> weather.database.v1.GetForecastResponse
+	19, // 34: weather.database.v1.ReadingAggregateService.GetClimateAggregates:output_type -> weather.database.v1.GetClimateAggregatesResponse
+	21, // 35: weather.database.v1.ReadingAggregateService.GetAirQualityAggregates:output_type -> weather.database.v1.GetAirQualityAggregatesResponse
+	5,  // 36: weather.database.v1.NodeDatabaseService.CreateNode:output_type -> weather.database.v1.CreateNodeResponse
+	7,  // 37: weather.database.v1.NodeDatabaseService.UpdateNode:output_type -> weather.database.v1.UpdateNodeResponse
+	23, // 38: weather.database.v1.NodeDatabaseService.DeleteNode:output_type -> weather.database.v1.DeleteNodeResponse
+	15, // 39: weather.database.v1.NodeDatabaseService.GetNodeCoordinates:output_type -> weather.database.v1.GetNodeCoordinatesResponse
+	17, // 40: weather.database.v1.NodeDatabaseService.ListNodeCoordinates:output_type -> weather.database.v1.ListNodeCoordinatesResponse
+	29, // [29:41] is the sub-list for method output_type
+	17, // [17:29] is the sub-list for method input_type
 	17, // [17:17] is the sub-list for extension type_name
 	17, // [17:17] is the sub-list for extension extendee
 	0,  // [0:17] is the sub-list for field type_name
@@ -1223,7 +1312,7 @@ func file_weather_database_v1_database_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_weather_database_v1_database_proto_rawDesc), len(file_weather_database_v1_database_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   4,
 		},

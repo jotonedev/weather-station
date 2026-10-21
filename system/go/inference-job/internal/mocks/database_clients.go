@@ -190,6 +190,26 @@ func (mr *MockNodeDatabaseServiceClientMockRecorder) CreateNode(ctx, in any, opt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNode", reflect.TypeOf((*MockNodeDatabaseServiceClient)(nil).CreateNode), varargs...)
 }
 
+// DeleteNode mocks base method.
+func (m *MockNodeDatabaseServiceClient) DeleteNode(ctx context.Context, in *databasev1.DeleteNodeRequest, opts ...grpc.CallOption) (*databasev1.DeleteNodeResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DeleteNode", varargs...)
+	ret0, _ := ret[0].(*databasev1.DeleteNodeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteNode indicates an expected call of DeleteNode.
+func (mr *MockNodeDatabaseServiceClientMockRecorder) DeleteNode(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNode", reflect.TypeOf((*MockNodeDatabaseServiceClient)(nil).DeleteNode), varargs...)
+}
+
 // GetNodeCoordinates mocks base method.
 func (m *MockNodeDatabaseServiceClient) GetNodeCoordinates(ctx context.Context, in *databasev1.GetNodeCoordinatesRequest, opts ...grpc.CallOption) (*databasev1.GetNodeCoordinatesResponse, error) {
 	m.ctrl.T.Helper()
