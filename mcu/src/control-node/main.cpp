@@ -283,6 +283,7 @@ void setup() {
 
     anemometer.setBusMutex(wireMutex);
     anemometer.initialize();
+    anemometer.setSpeedFactor(ANEMOMETER_SPEED_FACTOR);
     windVane.initialize();
     rainMeter.initialize();
 
@@ -542,6 +543,16 @@ void loop() {
     updatePms(nowMs);
     updateSgp30(nowMs);
 
+#if CALIBRATION_MODE
+    if (nowMs - lastReadingMs >= 1000uL) {
+        lastReadingMs = nowMs;
+        Serial.printf("[CALIB] Vane raw=%.1f deg, cal=%.1f deg | Anemo RPM=%.1f, speed=%.2f m/s\n",
+                      windVane.getRawAngle(),
+                      windVane.getAngle(),
+                      anemometer.getRPM(),
+                      anemometer.getWindSpeed());
+    }
+#else
     handleTx();
 
     if (nowMs - lastReadingMs >= REPORT_INTERVAL_MS) {
@@ -550,6 +561,7 @@ void loop() {
         newReadingPending = true;
         Serial.println("[INFO] Reading sampled");
     }
+#endif
 
     if (nowMs - lastDiagMs >= 10000uL) {
         lastDiagMs = nowMs;

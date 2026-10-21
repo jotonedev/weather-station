@@ -49,6 +49,14 @@
 #define WIND_VANE_DIRECTION_PIN 7
 #define WIND_VANE_CALIBRATION_OFFSET 0.0f
 
+// --- Calibration settings ---
+// Set to 1 to disable radio transmissions and stream live sensor telemetry to Serial.
+// Set to 0 for normal production operation.
+#define CALIBRATION_MODE 1
+
+// Speed factor for anemometer: m/s per RPM
+#define ANEMOMETER_SPEED_FACTOR 0.05f
+
 // --- PMS7003 Particulate Matter Sensor (UART2) ---
 #define PMS_RX_PIN 17 // Connects to PMS7003 TX
 #define PMS_TX_PIN 18 // Connects to PMS7003 RX
