@@ -4,14 +4,8 @@ name: weather-station
 
 services:
   database:
-    image: weather-station/database
-    build:
-      context: ../..
-      dockerfile: go/Dockerfile
-      args:
-        SERVICE: database
+    image: ${REGISTRY:-registry.example.com}/database:latest
     environment:
-      GRPC_ADDRESS: "0.0.0.0:8090"
       DUCKDB_PATH: "/data/weather.duckdb"
       DUCKDB_MAX_MEMORY: "128MB"
       DUCKDB_THREADS: "2"
@@ -21,16 +15,9 @@ services:
       - "8090"
 
   data-ingest:
-    image: weather-station/data-ingest
-    build:
-      context: ../..
-      dockerfile: go/Dockerfile
-      args:
-        SERVICE: data-ingest
+    image: ${REGISTRY:-registry.example.com}/data-ingest:latest
     environment:
       DATABASE_ADDRESS: "database:8090"
-      HTTP_ADDRESS: "0.0.0.0:8080"
-      GRPC_ADDRESS: "0.0.0.0:8090"
     ports:
       - "8081:8080"
     depends_on:
@@ -38,16 +25,9 @@ services:
         condition: service_healthy
 
   frontend:
-    image: weather-station/frontend
-    build:
-      context: ../..
-      dockerfile: go/Dockerfile
-      args:
-        SERVICE: frontend
+    image: ${REGISTRY:-registry.example.com}/frontend:latest
     environment:
       DATABASE_ADDRESS: "database:8090"
-      HTTP_ADDRESS: "0.0.0.0:8080"
-      GRPC_ADDRESS: "0.0.0.0:8090"
     ports:
       - "8080:8080"
     depends_on:
@@ -55,12 +35,7 @@ services:
         condition: service_healthy
 
   inference-server:
-    image: weather-station/inference-server
-    build:
-      context: ../..
-      dockerfile: python/inference-server/Dockerfile
-      args:
-        INFERENCE_BACKEND: timestral
+    image: ${REGISTRY:-registry.example.com}/inference-server:latest
     environment:
       INFERENCE_PORT: "50051"
       INFERENCE_HOST: "0.0.0.0"
@@ -78,12 +53,7 @@ services:
   # One-shot forecast job. Not started by plain "compose up" (profile).
   # Run it on demand, see the README for a host-cron example.
   inference-job:
-    image: weather-station/inference-job
-    build:
-      context: ../..
-      dockerfile: go/Dockerfile
-      args:
-        SERVICE: inference-job
+    image: ${REGISTRY:-registry.example.com}/inference-job:latest
     profiles: ["job"]
     restart: "no"
     environment:

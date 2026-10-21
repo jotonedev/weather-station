@@ -1,12 +1,15 @@
 # Weather Station: Docker Compose
 
-Local dev deployment of the weather-station microservices, built from source in this repo.
+Local deployment of the weather-station microservices using compiled container images.
 
 ## Usage
 
 ```bash
-# build and start (frontend, data-ingest, database, inference-server)
-docker compose up --build -d
+# start services (frontend, data-ingest, database, inference-server)
+docker compose up -d
+
+# or point to your own container registry:
+# REGISTRY=myregistry.example.com/user docker compose up -d
 
 # web dashboard (http://localhost:8080)
 
