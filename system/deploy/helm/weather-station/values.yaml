@@ -171,6 +171,32 @@ inferenceJob:
       cpu: 200m
       memory: 128Mi
 
+# Test Data Generator (continuously streams realistic synthetic readings to data-ingest)
+testGenerator:
+  enabled: false
+  replicaCount: 1
+  annotations: {}
+  image:
+    repository: gitea.bream-puffin.ts.net/jotone/test-generator
+    tag: latest
+    pullPolicy: Always
+  grpcPort: 8090
+  interval: "10s"
+  nodeIds: "station-alpha"
+  auth:
+    username: "admin"
+    password: "changeme"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
 # Traefik Ingress configuration
 ingress:
   enabled: true

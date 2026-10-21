@@ -170,4 +170,28 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.inferenceServer.grpcPort }}
+{{- if .Values.testGenerator.enabled }}
+---
+# 8. Test Generator NetworkPolicy (egress to data-ingest)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "weather-station.fullname" . }}-test-generator
+  labels:
+    {{- include "weather-station.componentLabels" (dict "root" . "component" "test-generator") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "test-generator") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "weather-station.componentSelectorLabels" (dict "root" . "component" "data-ingest") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.dataIngest.httpPort }}
+{{- end }}
 {{- end }}

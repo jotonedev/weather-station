@@ -13,6 +13,7 @@ system/deploy/helm/weather-station/
     ├── NOTES.txt
     ├── service.yaml    # data-ingest, database, frontend, inference-server Services
     ├── deployment-webapp.yaml          # data-ingest + frontend
+    ├── deployment-test-generator.yaml  # optional synthetic data generator
     ├── deployment-database.yaml        # embedded DuckDB
     ├── deployment-inference-server.yaml
     ├── cronjob-inference.yaml
