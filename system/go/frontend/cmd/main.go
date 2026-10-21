@@ -1,6 +1,7 @@
 package main
 
 import (
+	"weather-station/common/auth/basic"
 	"weather-station/common/client"
 	"weather-station/common/health"
 	"weather-station/common/logging"
@@ -18,6 +19,7 @@ func main() {
 		// Shared ingress / egress modules
 		server.Module,
 		client.Module,
+		basic.Module,
 		// Shared logging and health checks (HTTP + gRPC)
 		logging.Module,
 		health.Module,

@@ -114,6 +114,95 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 	}
 }
 
+func TestGatewayCreateAndDeleteNode(t *testing.T) {
+	errRPC := errors.New("rpc error")
+
+	tests := []struct {
+		name    string
+		action  string
+		setup   func(client *mocks.MockNodeDatabaseServiceClient)
+		wantErr bool
+	}{
+		{
+			name:   "create node succeeds",
+			action: "create",
+			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
+				client.EXPECT().
+					CreateNode(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.CreateNodeResponse{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "create node returns error on rpc failure",
+			action: "create",
+			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
+				client.EXPECT().
+					CreateNode(gomock.Any(), gomock.Any()).
+					Return(nil, errRPC)
+			},
+			wantErr: true,
+		},
+		{
+			name:   "delete node succeeds",
+			action: "delete",
+			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
+				client.EXPECT().
+					DeleteNode(gomock.Any(), &protodatabasev1.DeleteNodeRequest{NodeId: "station-alpha"}).
+					Return(&protodatabasev1.DeleteNodeResponse{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "delete node returns error on rpc failure",
+			action: "delete",
+			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
+				client.EXPECT().
+					DeleteNode(gomock.Any(), gomock.Any()).
+					Return(nil, errRPC)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			nodeClient := mocks.NewMockNodeDatabaseServiceClient(ctrl)
+			tc.setup(nodeClient)
+
+			gateway, err := New(GatewayParams{
+				Logger:     zap.NewNop(),
+				Config:     Config{Address: "127.0.0.1:8090"},
+				NodeClient: nodeClient,
+			})
+			if err != nil {
+				t.Fatalf("New() unexpected error = %v", err)
+			}
+
+			var callErr error
+			if tc.action == "create" {
+				callErr = gateway.CreateNode(context.Background(), &protodatabasev1.NodeCoordinates{
+					NodeId:       "station-alpha",
+					Latitude:     45.0,
+					Longitude:    7.0,
+					ElevationM:   250.0,
+					LocationName: "Turin",
+				})
+			} else {
+				callErr = gateway.DeleteNode(context.Background(), "station-alpha")
+			}
+
+			if tc.wantErr && callErr == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tc.wantErr && callErr != nil {
+				t.Fatalf("unexpected error: %v", callErr)
+			}
+		})
+	}
+}
+
 func TestGatewayGetForecast(t *testing.T) {
 	errForecastFailed := errors.New("forecast unavailable")
 

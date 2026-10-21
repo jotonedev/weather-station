@@ -42,7 +42,7 @@ type GatewayParams struct {
 
 // New creates a new database Gateway instance for the frontend.
 func New(params GatewayParams) (*Gateway, error) {
-	if params.ReadingClient != nil {
+	if params.ReadingClient != nil || params.NodeClient != nil || params.PredictionClient != nil {
 		return &Gateway{
 			log:              params.Logger,
 			readingClient:    params.ReadingClient,
@@ -126,4 +126,32 @@ func (g *Gateway) ListNodeCoordinates(ctx context.Context) ([]*protodatabasev1.N
 		return nil, fmt.Errorf("list node coordinates: %w", err)
 	}
 	return resp.Nodes, nil
+}
+
+// CreateNode creates or updates a node's coordinates in the database.
+func (g *Gateway) CreateNode(ctx context.Context, node *protodatabasev1.NodeCoordinates) error {
+	if g.nodeClient == nil {
+		return ErrNoClient
+	}
+	_, err := g.nodeClient.CreateNode(ctx, &protodatabasev1.CreateNodeRequest{
+		Node: node,
+	})
+	if err != nil {
+		return fmt.Errorf("create node %q: %w", node.GetNodeId(), err)
+	}
+	return nil
+}
+
+// DeleteNode removes a node and its readings and predictions from the database.
+func (g *Gateway) DeleteNode(ctx context.Context, nodeID string) error {
+	if g.nodeClient == nil {
+		return ErrNoClient
+	}
+	_, err := g.nodeClient.DeleteNode(ctx, &protodatabasev1.DeleteNodeRequest{
+		NodeId: nodeID,
+	})
+	if err != nil {
+		return fmt.Errorf("delete node %q: %w", nodeID, err)
+	}
+	return nil
 }

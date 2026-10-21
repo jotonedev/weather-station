@@ -2,6 +2,7 @@ package handler
 
 import (
 	"weather-station/common/fxgroup"
+	"weather-station/frontend/handler/nodes"
 	"weather-station/frontend/handler/static"
 	"weather-station/frontend/handler/website"
 
@@ -12,6 +13,7 @@ import (
 var Module = fx.Module("handler",
 	fx.Provide(
 		fxgroup.AsHTTPRoute(website.New),
+		fxgroup.AsHTTPRoute(nodes.New),
 		fxgroup.AsHTTPRoute(static.New),
 	),
 )

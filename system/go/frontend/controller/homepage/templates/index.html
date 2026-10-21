@@ -20,8 +20,8 @@
           {{ end }}
         </div>
       </div>
-      {{ if .AvailableNodes }}
       <div class="station-selector">
+        {{ if .AvailableNodes }}
         <form method="GET" action="/">
           <label for="node_id">Station</label>
           <select id="node_id" name="node_id" onchange="this.form.submit()">
@@ -31,8 +31,9 @@
           </select>
           <button type="submit">View</button>
         </form>
+        {{ end }}
+        <a href="/nodes" class="nav-button">Manage Nodes</a>
       </div>
-      {{ end }}
     </header>
 
     {{ if .ErrorMessage }}
