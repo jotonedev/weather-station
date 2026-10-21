@@ -19,8 +19,8 @@ import (
 )
 
 var (
-	// ErrInvalidMode is returned when an unsupported prediction mode is supplied.
-	ErrInvalidMode = errors.New("invalid prediction mode")
+	// ErrInvalidHorizon is returned when an invalid prediction horizon is supplied.
+	ErrInvalidHorizon = errors.New("invalid prediction horizon")
 	// ErrNoGateways is returned when required gateways are missing.
 	ErrNoGateways = errors.New("database and inference gateways are required")
 )
@@ -34,7 +34,8 @@ type DatabaseGateway interface {
 
 // InferenceGateway abstracts inference server operations needed by the controller.
 type InferenceGateway interface {
-	PredictWeather(ctx context.Context, req *protoinferencev1.PredictWeatherRequest) (*protoinferencev1.PredictWeatherResponse, error)
+	PredictHourlyWeather(ctx context.Context, req *protoinferencev1.PredictHourlyWeatherRequest) (*protoinferencev1.PredictHourlyWeatherResponse, error)
+	PredictDailyWeather(ctx context.Context, req *protoinferencev1.PredictDailyWeatherRequest) (*protoinferencev1.PredictDailyWeatherResponse, error)
 }
 
 // Controller coordinates fetching history, generating forecasts, and storing predictions.
@@ -84,8 +85,8 @@ func New(params ControllerParams) (*Controller, error) {
 	}, nil
 }
 
-// RunForecast generates and stores forecasts for all nodes in the given mode.
-func (c *Controller) RunForecast(ctx context.Context, mode protoinferencev1.PredictionMode) error {
+// RunHourlyForecast generates and stores hourly forecasts for all nodes.
+func (c *Controller) RunHourlyForecast(ctx context.Context, horizonHours int32) error {
 	nodes, err := c.dbGateway.ListNodeCoordinates(ctx)
 	if err != nil {
 		return fmt.Errorf("list nodes: %w", err)
@@ -98,36 +99,33 @@ func (c *Controller) RunForecast(ctx context.Context, mode protoinferencev1.Pred
 			continue
 		}
 
-		if err := c.RunForecastForNode(ctx, nodeID, mode); err != nil {
-			c.log.Error("failed forecast for node", zap.String("node_id", nodeID), zap.Error(err))
+		if err := c.RunHourlyForecastForNodeWithCoord(ctx, node, horizonHours); err != nil {
+			c.log.Error("failed hourly forecast for node", zap.String("node_id", nodeID), zap.Error(err))
 			hasErrors = true
 		}
 	}
 
 	if hasErrors {
-		return errors.New("one or more nodes encountered forecast errors")
+		return errors.New("one or more nodes encountered hourly forecast errors")
 	}
 
 	return nil
 }
 
-// RunForecastForNode aggregates history, dispatches inference, and stores predictions for a single node.
-func (c *Controller) RunForecastForNode(ctx context.Context, nodeID string, mode protoinferencev1.PredictionMode) error {
-	var historyDuration time.Duration
-	var bucketSeconds uint32
+// RunHourlyForecastForNode aggregates history, dispatches hourly inference, and stores predictions for a node.
+func (c *Controller) RunHourlyForecastForNode(ctx context.Context, nodeID string, horizonHours int32) error {
+	return c.RunHourlyForecastForNodeWithCoord(ctx, &protodatabasev1.NodeCoordinates{NodeId: nodeID}, horizonHours)
+}
 
-	switch mode {
-	case protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_24_HOURS:
-		// Up to last 40 days aggregated hourly.
-		historyDuration = 40 * 24 * time.Hour
-		bucketSeconds = 3600
-	case protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_10_DAYS:
-		// Up to last 1 year aggregated daily.
-		historyDuration = 365 * 24 * time.Hour
-		bucketSeconds = 86400
-	default:
-		return ErrInvalidMode
+// RunHourlyForecastForNodeWithCoord runs an hourly forecast for a node taking into account coordinates.
+func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node *protodatabasev1.NodeCoordinates, horizonHours int32) error {
+	if horizonHours <= 0 {
+		return ErrInvalidHorizon
 	}
+
+	nodeID := node.GetNodeId()
+	historyDuration := 40 * 24 * time.Hour
+	bucketSeconds := uint32(3600)
 
 	now := c.nowFunc()
 	startTime := now.Add(-historyDuration)
@@ -144,29 +142,142 @@ func (c *Controller) RunForecastForNode(ctx context.Context, nodeID string, mode
 
 	observations := ToTimeSeriesObservations(aggregates)
 
-	req := &protoinferencev1.PredictWeatherRequest{
-		NodeId:    nodeID,
-		Mode:      mode,
-		IssueTime: timestamppb.New(now),
-		History:   observations,
+	req := &protoinferencev1.PredictHourlyWeatherRequest{
+		NodeId:       nodeID,
+		IssueTime:    timestamppb.New(now),
+		HorizonHours: horizonHours,
+		History:      observations,
+		Latitude:     &node.Latitude,
 	}
 
-	res, err := c.infGateway.PredictWeather(ctx, req)
+	res, err := c.infGateway.PredictHourlyWeather(ctx, req)
 	if err != nil {
-		return fmt.Errorf("predict weather for node %q: %w", nodeID, err)
+		return fmt.Errorf("predict hourly weather for node %q: %w", nodeID, err)
 	}
 
-	predictions := res.GetPredictions()
-	if len(predictions) > 0 {
+	hourlyPredictions := res.GetPredictions()
+	if len(hourlyPredictions) > 0 {
+		predictions := make([]*protodatabasev1.Prediction, len(hourlyPredictions))
+		for i, p := range hourlyPredictions {
+			predictions[i] = &protodatabasev1.Prediction{
+				NodeId:             p.GetNodeId(),
+				IssueTime:          p.GetIssueTime(),
+				HorizonHours:       p.GetHorizonHours(),
+				TemperatureC:       p.TemperatureC,
+				HumidityPct:        p.HumidityPct,
+				RainfallMm:         p.RainfallMm,
+				RainfallConfidence: p.RainfallConfidence,
+			}
+		}
 		if err := c.dbGateway.StorePredictions(ctx, predictions); err != nil {
-			return fmt.Errorf("store predictions for node %q: %w", nodeID, err)
+			return fmt.Errorf("store hourly predictions for node %q: %w", nodeID, err)
 		}
 	}
 
-	c.log.Info("forecast successfully processed",
+	c.log.Info("hourly forecast successfully processed",
 		zap.String("node_id", nodeID),
-		zap.String("mode", mode.String()),
-		zap.Int("predictions", len(predictions)),
+		zap.Int32("horizon_hours", horizonHours),
+		zap.Int("predictions", len(hourlyPredictions)),
+	)
+
+	return nil
+}
+
+// RunDailyForecast generates and stores daily forecasts for all nodes.
+func (c *Controller) RunDailyForecast(ctx context.Context, horizonDays int32) error {
+	nodes, err := c.dbGateway.ListNodeCoordinates(ctx)
+	if err != nil {
+		return fmt.Errorf("list nodes: %w", err)
+	}
+
+	var hasErrors bool
+	for _, node := range nodes {
+		nodeID := node.GetNodeId()
+		if nodeID == "" {
+			continue
+		}
+
+		if err := c.RunDailyForecastForNodeWithCoord(ctx, node, horizonDays); err != nil {
+			c.log.Error("failed daily forecast for node", zap.String("node_id", nodeID), zap.Error(err))
+			hasErrors = true
+		}
+	}
+
+	if hasErrors {
+		return errors.New("one or more nodes encountered daily forecast errors")
+	}
+
+	return nil
+}
+
+// RunDailyForecastForNode aggregates history, dispatches daily inference, and stores predictions for a node.
+func (c *Controller) RunDailyForecastForNode(ctx context.Context, nodeID string, horizonDays int32) error {
+	return c.RunDailyForecastForNodeWithCoord(ctx, &protodatabasev1.NodeCoordinates{NodeId: nodeID}, horizonDays)
+}
+
+// RunDailyForecastForNodeWithCoord runs a daily forecast for a node taking into account coordinates.
+func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node *protodatabasev1.NodeCoordinates, horizonDays int32) error {
+	if horizonDays <= 0 {
+		return ErrInvalidHorizon
+	}
+
+	nodeID := node.GetNodeId()
+	historyDuration := 365 * 24 * time.Hour
+	bucketSeconds := uint32(86400)
+
+	now := c.nowFunc()
+	startTime := now.Add(-historyDuration)
+
+	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, now, bucketSeconds)
+	if err != nil {
+		return fmt.Errorf("query climate aggregates for node %q: %w", nodeID, err)
+	}
+
+	if len(aggregates) == 0 {
+		c.log.Info("no historical aggregates found for node, skipping", zap.String("node_id", nodeID))
+		return nil
+	}
+
+	observations := ToTimeSeriesObservations(aggregates)
+
+	req := &protoinferencev1.PredictDailyWeatherRequest{
+		NodeId:      nodeID,
+		IssueTime:   timestamppb.New(now),
+		HorizonDays: horizonDays,
+		History:     observations,
+		Latitude:    &node.Latitude,
+	}
+
+	res, err := c.infGateway.PredictDailyWeather(ctx, req)
+	if err != nil {
+		return fmt.Errorf("predict daily weather for node %q: %w", nodeID, err)
+	}
+
+	dailyPredictions := res.GetPredictions()
+	if len(dailyPredictions) > 0 {
+		predictions := make([]*protodatabasev1.Prediction, len(dailyPredictions))
+		for i, p := range dailyPredictions {
+			predictions[i] = &protodatabasev1.Prediction{
+				NodeId:             p.GetNodeId(),
+				IssueTime:          p.GetIssueTime(),
+				HorizonHours:       p.GetHorizonDays() * 24,
+				MinTemperatureC:    p.MinTemperatureC,
+				MaxTemperatureC:    p.MaxTemperatureC,
+				MinHumidityPct:     p.MinHumidityPct,
+				MaxHumidityPct:     p.MaxHumidityPct,
+				RainfallMm:         p.RainfallMm,
+				RainfallConfidence: p.RainfallConfidence,
+			}
+		}
+		if err := c.dbGateway.StorePredictions(ctx, predictions); err != nil {
+			return fmt.Errorf("store daily predictions for node %q: %w", nodeID, err)
+		}
+	}
+
+	c.log.Info("daily forecast successfully processed",
+		zap.String("node_id", nodeID),
+		zap.Int32("horizon_days", horizonDays),
+		zap.Int("predictions", len(dailyPredictions)),
 	)
 
 	return nil

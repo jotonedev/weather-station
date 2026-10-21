@@ -6,13 +6,13 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
-	protoinferencev1 "weather-station/gen/go/weather/inference/v1"
 	"weather-station/inference-job/controller/inference"
 )
 
-// ForecastRunner abstracts running forecasts for weather prediction modes.
+// ForecastRunner abstracts running forecasts for weather predictions.
 type ForecastRunner interface {
-	RunForecast(ctx context.Context, mode protoinferencev1.PredictionMode) error
+	RunHourlyForecast(ctx context.Context, horizonHours int32) error
+	RunDailyForecast(ctx context.Context, horizonDays int32) error
 }
 
 // RunnerParams defines dependencies required to execute the inference job.
@@ -40,12 +40,12 @@ func runInferenceJob(lc fx.Lifecycle, shutdowner fx.Shutdowner, runner ForecastR
 				var exitCode int
 				log.Info("Starting weather inference job forecast execution")
 
-				if err := runner.RunForecast(ctx, protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_24_HOURS); err != nil {
+				if err := runner.RunHourlyForecast(ctx, 24); err != nil {
 					log.Error("24-hour weather forecast failed", zap.Error(err))
 					exitCode = 1
 				}
 
-				if err := runner.RunForecast(ctx, protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_10_DAYS); err != nil {
+				if err := runner.RunDailyForecast(ctx, 10); err != nil {
 					log.Error("10-day weather forecast failed", zap.Error(err))
 					exitCode = 1
 				}

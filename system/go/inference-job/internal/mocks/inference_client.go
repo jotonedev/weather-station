@@ -62,22 +62,42 @@ func (mr *MockInferenceServiceClientMockRecorder) GetModelInfo(ctx, in any, opts
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetModelInfo", reflect.TypeOf((*MockInferenceServiceClient)(nil).GetModelInfo), varargs...)
 }
 
-// PredictWeather mocks base method.
-func (m *MockInferenceServiceClient) PredictWeather(ctx context.Context, in *inferencev1.PredictWeatherRequest, opts ...grpc.CallOption) (*inferencev1.PredictWeatherResponse, error) {
+// PredictDailyWeather mocks base method.
+func (m *MockInferenceServiceClient) PredictDailyWeather(ctx context.Context, in *inferencev1.PredictDailyWeatherRequest, opts ...grpc.CallOption) (*inferencev1.PredictDailyWeatherResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "PredictWeather", varargs...)
-	ret0, _ := ret[0].(*inferencev1.PredictWeatherResponse)
+	ret := m.ctrl.Call(m, "PredictDailyWeather", varargs...)
+	ret0, _ := ret[0].(*inferencev1.PredictDailyWeatherResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PredictWeather indicates an expected call of PredictWeather.
-func (mr *MockInferenceServiceClientMockRecorder) PredictWeather(ctx, in any, opts ...any) *gomock.Call {
+// PredictDailyWeather indicates an expected call of PredictDailyWeather.
+func (mr *MockInferenceServiceClientMockRecorder) PredictDailyWeather(ctx, in any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PredictWeather", reflect.TypeOf((*MockInferenceServiceClient)(nil).PredictWeather), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PredictDailyWeather", reflect.TypeOf((*MockInferenceServiceClient)(nil).PredictDailyWeather), varargs...)
+}
+
+// PredictHourlyWeather mocks base method.
+func (m *MockInferenceServiceClient) PredictHourlyWeather(ctx context.Context, in *inferencev1.PredictHourlyWeatherRequest, opts ...grpc.CallOption) (*inferencev1.PredictHourlyWeatherResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PredictHourlyWeather", varargs...)
+	ret0, _ := ret[0].(*inferencev1.PredictHourlyWeatherResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PredictHourlyWeather indicates an expected call of PredictHourlyWeather.
+func (mr *MockInferenceServiceClientMockRecorder) PredictHourlyWeather(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PredictHourlyWeather", reflect.TypeOf((*MockInferenceServiceClient)(nil).PredictHourlyWeather), varargs...)
 }

@@ -10,27 +10,32 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/zap"
-
-	protoinferencev1 "weather-station/gen/go/weather/inference/v1"
 )
 
 type mockRunner struct {
-	mu        sync.Mutex
-	modes     []protoinferencev1.PredictionMode
-	failModes map[protoinferencev1.PredictionMode]error
+	mu           sync.Mutex
+	hourlyCalls  []int32
+	dailyCalls   []int32
+	failHourly   error
+	failDaily    error
 }
 
 func newMockRunner() *mockRunner {
-	return &mockRunner{
-		failModes: make(map[protoinferencev1.PredictionMode]error),
-	}
+	return &mockRunner{}
 }
 
-func (m *mockRunner) RunForecast(ctx context.Context, mode protoinferencev1.PredictionMode) error {
+func (m *mockRunner) RunHourlyForecast(ctx context.Context, horizonHours int32) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.modes = append(m.modes, mode)
-	return m.failModes[mode]
+	m.hourlyCalls = append(m.hourlyCalls, horizonHours)
+	return m.failHourly
+}
+
+func (m *mockRunner) RunDailyForecast(ctx context.Context, horizonDays int32) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dailyCalls = append(m.dailyCalls, horizonDays)
+	return m.failDaily
 }
 
 func TestRunInferenceJobSuccess(t *testing.T) {
@@ -60,20 +65,17 @@ func TestRunInferenceJobSuccess(t *testing.T) {
 
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
-	if len(runner.modes) != 2 {
-		t.Fatalf("expected 2 forecasts executed, got %d", len(runner.modes))
+	if len(runner.hourlyCalls) != 1 || runner.hourlyCalls[0] != 24 {
+		t.Fatalf("expected hourly forecast of 24h, got %v", runner.hourlyCalls)
 	}
-	if runner.modes[0] != protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_24_HOURS {
-		t.Errorf("expected first mode to be 24h, got %v", runner.modes[0])
-	}
-	if runner.modes[1] != protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_10_DAYS {
-		t.Errorf("expected second mode to be 10d, got %v", runner.modes[1])
+	if len(runner.dailyCalls) != 1 || runner.dailyCalls[0] != 10 {
+		t.Fatalf("expected daily forecast of 10d, got %v", runner.dailyCalls)
 	}
 }
 
 func TestRunInferenceJobFailure(t *testing.T) {
 	runner := newMockRunner()
-	runner.failModes[protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_24_HOURS] = errors.New("failed")
+	runner.failHourly = errors.New("hourly failed")
 	logger := zap.NewNop()
 
 	app := fxtest.New(

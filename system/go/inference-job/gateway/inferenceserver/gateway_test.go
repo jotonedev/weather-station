@@ -57,13 +57,13 @@ func TestConfig(t *testing.T) {
 	}
 }
 
-func TestGateway(t *testing.T) {
+func TestGatewayPredictHourlyWeather(t *testing.T) {
 	logger := zap.NewNop()
 	errCall := errors.New("rpc failed")
 
 	tests := []struct {
 		name    string
-		req     *protoinferencev1.PredictWeatherRequest
+		req     *protoinferencev1.PredictHourlyWeatherRequest
 		setup   func(client *mocks.MockInferenceServiceClient)
 		wantErr bool
 	}{
@@ -74,28 +74,28 @@ func TestGateway(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "predict weather rpc error",
-			req: &protoinferencev1.PredictWeatherRequest{
-				NodeId: "node-1",
-				Mode:   protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_24_HOURS,
+			name: "predict hourly weather rpc error",
+			req: &protoinferencev1.PredictHourlyWeatherRequest{
+				NodeId:       "node-1",
+				HorizonHours: 24,
 			},
 			setup: func(client *mocks.MockInferenceServiceClient) {
 				client.EXPECT().
-					PredictWeather(gomock.Any(), gomock.Any()).
+					PredictHourlyWeather(gomock.Any(), gomock.Any()).
 					Return(nil, errCall)
 			},
 			wantErr: true,
 		},
 		{
-			name: "predict weather success",
-			req: &protoinferencev1.PredictWeatherRequest{
-				NodeId: "node-1",
-				Mode:   protoinferencev1.PredictionMode_PREDICTION_MODE_NEXT_24_HOURS,
+			name: "predict hourly weather success",
+			req: &protoinferencev1.PredictHourlyWeatherRequest{
+				NodeId:       "node-1",
+				HorizonHours: 24,
 			},
 			setup: func(client *mocks.MockInferenceServiceClient) {
 				client.EXPECT().
-					PredictWeather(gomock.Any(), gomock.Any()).
-					Return(&protoinferencev1.PredictWeatherResponse{}, nil)
+					PredictHourlyWeather(gomock.Any(), gomock.Any()).
+					Return(&protoinferencev1.PredictHourlyWeatherResponse{}, nil)
 			},
 			wantErr: false,
 		},
@@ -115,9 +115,75 @@ func TestGateway(t *testing.T) {
 				t.Fatalf("unexpected New error: %v", err)
 			}
 
-			_, err = gw.PredictWeather(context.Background(), tt.req)
+			_, err = gw.PredictHourlyWeather(context.Background(), tt.req)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("PredictWeather() error = %v, wantErr = %v", err, tt.wantErr)
+				t.Fatalf("PredictHourlyWeather() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGatewayPredictDailyWeather(t *testing.T) {
+	logger := zap.NewNop()
+	errCall := errors.New("rpc failed")
+
+	tests := []struct {
+		name    string
+		req     *protoinferencev1.PredictDailyWeatherRequest
+		setup   func(client *mocks.MockInferenceServiceClient)
+		wantErr bool
+	}{
+		{
+			name:    "nil request returns error",
+			req:     nil,
+			setup:   func(client *mocks.MockInferenceServiceClient) {},
+			wantErr: true,
+		},
+		{
+			name: "predict daily weather rpc error",
+			req: &protoinferencev1.PredictDailyWeatherRequest{
+				NodeId:      "node-1",
+				HorizonDays: 10,
+			},
+			setup: func(client *mocks.MockInferenceServiceClient) {
+				client.EXPECT().
+					PredictDailyWeather(gomock.Any(), gomock.Any()).
+					Return(nil, errCall)
+			},
+			wantErr: true,
+		},
+		{
+			name: "predict daily weather success",
+			req: &protoinferencev1.PredictDailyWeatherRequest{
+				NodeId:      "node-1",
+				HorizonDays: 10,
+			},
+			setup: func(client *mocks.MockInferenceServiceClient) {
+				client.EXPECT().
+					PredictDailyWeather(gomock.Any(), gomock.Any()).
+					Return(&protoinferencev1.PredictDailyWeatherResponse{}, nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			client := mocks.NewMockInferenceServiceClient(ctrl)
+			tt.setup(client)
+
+			gw, err := New(GatewayParams{
+				Logger: logger,
+				Client: client,
+			})
+			if err != nil {
+				t.Fatalf("unexpected New error: %v", err)
+			}
+
+			_, err = gw.PredictDailyWeather(context.Background(), tt.req)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("PredictDailyWeather() error = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
 	}

@@ -84,15 +84,29 @@ func (g *Gateway) Check(ctx context.Context) error {
 	return nil
 }
 
-// PredictWeather sends time series observations and returns forecasted predictions.
-func (g *Gateway) PredictWeather(ctx context.Context, req *protoinferencev1.PredictWeatherRequest) (*protoinferencev1.PredictWeatherResponse, error) {
+// PredictHourlyWeather sends time series observations and returns hourly forecasted predictions.
+func (g *Gateway) PredictHourlyWeather(ctx context.Context, req *protoinferencev1.PredictHourlyWeatherRequest) (*protoinferencev1.PredictHourlyWeatherResponse, error) {
 	if req == nil {
 		return nil, ErrNilRequest
 	}
 
-	res, err := g.client.PredictWeather(ctx, req)
+	res, err := g.client.PredictHourlyWeather(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("predict weather for node %q: %w", req.GetNodeId(), err)
+		return nil, fmt.Errorf("predict hourly weather for node %q: %w", req.GetNodeId(), err)
+	}
+
+	return res, nil
+}
+
+// PredictDailyWeather sends time series observations and returns daily forecasted predictions.
+func (g *Gateway) PredictDailyWeather(ctx context.Context, req *protoinferencev1.PredictDailyWeatherRequest) (*protoinferencev1.PredictDailyWeatherResponse, error) {
+	if req == nil {
+		return nil, ErrNilRequest
+	}
+
+	res, err := g.client.PredictDailyWeather(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("predict daily weather for node %q: %w", req.GetNodeId(), err)
 	}
 
 	return res, nil
