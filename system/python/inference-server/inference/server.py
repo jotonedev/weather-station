@@ -17,11 +17,16 @@ from inference.features import (
     calculate_temporal_covariates,
     extract_observation_dataframe,
     filter_and_impute_columns,
-    generate_future_timestamps,
+    generate_daily_future_timestamps,
+    generate_hourly_future_timestamps,
     sort_observations,
 )
-from inference.formatter import format_predictions
-from inference.validator import ValidationError, validate_request
+from inference.formatter import format_daily_predictions, format_hourly_predictions
+from inference.validator import (
+    ValidationError,
+    validate_daily_request,
+    validate_hourly_request,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,56 +39,41 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         self.backend = backend
         self.config = config
 
-    def PredictWeather(
+    def PredictHourlyWeather(
         self,
-        request: inference_pb2.PredictWeatherRequest,
+        request: inference_pb2.PredictHourlyWeatherRequest,
         context: grpc.ServicerContext,
-    ) -> inference_pb2.PredictWeatherResponse:
-        """PredictWeather runs ingress validation, feature transformations, and time series inference."""
+    ) -> inference_pb2.PredictHourlyWeatherResponse:
+        """PredictHourlyWeather runs ingress validation, feature transformations, and hourly forecasting."""
         try:
-            validate_request(request)
+            validate_hourly_request(request)
         except ValidationError as validation_err:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(validation_err))
-            return inference_pb2.PredictWeatherResponse()
+            return inference_pb2.PredictHourlyWeatherResponse()
 
-        # Resolution of the mode drives both the forecast horizon and the maximum
-        # interpolation gap (hourly mode permits up to 24h, daily up to 7 days).
-        if request.mode == inference_pb2.PREDICTION_MODE_NEXT_24_HOURS:
-            prediction_length = 24
-            max_gap = MAX_GAP_HOURLY
-        elif request.mode == inference_pb2.PREDICTION_MODE_NEXT_10_DAYS:
-            prediction_length = 10
-            max_gap = MAX_GAP_DAILY
-        else:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("invalid prediction mode")
-            return inference_pb2.PredictWeatherResponse()
+        prediction_length = request.horizon_hours
+        max_gap = MAX_GAP_HOURLY
 
-        # Sort observations chronologically
         sorted_observations = sort_observations(request.history)
         observation_df = extract_observation_dataframe(sorted_observations)
 
-        # required temperature/humidity columns always survive column filtering;
-        # a residual imputation failure raises ValidationError rather than
-        # silently zero-filling the model input.
         try:
             clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
         except ValidationError as imputation_err:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(imputation_err))
-            return inference_pb2.PredictWeatherResponse()
+            return inference_pb2.PredictHourlyWeatherResponse()
 
-        # Prepare multivariate target array (n_variates, history_length)
         target = clean_df[surviving_columns].to_numpy(dtype=float).T
 
-        # Temporal covariates
         issue_time_dt = request.issue_time.ToDatetime().replace(tzinfo=UTC)
         past_timestamps = observation_df["timestamp"].tolist()
-        future_timestamps = generate_future_timestamps(issue_time_dt, request.mode)
+        future_timestamps = generate_hourly_future_timestamps(issue_time_dt, request.horizon_hours)
+        lat = request.latitude if request.HasField("latitude") else None
 
-        past_covariates = calculate_temporal_covariates(past_timestamps)
-        future_covariates = calculate_temporal_covariates(future_timestamps)
+        past_covariates = calculate_temporal_covariates(past_timestamps, latitude=lat)
+        future_covariates = calculate_temporal_covariates(future_timestamps, latitude=lat)
 
         max_recommended = self.backend.max_recommended_horizon()
         if max_recommended is not None and prediction_length > max_recommended:
@@ -106,12 +96,12 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             logger.exception("inference execution failed")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"inference execution failed: {inference_err}")
-            return inference_pb2.PredictWeatherResponse()
+            return inference_pb2.PredictHourlyWeatherResponse()
 
-        predictions = format_predictions(
+        predictions = format_hourly_predictions(
             node_id=request.node_id,
             issue_time=request.issue_time,
-            mode=request.mode,
+            horizon_hours=request.horizon_hours,
             quantiles=quantiles,
             target_columns=surviving_columns,
         )
@@ -120,7 +110,83 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         computed_at = Timestamp()
         computed_at.FromDatetime(now)
 
-        return inference_pb2.PredictWeatherResponse(
+        return inference_pb2.PredictHourlyWeatherResponse(
+            predictions=predictions,
+            computed_at=computed_at,
+        )
+
+    def PredictDailyWeather(
+        self,
+        request: inference_pb2.PredictDailyWeatherRequest,
+        context: grpc.ServicerContext,
+    ) -> inference_pb2.PredictDailyWeatherResponse:
+        """PredictDailyWeather runs ingress validation, feature transformations, and daily forecasting."""
+        try:
+            validate_daily_request(request)
+        except ValidationError as validation_err:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(validation_err))
+            return inference_pb2.PredictDailyWeatherResponse()
+
+        prediction_length = request.horizon_days
+        max_gap = MAX_GAP_DAILY
+
+        sorted_observations = sort_observations(request.history)
+        observation_df = extract_observation_dataframe(sorted_observations)
+
+        try:
+            clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
+        except ValidationError as imputation_err:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(imputation_err))
+            return inference_pb2.PredictDailyWeatherResponse()
+
+        target = clean_df[surviving_columns].to_numpy(dtype=float).T
+
+        issue_time_dt = request.issue_time.ToDatetime().replace(tzinfo=UTC)
+        past_timestamps = observation_df["timestamp"].tolist()
+        future_timestamps = generate_daily_future_timestamps(issue_time_dt, request.horizon_days)
+        lat = request.latitude if request.HasField("latitude") else None
+
+        past_covariates = calculate_temporal_covariates(past_timestamps, latitude=lat)
+        future_covariates = calculate_temporal_covariates(future_timestamps, latitude=lat)
+
+        max_recommended = self.backend.max_recommended_horizon()
+        if max_recommended is not None and prediction_length > max_recommended:
+            logger.warning(
+                "prediction length %d exceeds the recommended maximum of %d for model %s; "
+                "longer forecasts may degrade in quality",
+                prediction_length,
+                max_recommended,
+                self.backend.model_name,
+            )
+
+        try:
+            quantiles, _ = self.backend.predict(
+                target=target,
+                past_covariates=past_covariates,
+                future_covariates=future_covariates,
+                prediction_length=prediction_length,
+            )
+        except Exception as inference_err:
+            logger.exception("inference execution failed")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"inference execution failed: {inference_err}")
+            return inference_pb2.PredictDailyWeatherResponse()
+
+        predictions = format_daily_predictions(
+            node_id=request.node_id,
+            issue_time=request.issue_time,
+            horizon_days=request.horizon_days,
+            quantiles=quantiles,
+            target_columns=surviving_columns,
+        )
+
+        now = datetime.now(UTC)
+        computed_at = Timestamp()
+        computed_at.FromDatetime(now)
+
+        return inference_pb2.PredictDailyWeatherResponse(
             predictions=predictions,
             computed_at=computed_at,
         )

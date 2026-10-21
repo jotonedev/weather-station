@@ -48,8 +48,8 @@ def test_grpc_get_model_info(grpc_service: inference_pb2_grpc.InferenceServiceSt
     assert response.max_horizon_hours == 240
 
 
-def test_grpc_predict_weather_success(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
-    """Test_grpc_predict_weather_success tests successful 24-hour forecasting over gRPC."""
+def test_grpc_predict_hourly_weather_success(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
+    """Test_grpc_predict_hourly_weather_success tests successful 24-hour forecasting over gRPC."""
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
@@ -69,14 +69,14 @@ def test_grpc_predict_weather_success(grpc_service: inference_pb2_grpc.Inference
         )
         observations.append(obs)
 
-    request = inference_pb2.PredictWeatherRequest(
+    request = inference_pb2.PredictHourlyWeatherRequest(
         node_id="station-alpha",
-        mode=inference_pb2.PREDICTION_MODE_NEXT_24_HOURS,
         issue_time=issue_time,
+        horizon_hours=24,
         history=observations,
     )
 
-    response = grpc_service.PredictWeather(request)
+    response = grpc_service.PredictHourlyWeather(request)
 
     assert len(response.predictions) == 24
     assert response.HasField("computed_at")
@@ -86,25 +86,24 @@ def test_grpc_predict_weather_success(grpc_service: inference_pb2_grpc.Inference
     assert response.predictions[0].HasField("temperature_c")
     assert response.predictions[0].HasField("humidity_pct")
     assert response.predictions[0].HasField("rainfall_mm")
-    assert response.predictions[0].HasField("wind_direction_deg")
 
 
-def test_grpc_predict_weather_validation_error(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
-    """Test_grpc_predict_weather_validation_error tests rejection of malformed request."""
-    request = inference_pb2.PredictWeatherRequest(
+def test_grpc_predict_hourly_weather_validation_error(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
+    """Test_grpc_predict_hourly_weather_validation_error tests rejection of malformed request."""
+    request = inference_pb2.PredictHourlyWeatherRequest(
         node_id="",
-        mode=inference_pb2.PREDICTION_MODE_UNSPECIFIED,
+        horizon_hours=0,
     )
 
     with pytest.raises(grpc.RpcError) as exc_info:
-        grpc_service.PredictWeather(request)
+        grpc_service.PredictHourlyWeather(request)
 
     assert isinstance(exc_info.value, grpc.Call)
     assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
 
 
-def test_grpc_predict_weather_daily_mode(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
-    """Test_grpc_predict_weather_daily_mode tests successful 10-day forecasting over gRPC."""
+def test_grpc_predict_daily_weather_success(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
+    """Test_grpc_predict_daily_weather_success tests successful 10-day forecasting over gRPC."""
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
@@ -116,20 +115,24 @@ def test_grpc_predict_weather_daily_mode(grpc_service: inference_pb2_grpc.Infere
             timestamp=timestamp,
             temperature_c=18.0,
             humidity_pct=65.0,
+            min_temperature_c=12.0,
+            max_temperature_c=22.0,
+            min_humidity_pct=50.0,
+            max_humidity_pct=80.0,
         )
         observations.append(obs)
 
-    request = inference_pb2.PredictWeatherRequest(
+    request = inference_pb2.PredictDailyWeatherRequest(
         node_id="station-beta",
-        mode=inference_pb2.PREDICTION_MODE_NEXT_10_DAYS,
         issue_time=issue_time,
+        horizon_days=10,
         history=observations,
     )
 
-    response = grpc_service.PredictWeather(request)
+    response = grpc_service.PredictDailyWeather(request)
     assert len(response.predictions) == 10
-    assert response.predictions[0].horizon_hours == 24
-    assert response.predictions[-1].horizon_hours == 240
+    assert response.predictions[0].horizon_days == 1
+    assert response.predictions[-1].horizon_days == 10
 
 
 def test_grpc_predict_weather_warns_when_horizon_exceeds_recommendation(
@@ -151,15 +154,15 @@ def test_grpc_predict_weather_warns_when_horizon_exceeds_recommendation(
         )
         observations.append(obs)
 
-    request = inference_pb2.PredictWeatherRequest(
+    request = inference_pb2.PredictHourlyWeatherRequest(
         node_id="station-alpha",
-        mode=inference_pb2.PREDICTION_MODE_NEXT_24_HOURS,
         issue_time=issue_time,
+        horizon_hours=24,
         history=observations,
     )
 
     with caplog.at_level(logging.WARNING, logger="inference.server"):
-        response = grpc_service.PredictWeather(request)
+        response = grpc_service.PredictHourlyWeather(request)
 
     assert len(response.predictions) == 24
     assert any("exceeds the recommended maximum" in record.message for record in caplog.records)
@@ -200,15 +203,15 @@ def test_grpc_predict_weather_no_horizon_warning_with_timestral(
             )
             observations.append(obs)
 
-        request = inference_pb2.PredictWeatherRequest(
+        request = inference_pb2.PredictHourlyWeatherRequest(
             node_id="station-alpha",
-            mode=inference_pb2.PREDICTION_MODE_NEXT_24_HOURS,
             issue_time=issue_time,
+            horizon_hours=24,
             history=observations,
         )
 
         with caplog.at_level(logging.WARNING, logger="inference.server"):
-            response = stub.PredictWeather(request)
+            response = stub.PredictHourlyWeather(request)
 
         assert len(response.predictions) == 24
         assert not any("exceeds the recommended maximum" in record.message for record in caplog.records)

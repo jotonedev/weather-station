@@ -3,18 +3,15 @@ from datetime import UTC, datetime
 
 import numpy as np
 from google.protobuf.timestamp_pb2 import Timestamp
-from weather.inference.v1.inference_pb2 import (
-    PREDICTION_MODE_NEXT_10_DAYS,
-    PREDICTION_MODE_NEXT_24_HOURS,
-    TimeSeriesObservation,
-)
+from weather.inference.v1.inference_pb2 import TimeSeriesObservation
 
 from inference.features import (
     MAX_GAP_HOURLY,
     calculate_temporal_covariates,
     extract_observation_dataframe,
     filter_and_impute_columns,
-    generate_future_timestamps,
+    generate_daily_future_timestamps,
+    generate_hourly_future_timestamps,
     sort_observations,
 )
 
@@ -34,8 +31,8 @@ def test_sort_observations() -> None:
     assert sorted_result[1].timestamp.seconds == 200
 
 
-def test_wind_direction_modeled_and_wind_speed_ignored() -> None:
-    """Test_wind_direction_modeled_and_wind_speed_ignored ensures wind_direction_deg enters the model while wind_speed_mps does not."""
+def test_wind_features_modeled() -> None:
+    """Test_wind_features_modeled ensures wind speed, direction, and vector components enter the model."""
     timestamp = Timestamp()
     timestamp.FromSeconds(1000)
 
@@ -53,9 +50,11 @@ def test_wind_direction_modeled_and_wind_speed_ignored() -> None:
     _clean_df, surviving_columns = filter_and_impute_columns(dataframe)
 
     assert "wind_direction_deg" in surviving_columns
-    assert "wind_speed_mps" not in surviving_columns
-    assert "wind_u" not in surviving_columns
-    assert "wind_v" not in surviving_columns
+    assert "wind_speed_mps" in surviving_columns
+    assert "wind_u" in surviving_columns
+    assert "wind_v" in surviving_columns
+    assert "temp_range_c" in surviving_columns
+    assert "dew_point_c" in surviving_columns
 
 
 def test_column_filtering_sparse_column_dropped() -> None:
@@ -219,12 +218,12 @@ def test_generate_future_timestamps() -> None:
     """Test_generate_future_timestamps checks sequence lengths for hourly and daily modes."""
     issue_time = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
-    hourly_steps = generate_future_timestamps(issue_time, PREDICTION_MODE_NEXT_24_HOURS)
+    hourly_steps = generate_hourly_future_timestamps(issue_time, 24)
     assert len(hourly_steps) == 24
     assert hourly_steps[0] == datetime(2026, 1, 1, 13, 0, tzinfo=UTC)
     assert hourly_steps[-1] == datetime(2026, 1, 2, 12, 0, tzinfo=UTC)
 
-    daily_steps = generate_future_timestamps(issue_time, PREDICTION_MODE_NEXT_10_DAYS)
+    daily_steps = generate_daily_future_timestamps(issue_time, 10)
     assert len(daily_steps) == 10
     assert daily_steps[0] == datetime(2026, 1, 2, 12, 0, tzinfo=UTC)
     assert daily_steps[-1] == datetime(2026, 1, 11, 12, 0, tzinfo=UTC)

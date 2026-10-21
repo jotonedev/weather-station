@@ -1,10 +1,6 @@
 import numpy as np
 from google.protobuf.timestamp_pb2 import Timestamp
-from weather.database.v1.prediction_pb2 import Prediction
-from weather.inference.v1.inference_pb2 import (
-    PREDICTION_MODE_NEXT_10_DAYS,
-    PREDICTION_MODE_NEXT_24_HOURS,
-)
+from weather.database.v1.prediction_pb2 import DailyPrediction, HourlyPrediction
 
 
 def compute_confidence(spread: float, scale: float) -> float:
@@ -13,50 +9,34 @@ def compute_confidence(spread: float, scale: float) -> float:
     return float(np.clip(confidence, 0.0, 1.0))
 
 
-def format_predictions(
+def format_hourly_predictions(
     node_id: str,
     issue_time: Timestamp,
-    mode: int,
+    horizon_hours: int,
     quantiles: np.ndarray,
     target_columns: list[str],
-) -> list[Prediction]:
-    """format_predictions converts model quantile forecasts into database prediction records."""
-    if mode == PREDICTION_MODE_NEXT_24_HOURS:
-        horizon_hours_list = list(range(1, 25))
-    elif mode == PREDICTION_MODE_NEXT_10_DAYS:
-        horizon_hours_list = [step * 24 for step in range(1, 11)]
-    else:
-        return []
-
+) -> list[HourlyPrediction]:
+    """format_hourly_predictions converts model quantiles into HourlyPrediction records."""
     var_indices = {col: idx for idx, col in enumerate(target_columns)}
     predictions = []
-    total_steps = min(len(horizon_hours_list), quantiles.shape[1])
+    total_steps = min(horizon_hours, quantiles.shape[1])
 
     for step_idx in range(total_steps):
-        horizon_hour = horizon_hours_list[step_idx]
-        prediction = Prediction(
+        step_hour = step_idx + 1
+        prediction = HourlyPrediction(
             node_id=node_id,
             issue_time=issue_time,
-            horizon_hours=horizon_hour,
+            horizon_hours=step_hour,
         )
 
-        # Temperature
         if "temperature_c" in var_indices:
             idx = var_indices["temperature_c"]
-            temp_med = float(np.clip(quantiles[idx, step_idx, 1], -90.0, 70.0))
-            temp_spread = float(quantiles[idx, step_idx, 2] - quantiles[idx, step_idx, 0])
-            prediction.temperature_c = temp_med
-            prediction.temperature_confidence = compute_confidence(temp_spread, 20.0)
+            prediction.temperature_c = float(np.clip(quantiles[idx, step_idx, 1], -90.0, 70.0))
 
-        # Humidity
         if "humidity_pct" in var_indices:
             idx = var_indices["humidity_pct"]
-            hum_med = float(np.clip(quantiles[idx, step_idx, 1], 0.0, 100.0))
-            hum_spread = float(quantiles[idx, step_idx, 2] - quantiles[idx, step_idx, 0])
-            prediction.humidity_pct = hum_med
-            prediction.humidity_confidence = compute_confidence(hum_spread, 50.0)
+            prediction.humidity_pct = float(np.clip(quantiles[idx, step_idx, 1], 0.0, 100.0))
 
-        # Rainfall
         if "rainfall_mm" in var_indices:
             idx = var_indices["rainfall_mm"]
             rain_med = float(max(0.0, quantiles[idx, step_idx, 1]))
@@ -64,13 +44,69 @@ def format_predictions(
             prediction.rainfall_mm = rain_med
             prediction.rainfall_confidence = compute_confidence(rain_spread, 20.0)
 
-        # Wind direction
-        if "wind_direction_deg" in var_indices:
-            idx = var_indices["wind_direction_deg"]
-            wind_med = float(np.mod(quantiles[idx, step_idx, 1], 360.0))
-            wind_spread = float(quantiles[idx, step_idx, 2] - quantiles[idx, step_idx, 0])
-            prediction.wind_direction_deg = wind_med
-            prediction.wind_direction_confidence = compute_confidence(wind_spread, 180.0)
+        predictions.append(prediction)
+
+    return predictions
+
+
+def format_daily_predictions(
+    node_id: str,
+    issue_time: Timestamp,
+    horizon_days: int,
+    quantiles: np.ndarray,
+    target_columns: list[str],
+) -> list[DailyPrediction]:
+    """format_daily_predictions converts model quantiles into DailyPrediction records."""
+    var_indices = {col: idx for idx, col in enumerate(target_columns)}
+    predictions = []
+    total_steps = min(horizon_days, quantiles.shape[1])
+
+    for step_idx in range(total_steps):
+        step_day = step_idx + 1
+        prediction = DailyPrediction(
+            node_id=node_id,
+            issue_time=issue_time,
+            horizon_days=step_day,
+        )
+
+        min_temp, max_temp = None, None
+        if "min_temperature_c" in var_indices:
+            idx = var_indices["min_temperature_c"]
+            min_temp = float(np.clip(quantiles[idx, step_idx, 1], -90.0, 70.0))
+        if "max_temperature_c" in var_indices:
+            idx = var_indices["max_temperature_c"]
+            max_temp = float(np.clip(quantiles[idx, step_idx, 1], -90.0, 70.0))
+
+        if min_temp is not None and max_temp is not None and min_temp > max_temp:
+            min_temp, max_temp = max_temp, min_temp
+
+        if min_temp is not None:
+            prediction.min_temperature_c = min_temp
+        if max_temp is not None:
+            prediction.max_temperature_c = max_temp
+
+        min_hum, max_hum = None, None
+        if "min_humidity_pct" in var_indices:
+            idx = var_indices["min_humidity_pct"]
+            min_hum = float(np.clip(quantiles[idx, step_idx, 1], 0.0, 100.0))
+        if "max_humidity_pct" in var_indices:
+            idx = var_indices["max_humidity_pct"]
+            max_hum = float(np.clip(quantiles[idx, step_idx, 1], 0.0, 100.0))
+
+        if min_hum is not None and max_hum is not None and min_hum > max_hum:
+            min_hum, max_hum = max_hum, min_hum
+
+        if min_hum is not None:
+            prediction.min_humidity_pct = min_hum
+        if max_hum is not None:
+            prediction.max_humidity_pct = max_hum
+
+        if "rainfall_mm" in var_indices:
+            idx = var_indices["rainfall_mm"]
+            rain_med = float(max(0.0, quantiles[idx, step_idx, 1]))
+            rain_spread = float(quantiles[idx, step_idx, 2] - quantiles[idx, step_idx, 0])
+            prediction.rainfall_mm = rain_med
+            prediction.rainfall_confidence = compute_confidence(rain_spread, 20.0)
 
         predictions.append(prediction)
 
