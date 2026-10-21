@@ -117,7 +117,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ matrix.service }}-${{ hashFiles(format('system/go/{0}/Dockerfile', matrix.service), 'system/go.work', 'system/go.work.sum', format('system/go/{0}/**', matrix.service)) }}
+          key: ${{ runner.os }}-buildx-${{ matrix.service }}-${{ hashFiles(format('system/go/{0}/**', matrix.service), 'system/go/common/**', 'system/proto/gen/go/**') }}
           restore-keys: |
             ${{ runner.os }}-buildx-${{ matrix.service }}-
 

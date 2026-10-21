@@ -3,10 +3,11 @@ FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build-stage
 ARG TARGETOS=linux
 ARG TARGETARCH
 
+ENV GOWORK=off
+
 WORKDIR /workspace
 
-# Copy workspace definition and required module manifests
-COPY go.work go.work.sum ./
+# Copy module manifests for dependency caching
 COPY go/common/go.mod go/common/go.sum ./go/common/
 COPY proto/gen/go/go.mod proto/gen/go/go.sum ./proto/gen/go/
 COPY go/inference-job/go.mod go/inference-job/go.sum ./go/inference-job/
@@ -25,11 +26,12 @@ COPY go/inference-job/ ./go/inference-job/
 # Compile binary (pure Go, statically linked)
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -C go/inference-job \
     -trimpath \
     -ldflags="-s -w" \
     -o /service \
-    ./go/inference-job/cmd
+    ./cmd
 
 FROM gcr.io/distroless/static-debian12:nonroot AS release-stage
 

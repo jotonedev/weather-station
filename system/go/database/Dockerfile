@@ -11,6 +11,8 @@ FROM --platform=$BUILDPLATFORM golang:1.27-bookworm AS build-stage
 ARG TARGETOS=linux
 ARG TARGETARCH
 
+ENV GOWORK=off
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
@@ -18,8 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace
 
-# Copy workspace definition and required module manifests
-COPY go.work go.work.sum ./
+# Copy module manifests for dependency caching
 COPY go/common/go.mod go/common/go.sum ./go/common/
 COPY proto/gen/go/go.mod proto/gen/go/go.sum ./proto/gen/go/
 COPY go/database/go.mod go/database/go.sum ./go/database/
@@ -42,11 +43,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CC=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64-linux-gnu-gcc" || echo "gcc") \
     CXX=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64-linux-gnu-g++" || echo "g++") \
-    CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -C go/database \
     -trimpath \
     -ldflags="-s -w" \
     -o /service \
-    ./go/database/cmd
+    ./cmd
 
 FROM gcr.io/distroless/cc-debian12:nonroot AS release-stage
 
