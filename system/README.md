@@ -36,6 +36,7 @@ system/
 - `data-ingest` (golang): ingest service for the data coming from the MCU
 - `inference-job` (golang): cron-job that retrieves data from database and predicts the future weather
 - `inference-server` (python): inference server for time series forecasting, with pluggable model backends (timestral by default, chronos-2 available).
+- `test-generator` (golang): test service to generate synthetic weather telemetry for data-ingest
 
 
 ```mermaid
@@ -50,10 +51,12 @@ architecture-beta
     service frontend(server)[Frontend] in api
 
     service weather-station(server)[Weather Station] in source
+    service test-generator(server)[Test Generator] in source
 
     db:R -- L:inference-job
     inference-job:R -- L:inference-server
     db:T -- B:frontend
     db:L -- R:data-ingest
     weather-station:T -- B:data-ingest
+    test-generator:T -- B:data-ingest
 ```
