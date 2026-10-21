@@ -3,26 +3,8 @@
 # Usage:
 #   docker build -f python/inference-server/Dockerfile -t weather-station/inference-server .
 
-ARG GO_VERSION=1.27
-FROM golang:${GO_VERSION}-alpine AS probe-builder
-
-ENV GOWORK=off
-
-WORKDIR /workspace/go/common
-COPY go/common/go.mod go/common/go.sum ./
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
-
-COPY go/common/ ./
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build \
-    -trimpath \
-    -ldflags="-s -w" \
-    -o /grpc-health-probe \
-    ./cmd/healthprobe
+ARG HEALTHPROBE_IMAGE=weather-station/healthprobe:latest
+FROM ${HEALTHPROBE_IMAGE} AS healthprobe
 
 FROM ghcr.io/astral-sh/uv:0.13.3 AS uv-bin
 
@@ -85,7 +67,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Copy virtualenv and required code from build stage
 COPY --from=build-stage --chown=appuser:appuser /workspace/proto/gen/python /workspace/proto/gen/python
 COPY --from=build-stage --chown=appuser:appuser /workspace/python/inference-server /workspace/python/inference-server
-COPY --from=probe-builder /grpc-health-probe /usr/local/bin/grpc-health-probe
+COPY --from=healthprobe /grpc-health-probe /usr/local/bin/grpc-health-probe
 
 USER 10001:10001
 
