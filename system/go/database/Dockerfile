@@ -10,13 +10,17 @@ FROM --platform=$BUILDPLATFORM golang:1.27-bookworm AS build-stage
 
 ARG TARGETOS=linux
 ARG TARGETARCH
+ARG BUILDARCH
 
 ENV GOWORK=off
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    if [ "$BUILDARCH" = "arm64" ]; then \
+        apt-get install -y --no-install-recommends gcc-x86-64-linux-gnu g++-x86-64-linux-gnu; \
+    else \
+        apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 
@@ -41,8 +45,15 @@ RUN mkdir -p /data
 # Compile binary (CGO_ENABLED=1 for embedded DuckDB)
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CC=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64-linux-gnu-gcc" || echo "gcc") \
-    CXX=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64-linux-gnu-g++" || echo "g++") \
+    if [ "$TARGETARCH" = "$BUILDARCH" ]; then \
+        export CC=gcc CXX=g++; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        export CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++; \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        export CC=x86_64-linux-gnu-gcc CXX=x86_64-linux-gnu-g++; \
+    else \
+        export CC=gcc CXX=g++; \
+    fi && \
     CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -C go/database \
     -trimpath \
