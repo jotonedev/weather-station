@@ -1,0 +1,767 @@
+{{- define "weather-icon" -}}
+{{- if eq . "snow" -}}
+<svg class="wx-icon wx-snow" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M46 38H20a10 10 0 0 1-1.2-19.93A14 14 0 0 1 45.6 16a11 11 0 0 1 .4 22Z" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24" cy="46" r="2.5" fill="#38bdf8"/>
+  <circle cx="32" cy="50" r="2.5" fill="#38bdf8"/>
+  <circle cx="40" cy="46" r="2.5" fill="#38bdf8"/>
+  <circle cx="28" cy="56" r="2.5" fill="#38bdf8"/>
+  <circle cx="36" cy="56" r="2.5" fill="#38bdf8"/>
+</svg>
+{{- else if eq . "heavy-rain" -}}
+<svg class="wx-icon wx-heavy-rain" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M46 36H20a10 10 0 0 1-1.2-19.93A14 14 0 0 1 45.6 14a11 11 0 0 1 .4 22Z" fill="currentColor" fill-opacity="0.22" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23 42l-4 12M33 42l-4 12M43 42l-4 12M28 48l-3 9M38 48l-3 9" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+</svg>
+{{- else if eq . "light-rain" -}}
+<svg class="wx-icon wx-light-rain" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M46 38H20a10 10 0 0 1-1.2-19.93A14 14 0 0 1 45.6 16a11 11 0 0 1 .4 22Z" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M25 44l-3 9M34 44l-3 9M43 44l-3 9" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+</svg>
+{{- else if eq . "cloudy" -}}
+<svg class="wx-icon wx-cloudy" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M48 44H20a11 11 0 0 1-1.3-21.92A15 15 0 0 1 47.5 20a12 12 0 0 1 .5 24Z" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{{- else if eq . "partly-cloudy" -}}
+<svg class="wx-icon wx-partly-cloudy" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <circle cx="24" cy="24" r="9" fill="#fbbf24" fill-opacity="0.25" stroke="#fbbf24" stroke-width="3"/>
+  <path d="M24 9v4M13.4 13.4l2.8 2.8M9 24h4M13.4 34.6l2.8-2.8M34.6 13.4l-2.8 2.8" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M47 46H23a9.5 9.5 0 0 1-1.1-18.93A13 13 0 0 1 46.5 25a10.5 10.5 0 0 1 .5 21Z" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{{- else -}}
+<svg class="wx-icon wx-sunny" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <circle cx="32" cy="32" r="12" fill="#fbbf24" fill-opacity="0.25" stroke="#fbbf24" stroke-width="3"/>
+  <path d="M32 10v6M32 48v6M10 32h6M48 32h6M16.4 16.4l4.2 4.2M43.4 43.4l4.2 4.2M47.6 16.4l-4.2 4.2M20.6 43.4l-4.2 4.2" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+</svg>
+{{- end -}}
+{{- end -}}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ .Title }}</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --bg-gradient: radial-gradient(circle at 15% 0%, #172554 0%, #0b1120 55%);
+      --card-bg: rgba(30, 41, 59, 0.78);
+      --card-bg-elevated: rgba(30, 41, 59, 0.95);
+      --border: rgba(148, 163, 184, 0.18);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-dim: rgba(56, 189, 248, 0.14);
+      --gold: #fbbf24;
+      --green: #4ade80;
+      --amber: #facc15;
+      --orange: #fb923c;
+      --red: #f87171;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f1f5f9;
+        --bg-gradient: linear-gradient(180deg, #e0f2fe 0%, #f1f5f9 340px);
+        --card-bg: rgba(255, 255, 255, 0.9);
+        --card-bg-elevated: #ffffff;
+        --border: #cbd5e1;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --accent: #0284c7;
+        --accent-dim: rgba(2, 132, 199, 0.1);
+        --gold: #d97706;
+        --green: #16a34a;
+        --amber: #ca8a04;
+        --orange: #ea580c;
+        --red: #dc2626;
+        --shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.08);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      background-image: var(--bg-gradient);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+    }
+    .brand-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .title-group h1 {
+      font-size: 1.625rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+    .station-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.125rem;
+    }
+    .station-subtitle strong {
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .station-selector form {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.625rem;
+      border-radius: 0.625rem;
+    }
+    .station-selector label {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .station-selector select {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.625rem;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .station-selector select option {
+      background: var(--bg);
+      color: var(--text);
+    }
+    .station-selector button {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 0.375rem 0.75rem;
+      border-radius: 0.375rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .alert-error {
+      background: rgba(248, 113, 113, 0.12);
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 0.875rem 1rem;
+      border-radius: 0.625rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.875rem;
+    }
+    .hero-banner {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .hero-main {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .hero-icon-wrap .wx-icon {
+      width: 4.75rem;
+      height: 4.75rem;
+      color: var(--accent);
+    }
+    .hero-temp {
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+    .hero-condition {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 0.25rem;
+    }
+    .hero-meta {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 0.375rem;
+    }
+    .hero-meta strong {
+      color: var(--text);
+    }
+    .hero-pills {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 0.75rem;
+      flex: 1;
+      min-width: 280px;
+      max-width: 560px;
+    }
+    .hero-pill {
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.75rem 0.875rem;
+    }
+    .hero-pill-label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+    .hero-pill-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.375rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .section-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.125rem;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    .section-subtitle {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+    .forecast-strip {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(148px, 1fr);
+      gap: 0.875rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+      scrollbar-width: thin;
+    }
+    .forecast-card {
+      background: var(--card-bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 1rem 0.875rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 0.5rem;
+    }
+    .forecast-time {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .forecast-horizon-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 0.125rem 0.5rem;
+      border-radius: 999px;
+    }
+    .forecast-icon-wrap .wx-icon {
+      width: 3.25rem;
+      height: 3.25rem;
+      color: var(--accent);
+      margin: 0.25rem 0;
+    }
+    .forecast-cond-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .forecast-temp {
+      font-size: 1.375rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .forecast-details {
+      width: 100%;
+      border-top: 1px solid var(--border);
+      padding-top: 0.625rem;
+      margin-top: 0.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+    }
+    .forecast-detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+    }
+    .forecast-detail-row strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .confidence-bar-wrap {
+      width: 100%;
+      margin-top: 0.25rem;
+    }
+    .confidence-bar-track {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 0.2rem;
+    }
+    .confidence-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 999px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.625rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    .aq-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .aq-good { background: rgba(74, 222, 128, 0.16); color: var(--green); }
+    .aq-moderate { background: rgba(250, 204, 21, 0.16); color: var(--amber); }
+    .aq-sensitive { background: rgba(251, 146, 60, 0.16); color: var(--orange); }
+    .aq-unhealthy { background: rgba(248, 113, 113, 0.16); color: var(--red); }
+    .aq-unknown { background: var(--accent-dim); color: var(--text-muted); }
+    .metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .metric-label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .metric-value {
+      font-size: 1.0625rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .metric-value.featured {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+    .wind-arrow {
+      width: 1rem;
+      height: 1rem;
+      display: inline-block;
+      color: var(--accent);
+    }
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: -0.25rem;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 999px;
+    }
+    details.diagnostics-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 0.875rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    details.diagnostics-panel summary {
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      user-select: none;
+    }
+    .diagnostics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      background: var(--card-bg);
+      border: 1px dashed var(--border);
+      border-radius: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .empty-state h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .empty-state p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <svg class="brand-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="19" cy="19" r="7" stroke="currentColor" stroke-width="3"/>
+          <path d="M19 7v3M10.5 10.5l2.1 2.1M7 19h3M27.5 10.5l-2.1 2.1" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M36 37H18a7.5 7.5 0 0 1-.9-14.94A10.5 10.5 0 0 1 35.6 20a8.5 8.5 0 0 1 .4 17Z" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <h1>Weather Station</h1>
+          {{ if .SelectedNodeID }}
+          <div class="station-subtitle">Station: <strong>{{ .SelectedNodeID }}</strong></div>
+          {{ end }}
+        </div>
+      </div>
+      {{ if .AvailableNodes }}
+      <div class="station-selector">
+        <form method="GET" action="/">
+          <label for="node_id">Station</label>
+          <select id="node_id" name="node_id" onchange="this.form.submit()">
+            {{ range .AvailableNodes }}
+            <option value="{{ . }}" {{ if eq . $.SelectedNodeID }}selected{{ end }}>{{ . }}</option>
+            {{ end }}
+          </select>
+          <button type="submit">View</button>
+        </form>
+      </div>
+      {{ end }}
+    </header>
+
+    {{ if .ErrorMessage }}
+    <div class="alert-error">{{ .ErrorMessage }}</div>
+    {{ end }}
+
+    {{ if or .LatestReading .Forecast }}
+      {{ if .LatestReading }}
+      <!-- Hero Current Conditions Banner -->
+      <section class="hero-banner" aria-label="Current weather">
+        <div class="hero-main">
+          <div class="hero-icon-wrap">
+            {{ template "weather-icon" .LatestReading.ConditionIcon }}
+          </div>
+          <div>
+            <div class="hero-temp">{{ .LatestReading.Temperature }}</div>
+            <div class="hero-condition">{{ .LatestReading.ConditionLabel }}</div>
+            <div class="hero-meta">
+              Latest sample taken at <strong>{{ .LatestReading.FormattedTime }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-pills">
+          <div class="hero-pill">
+            <span class="hero-pill-label">Humidity</span>
+            <span class="hero-pill-value">{{ .LatestReading.Humidity }}</span>
+          </div>
+          <div class="hero-pill">
+            <span class="hero-pill-label">Pressure</span>
+            <span class="hero-pill-value">{{ .LatestReading.Pressure }}</span>
+          </div>
+          <div class="hero-pill">
+            <span class="hero-pill-label">Wind</span>
+            <span class="hero-pill-value">
+              {{ .LatestReading.WindSpeed }}
+              {{ if .LatestReading.HasWindAngle }}
+              <svg class="wind-arrow" style="transform: rotate({{ .LatestReading.WindRotationDeg }}deg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              <span>{{ .LatestReading.WindCardinal }}</span>
+              {{ end }}
+            </span>
+          </div>
+          <div class="hero-pill">
+            <span class="hero-pill-label">Air Quality</span>
+            <span class="hero-pill-value">
+              <span class="aq-badge aq-{{ .LatestReading.AirQualityLevel }}">{{ .LatestReading.AirQualityLabel }}</span>
+            </span>
+          </div>
+        </div>
+      </section>
+      {{ end }}
+
+      <!-- Weather Forecast Section -->
+      <section class="section-card" aria-label="Weather forecast">
+        <div class="section-header">
+          <h2 class="section-title">Weather Forecast</h2>
+          {{ if .ForecastIssuedAt }}
+          <span class="section-subtitle">Issued {{ .ForecastIssuedAt }}</span>
+          {{ end }}
+        </div>
+
+        {{ if .Forecast }}
+        <div class="forecast-strip">
+          {{ range .Forecast }}
+          <div class="forecast-card">
+            <span class="forecast-time">{{ .HorizonLabel }}</span>
+            <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
+            <div class="forecast-icon-wrap">
+              {{ template "weather-icon" .ConditionIcon }}
+            </div>
+            <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
+            <span class="forecast-temp">{{ .Temperature }}</span>
+
+            <div class="forecast-details">
+              <div class="forecast-detail-row">
+                <span>Rain</span>
+                <strong>{{ .Rainfall }}</strong>
+              </div>
+              <div class="forecast-detail-row">
+                <span>Humidity</span>
+                <strong>{{ .Humidity }}</strong>
+              </div>
+              {{ if .HasWindDirection }}
+              <div class="forecast-detail-row">
+                <span>Wind Dir</span>
+                <strong>{{ .WindCardinal }} ({{ .WindDirection }})</strong>
+              </div>
+              {{ end }}
+              <div class="confidence-bar-wrap">
+                <div class="forecast-detail-row">
+                  <span>Confidence</span>
+                  <strong>{{ .Confidence }}</strong>
+                </div>
+                <div class="confidence-bar-track">
+                  <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {{ end }}
+        </div>
+        {{ else }}
+        <p class="section-subtitle">No forecast predictions available for this station yet.</p>
+        {{ end }}
+      </section>
+
+      {{ if .LatestReading }}
+      <!-- Current Weather & Air Quality Cards -->
+      <div class="grid">
+        <!-- Climate Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Climate</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">Temperature</span>
+              <span class="metric-value featured">{{ .LatestReading.Temperature }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Humidity</span>
+              <span class="metric-value">{{ .LatestReading.Humidity }}</span>
+            </div>
+            <div class="progress-track" aria-hidden="true">
+              <div class="progress-fill" style="width: {{ .LatestReading.HumidityPercent }}%"></div>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Pressure</span>
+              <span class="metric-value">{{ .LatestReading.Pressure }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wind Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Wind</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">Wind Speed</span>
+              <span class="metric-value featured">{{ .LatestReading.WindSpeed }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Direction</span>
+              <span class="metric-value">
+                {{ if .LatestReading.HasWindAngle }}
+                <svg class="wind-arrow" style="transform: rotate({{ .LatestReading.WindRotationDeg }}deg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 19V5M5 12l7-7 7 7"/>
+                </svg>
+                <span>{{ .LatestReading.WindCardinal }} ({{ .LatestReading.WindAngle }})</span>
+                {{ else }}
+                <span>{{ .LatestReading.WindAngle }}</span>
+                {{ end }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rainfall Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Rainfall</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">Rain Rate</span>
+              <span class="metric-value featured">{{ .LatestReading.RainRate }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Last 1 Hour</span>
+              <span class="metric-value">{{ .LatestReading.Rain1h }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Last 24 Hours</span>
+              <span class="metric-value">{{ .LatestReading.Rain24h }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Air Quality Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Air Quality</span>
+            <span class="aq-badge aq-{{ .LatestReading.AirQualityLevel }}">{{ .LatestReading.AirQualityLabel }}</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">PM2.5</span>
+              <span class="metric-value featured">{{ .LatestReading.PM2_5 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">PM10</span>
+              <span class="metric-value">{{ .LatestReading.PM10_0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">PM1.0</span>
+              <span class="metric-value">{{ .LatestReading.PM1_0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">VOC</span>
+              <span class="metric-value">{{ .LatestReading.VOC }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sensor Diagnostics Drawer -->
+      <details class="diagnostics-panel">
+        <summary>Sensor Diagnostics &amp; Raw Telemetry</summary>
+        <div class="diagnostics-grid">
+          <div class="metric">
+            <span class="metric-label">Raw Wind Speed / Angle</span>
+            <span class="metric-value">{{ .LatestReading.RawWindSpeed }} / {{ .LatestReading.RawWindAngle }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Anemometer Status / AGC</span>
+            <span class="metric-value">{{ .LatestReading.AnemoStatus }} / {{ .LatestReading.AnemoAGC }} (var {{ .LatestReading.AnemoAGCVar }})</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Wind Vane Status / AGC</span>
+            <span class="metric-value">{{ .LatestReading.VaneStatus }} / {{ .LatestReading.VaneAGC }} (var {{ .LatestReading.VaneAGCVar }})</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Rain Meter Status / AGC</span>
+            <span class="metric-value">{{ .LatestReading.RainStatus }} / {{ .LatestReading.RainAGC }} (var {{ .LatestReading.RainAGCVar }})</span>
+          </div>
+        </div>
+      </details>
+      {{ end }}
+
+    {{ else if .NoNodes }}
+    <div class="empty-state">
+      <h3>No Weather Stations Available</h3>
+      <p>No station has been registered yet. Readings will appear once a station reports data.</p>
+    </div>
+    {{ else }}
+    <div class="empty-state">
+      <h3>No Readings Recorded Yet</h3>
+      <p>Station <strong>{{ .SelectedNodeID }}</strong> has not reported any sensor readings to the database.</p>
+    </div>
+    {{ end }}
+  </div>
+</body>
+</html>

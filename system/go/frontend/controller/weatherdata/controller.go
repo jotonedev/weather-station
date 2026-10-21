@@ -62,25 +62,40 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 		return data
 	}
 
-	readings, err := c.db.GetLatestReadings(ctx, selectedNodeID, 10)
+	readings, err := c.db.GetLatestReadings(ctx, selectedNodeID, 1)
 	if err != nil {
 		c.log.Warn("Failed to fetch latest readings", zap.String("node_id", selectedNodeID), zap.Error(err))
 		data.ErrorMessage = "Unable to connect to database service to retrieve latest readings."
 		return data
 	}
 
-	if len(readings) == 0 {
+	if len(readings) > 0 {
+		latest := pbReadingToView(readings[0])
+		data.LatestReading = &latest
+	}
+
+	predictions, err := c.db.GetForecast(ctx, selectedNodeID)
+	if err != nil {
+		c.log.Warn("Failed to fetch forecast predictions", zap.String("node_id", selectedNodeID), zap.Error(err))
 		return data
 	}
 
-	latest := pbReadingToView(readings[0])
-	data.LatestReading = &latest
-
-	recent := make([]ReadingView, 0, len(readings))
-	for _, reading := range readings {
-		recent = append(recent, pbReadingToView(reading))
+	if len(predictions) > 0 {
+		forecast := make([]ForecastItemView, 0, len(predictions))
+		for _, pred := range predictions {
+			if pred == nil {
+				continue
+			}
+			if data.ForecastIssuedAt == "" && pred.IssueTime != nil {
+				issueTime := pred.IssueTime.AsTime()
+				if !issueTime.IsZero() {
+					data.ForecastIssuedAt = issueTime.UTC().Format("2006-01-02 15:04 UTC")
+				}
+			}
+			forecast = append(forecast, pbPredictionToView(pred))
+		}
+		data.Forecast = forecast
 	}
-	data.RecentReadings = recent
 
 	return data
 }

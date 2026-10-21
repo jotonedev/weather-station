@@ -20,32 +20,35 @@ var (
 
 // Gateway provides access to the database gRPC services for the frontend.
 type Gateway struct {
-	log           *zap.Logger
-	readingClient protodatabasev1.ReadingDatabaseServiceClient
-	nodeClient    protodatabasev1.NodeDatabaseServiceClient
-	healthClient  grpc_health_v1.HealthClient
+	log              *zap.Logger
+	readingClient    protodatabasev1.ReadingDatabaseServiceClient
+	predictionClient protodatabasev1.PredictionDatabaseServiceClient
+	nodeClient       protodatabasev1.NodeDatabaseServiceClient
+	healthClient     grpc_health_v1.HealthClient
 }
 
 // GatewayParams defines dependencies for Gateway.
 type GatewayParams struct {
 	fx.In
 
-	Logger        *zap.Logger
-	Config        Config
-	ClientFactory *grpcclient.ClientFactory                    `optional:"true"`
-	ReadingClient protodatabasev1.ReadingDatabaseServiceClient `optional:"true"`
-	NodeClient    protodatabasev1.NodeDatabaseServiceClient    `optional:"true"`
-	HealthClient  grpc_health_v1.HealthClient                  `optional:"true"`
+	Logger           *zap.Logger
+	Config           Config
+	ClientFactory    *grpcclient.ClientFactory                       `optional:"true"`
+	ReadingClient    protodatabasev1.ReadingDatabaseServiceClient    `optional:"true"`
+	PredictionClient protodatabasev1.PredictionDatabaseServiceClient `optional:"true"`
+	NodeClient       protodatabasev1.NodeDatabaseServiceClient       `optional:"true"`
+	HealthClient     grpc_health_v1.HealthClient                     `optional:"true"`
 }
 
 // New creates a new database Gateway instance for the frontend.
 func New(params GatewayParams) (*Gateway, error) {
 	if params.ReadingClient != nil {
 		return &Gateway{
-			log:           params.Logger,
-			readingClient: params.ReadingClient,
-			nodeClient:    params.NodeClient,
-			healthClient:  params.HealthClient,
+			log:              params.Logger,
+			readingClient:    params.ReadingClient,
+			predictionClient: params.PredictionClient,
+			nodeClient:       params.NodeClient,
+			healthClient:     params.HealthClient,
 		}, nil
 	}
 
@@ -59,10 +62,11 @@ func New(params GatewayParams) (*Gateway, error) {
 	}
 
 	return &Gateway{
-		log:           params.Logger,
-		readingClient: protodatabasev1.NewReadingDatabaseServiceClient(conn),
-		nodeClient:    protodatabasev1.NewNodeDatabaseServiceClient(conn),
-		healthClient:  grpc_health_v1.NewHealthClient(conn),
+		log:              params.Logger,
+		readingClient:    protodatabasev1.NewReadingDatabaseServiceClient(conn),
+		predictionClient: protodatabasev1.NewPredictionDatabaseServiceClient(conn),
+		nodeClient:       protodatabasev1.NewNodeDatabaseServiceClient(conn),
+		healthClient:     grpc_health_v1.NewHealthClient(conn),
 	}, nil
 }
 
@@ -96,6 +100,20 @@ func (g *Gateway) GetLatestReadings(ctx context.Context, nodeID string, limit ui
 		return nil, fmt.Errorf("get latest readings for node %q: %w", nodeID, err)
 	}
 	return resp.Readings, nil
+}
+
+// GetForecast retrieves the latest forecast predictions for a given node.
+func (g *Gateway) GetForecast(ctx context.Context, nodeID string) ([]*protodatabasev1.Prediction, error) {
+	if g.predictionClient == nil {
+		return nil, nil
+	}
+	resp, err := g.predictionClient.GetForecast(ctx, &protodatabasev1.GetForecastRequest{
+		NodeId: nodeID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get forecast for node %q: %w", nodeID, err)
+	}
+	return resp.GetPredictions(), nil
 }
 
 // ListNodeCoordinates retrieves location coordinates for all registered nodes.

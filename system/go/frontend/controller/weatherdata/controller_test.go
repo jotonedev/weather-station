@@ -15,17 +15,18 @@ import (
 
 func TestGetDashboardData(t *testing.T) {
 	temp := float32(23.4)
+	forecastTemp := float32(19.5)
 
 	testCases := []struct {
 		name          string
 		requestedNode string
-		setup         func(readingClient *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient)
+		setup         func(readingClient *mocks.MockReadingDatabaseServiceClient, predictionClient *mocks.MockPredictionDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient)
 		check         func(t *testing.T, data DashboardData)
 	}{
 		{
-			name:          "displays latest readings when available",
+			name:          "displays latest readings and forecast when available",
 			requestedNode: "station-beta",
-			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
+			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, predictionClient *mocks.MockPredictionDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
 					ListNodeCoordinates(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.ListNodeCoordinatesResponse{
@@ -50,6 +51,18 @@ func TestGetDashboardData(t *testing.T) {
 							},
 						}, nil
 					})
+
+				predictionClient.EXPECT().
+					GetForecast(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.GetForecastResponse{
+						Predictions: []*protodatabasev1.Prediction{
+							{
+								NodeId:       "station-beta",
+								HorizonHours: 1,
+								TemperatureC: &forecastTemp,
+							},
+						},
+					}, nil)
 			},
 			check: func(t *testing.T, data DashboardData) {
 				if data.SelectedNodeID != "station-beta" {
@@ -64,12 +77,18 @@ func TestGetDashboardData(t *testing.T) {
 				if data.LatestReading.Temperature != "23.4 °C" {
 					t.Fatalf("Temperature = %q, want 23.4 °C", data.LatestReading.Temperature)
 				}
+				if len(data.Forecast) != 1 {
+					t.Fatalf("Forecast length = %d, want 1", len(data.Forecast))
+				}
+				if data.Forecast[0].Temperature != "19.5 °C" {
+					t.Fatalf("Forecast[0].Temperature = %q, want 19.5 °C", data.Forecast[0].Temperature)
+				}
 			},
 		},
 		{
 			name:          "handles empty database gracefully with no stations",
 			requestedNode: "",
-			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
+			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, predictionClient *mocks.MockPredictionDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
 					ListNodeCoordinates(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.ListNodeCoordinatesResponse{}, nil)
@@ -89,7 +108,7 @@ func TestGetDashboardData(t *testing.T) {
 		{
 			name:          "sets error message when database fails",
 			requestedNode: "station-1",
-			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
+			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, predictionClient *mocks.MockPredictionDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
 					ListNodeCoordinates(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.ListNodeCoordinatesResponse{}, nil)
@@ -110,14 +129,16 @@ func TestGetDashboardData(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			readingClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+			predictionClient := mocks.NewMockPredictionDatabaseServiceClient(ctrl)
 			nodeClient := mocks.NewMockNodeDatabaseServiceClient(ctrl)
-			testCase.setup(readingClient, nodeClient)
+			testCase.setup(readingClient, predictionClient, nodeClient)
 
 			dbGateway, err := database.New(database.GatewayParams{
-				Logger:        zap.NewNop(),
-				Config:        database.Config{Address: "127.0.0.1:8090"},
-				ReadingClient: readingClient,
-				NodeClient:    nodeClient,
+				Logger:           zap.NewNop(),
+				Config:           database.Config{Address: "127.0.0.1:8090"},
+				ReadingClient:    readingClient,
+				PredictionClient: predictionClient,
+				NodeClient:       nodeClient,
 			})
 			if err != nil {
 				t.Fatalf("database.New() unexpected error = %v", err)

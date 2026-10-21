@@ -8,22 +8,32 @@ type ReadingView struct {
 	Timestamp     time.Time
 	FormattedTime string
 
+	// Derived condition
+	ConditionIcon  string
+	ConditionLabel string
+
 	// Climate
-	Temperature string
-	Humidity    string
-	Pressure    string
+	Temperature     string
+	Humidity        string
+	HumidityPercent int
+	Pressure        string
 
 	// Wind
-	WindSpeed    string
-	WindAngle    string
-	RawWindSpeed string
-	RawWindAngle string
+	WindSpeed       string
+	WindAngle       string
+	WindCardinal    string
+	WindRotationDeg int
+	HasWindAngle    bool
+	RawWindSpeed    string
+	RawWindAngle    string
 
 	// Air Quality
-	PM1_0  string
-	PM2_5  string
-	PM10_0 string
-	VOC    string
+	PM1_0           string
+	PM2_5           string
+	PM10_0          string
+	VOC             string
+	AirQualityLabel string
+	AirQualityLevel string
 
 	// Rain
 	Rain1h   string
@@ -42,13 +52,32 @@ type ReadingView struct {
 	RainAGCVar  string
 }
 
+// ForecastItemView represents a single horizon forecast prediction for display.
+type ForecastItemView struct {
+	HorizonHours     int32
+	HorizonLabel     string
+	TimeSubLabel     string
+	ConditionIcon    string
+	ConditionLabel   string
+	Temperature      string
+	Rainfall         string
+	Humidity         string
+	WindDirection    string
+	WindCardinal     string
+	WindRotationDeg  int
+	HasWindDirection bool
+	Confidence       string
+	ConfidencePct    int
+}
+
 // DashboardData represents the weather data context retrieved from the database.
 type DashboardData struct {
-	Title          string
-	SelectedNodeID string
-	AvailableNodes []string
-	NoNodes        bool
-	LatestReading  *ReadingView
-	RecentReadings []ReadingView
-	ErrorMessage   string
+	Title            string
+	SelectedNodeID   string
+	AvailableNodes   []string
+	NoNodes          bool
+	LatestReading    *ReadingView
+	Forecast         []ForecastItemView
+	ForecastIssuedAt string
+	ErrorMessage     string
 }

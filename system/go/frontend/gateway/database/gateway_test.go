@@ -114,6 +114,89 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 	}
 }
 
+func TestGatewayGetForecast(t *testing.T) {
+	errForecastFailed := errors.New("forecast unavailable")
+
+	testCases := []struct {
+		name      string
+		nodeID    string
+		withNil   bool
+		setup     func(client *mocks.MockPredictionDatabaseServiceClient)
+		wantErr   bool
+		wantCount int
+	}{
+		{
+			name:    "nil prediction client returns nil slice",
+			nodeID:  "station-alpha",
+			withNil: true,
+		},
+		{
+			name:   "success returning forecast predictions",
+			nodeID: "station-alpha",
+			setup: func(client *mocks.MockPredictionDatabaseServiceClient) {
+				client.EXPECT().
+					GetForecast(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.GetForecastResponse{
+						Predictions: []*protodatabasev1.Prediction{
+							{NodeId: "station-alpha", HorizonHours: 1},
+							{NodeId: "station-alpha", HorizonHours: 2},
+						},
+					}, nil)
+			},
+			wantCount: 2,
+		},
+		{
+			name:   "database error is wrapped",
+			nodeID: "station-alpha",
+			setup: func(client *mocks.MockPredictionDatabaseServiceClient) {
+				client.EXPECT().
+					GetForecast(gomock.Any(), gomock.Any()).
+					Return(nil, errForecastFailed)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			readingClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
+			var predictionClient protodatabasev1.PredictionDatabaseServiceClient
+			if !testCase.withNil {
+				mockPrediction := mocks.NewMockPredictionDatabaseServiceClient(ctrl)
+				if testCase.setup != nil {
+					testCase.setup(mockPrediction)
+				}
+				predictionClient = mockPrediction
+			}
+
+			gateway, err := New(GatewayParams{
+				Logger:           zap.NewNop(),
+				Config:           Config{Address: "127.0.0.1:8090"},
+				ReadingClient:    readingClient,
+				PredictionClient: predictionClient,
+			})
+			if err != nil {
+				t.Fatalf("New() unexpected error = %v", err)
+			}
+
+			predictions, err := gateway.GetForecast(context.Background(), testCase.nodeID)
+			if testCase.wantErr {
+				if err == nil {
+					t.Fatal("GetForecast() want error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("GetForecast() unexpected error = %v", err)
+			}
+			if len(predictions) != testCase.wantCount {
+				t.Fatalf("GetForecast() count = %d, want %d", len(predictions), testCase.wantCount)
+			}
+		})
+	}
+}
+
 func TestNewGatewayValidation(t *testing.T) {
 	_, err := New(GatewayParams{
 		Logger: zap.NewNop(),
