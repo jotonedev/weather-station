@@ -47,6 +47,12 @@ spec:
               value: "0.0.0.0:{{ $app.cfg.httpPort }}"
             - name: GRPC_ADDRESS
               value: "0.0.0.0:{{ $app.cfg.grpcPort }}"
+            {{- if $app.cfg.auth }}
+            - name: HTTP_AUTH_USERNAME
+              value: {{ $app.cfg.auth.username | quote }}
+            - name: HTTP_AUTH_PASSWORD
+              value: {{ $app.cfg.auth.password | quote }}
+            {{- end }}
           livenessProbe:
             grpc:
               port: {{ $app.cfg.grpcPort }}

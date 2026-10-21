@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
+	"weather-station/common/auth/basic"
 	"weather-station/data-ingest/controller/weatherstation"
 	"weather-station/data-ingest/gateway/database"
 	"weather-station/data-ingest/internal/mocks"
@@ -23,6 +24,7 @@ func TestHandlerServeHTTP(t *testing.T) {
 		name           string
 		method         string
 		body           string
+		omitAuth       bool
 		setup          func(client *mocks.MockReadingDatabaseServiceClient)
 		wantStatusCode int
 	}{
@@ -36,6 +38,14 @@ func TestHandlerServeHTTP(t *testing.T) {
 					Return(&protodatabasev1.StoreReadingsResponse{Stored: 1}, nil)
 			},
 			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:           "unauthorized when basic auth is missing",
+			method:         http.MethodPost,
+			body:           `{"node_id":"node-123","temperature":21.5}`,
+			omitAuth:       true,
+			setup:          func(client *mocks.MockReadingDatabaseServiceClient) {},
+			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
 			name:           "method not allowed for GET request",
@@ -94,15 +104,24 @@ func TestHandlerServeHTTP(t *testing.T) {
 				t.Fatalf("weatherstation.New() unexpected error = %v", err)
 			}
 
+			auth := basic.NewAuthenticator(basic.Config{
+				Username: "testuser",
+				Password: "testpassword",
+			})
+
 			handler, err := New(HandlerParams{
 				Logger:     zap.NewNop(),
 				Controller: controller,
+				Auth:       auth,
 			})
 			if err != nil {
 				t.Fatalf("New() unexpected error = %v", err)
 			}
 
 			request := httptest.NewRequest(testCase.method, "/reading", bytes.NewBufferString(testCase.body))
+			if !testCase.omitAuth {
+				request.SetBasicAuth("testuser", "testpassword")
+			}
 			recorder := httptest.NewRecorder()
 
 			handler.ServeHTTP(recorder, request)

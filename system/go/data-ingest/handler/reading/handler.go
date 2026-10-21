@@ -8,6 +8,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
+	"weather-station/common/auth/basic"
 	"weather-station/data-ingest/controller/weatherstation"
 )
 
@@ -15,6 +16,7 @@ import (
 type Handler struct {
 	log        *zap.Logger
 	controller *weatherstation.Controller
+	auth       *basic.Authenticator
 }
 
 // HandlerParams defines dependencies for Handler.
@@ -23,6 +25,7 @@ type HandlerParams struct {
 
 	Logger     *zap.Logger
 	Controller *weatherstation.Controller
+	Auth       *basic.Authenticator
 }
 
 // New creates a new reading Handler instance.
@@ -30,6 +33,7 @@ func New(params HandlerParams) (*Handler, error) {
 	return &Handler{
 		log:        params.Logger,
 		controller: params.Controller,
+		auth:       params.Auth,
 	}, nil
 }
 
@@ -42,6 +46,10 @@ func (*Handler) Pattern() string {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !h.auth.RequireAuth(w, r) {
 		return
 	}
 

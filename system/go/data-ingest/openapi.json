@@ -94,6 +94,11 @@
         "summary": "Ingest a single weather reading",
         "description": "Parses and validates a raw weather reading from a station and forwards it to the database service.",
         "operationId": "storeReading",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Weather reading payload",
@@ -116,6 +121,17 @@
                 "schema": {
                   "type": "string",
                   "example": "node_id is required"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid HTTP Basic Auth credentials",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "unauthorized"
                 }
               }
             }
@@ -153,6 +169,11 @@
         "summary": "Ingest multiple weather readings",
         "description": "Parses and validates a batch of raw weather readings, accepting either a JSON array or a wrapper object.",
         "operationId": "storeReadingsBatch",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Batch weather readings payload",
@@ -189,6 +210,17 @@
               }
             }
           },
+          "401": {
+            "description": "Missing or invalid HTTP Basic Auth credentials",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "unauthorized"
+                }
+              }
+            }
+          },
           "405": {
             "description": "Method not allowed (only POST is supported)",
             "content": {
@@ -216,6 +248,13 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "HTTP Basic Authentication credentials required to submit weather readings."
+      }
+    },
     "schemas": {
       "BatchReadingsRequest": {
         "type": "object",

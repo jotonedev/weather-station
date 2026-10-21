@@ -61,6 +61,9 @@ dataIngest:
     pullPolicy: Always
   httpPort: 8080
   grpcPort: 8090
+  auth:
+    username: "node"
+    password: "changeme"
   # Pin dataIngest to rpi3 node alongside database
   nodeSelector:
     kubernetes.io/hostname: "rpi3"
@@ -89,6 +92,9 @@ frontend:
     pullPolicy: Always
   httpPort: 8080
   grpcPort: 8090
+  auth:
+    username: "admin"
+    password: "changeme"
   nodeSelector: {}
   tolerations: []
   affinity: {}

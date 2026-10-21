@@ -239,6 +239,9 @@ int postToIngest(const char* url, const char* body) {
 #else
     http.begin(url);
 #endif
+    if (std::strlen(INGEST_AUTH_USER) > 0) {
+        http.setAuthorization(INGEST_AUTH_USER, INGEST_AUTH_PASSWORD);
+    }
     http.addHeader("Content-Type", "application/json");
     int code = http.POST(body);
     http.end();

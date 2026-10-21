@@ -18,6 +18,8 @@ services:
     image: ${REGISTRY:-registry.example.com}/data-ingest:latest
     environment:
       DATABASE_ADDRESS: "database:8090"
+      HTTP_AUTH_USERNAME: "${HTTP_AUTH_USERNAME:-admin}"
+      HTTP_AUTH_PASSWORD: "${HTTP_AUTH_PASSWORD:-changeme}"
     ports:
       - "8081:8080"
     depends_on:
@@ -28,6 +30,8 @@ services:
     image: ${REGISTRY:-registry.example.com}/frontend:latest
     environment:
       DATABASE_ADDRESS: "database:8090"
+      HTTP_AUTH_USERNAME: "${HTTP_AUTH_USERNAME:-admin}"
+      HTTP_AUTH_PASSWORD: "${HTTP_AUTH_PASSWORD:-changeme}"
     ports:
       - "8080:8080"
     depends_on:

@@ -10,6 +10,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
+	"weather-station/common/auth/basic"
 	"weather-station/data-ingest/controller/weatherstation"
 )
 
@@ -17,6 +18,7 @@ import (
 type BatchHandler struct {
 	log        *zap.Logger
 	controller *weatherstation.Controller
+	auth       *basic.Authenticator
 }
 
 // BatchHandlerParams defines dependencies for BatchHandler.
@@ -25,6 +27,7 @@ type BatchHandlerParams struct {
 
 	Logger     *zap.Logger
 	Controller *weatherstation.Controller
+	Auth       *basic.Authenticator
 }
 
 // NewBatch creates a new BatchHandler instance.
@@ -32,6 +35,7 @@ func NewBatch(params BatchHandlerParams) (*BatchHandler, error) {
 	return &BatchHandler{
 		log:        params.Logger,
 		controller: params.Controller,
+		auth:       params.Auth,
 	}, nil
 }
 
@@ -44,6 +48,10 @@ func (*BatchHandler) Pattern() string {
 func (h *BatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !h.auth.RequireAuth(w, r) {
 		return
 	}
 

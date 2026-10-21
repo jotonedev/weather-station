@@ -18,6 +18,10 @@
 // certificate bundle, 0 uses plain http. Keep it consistent with the URL scheme.
 #define INGEST_HTTPS 0
 
+// HTTP Basic Auth credentials for the ingest endpoint. Set before flashing.
+#define INGEST_AUTH_USER "node"
+#define INGEST_AUTH_PASSWORD "changeme"
+
 // Node id reported to the ingest service.
 #define NODE_ID "weather-mast"
 
