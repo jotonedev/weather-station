@@ -23,7 +23,8 @@ system/
 │   ├── database/              # service (duckdb storage)
 │   ├── data-ingest/           # service (ingests MCU data)
 │   ├── frontend/              # service (HTTP for data)
-│   └── inference-job/         # service (cron job to run inference)
+│   ├── inference-job/         # service (cron job to run inference)
+│   └── test-generator/        # service (generates synthetic weather data)
 └── python/
     └── inference-server/        # Python time series inference server
 ```
