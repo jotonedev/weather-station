@@ -10,37 +10,48 @@ import (
 	"weather-station/test-generator/gateway/ingest"
 )
 
-type rainSample struct {
-	timestamp time.Time
-	amountMM  float64
-}
-
 type nodeState struct {
-	rng           *rand.Rand
-	lastTime      time.Time
+	rng      *rand.Rand
+	lastTime time.Time
+
+	// Fixed per-node offsets.
 	baseTemp      float64
+	rainShift     time.Duration
+	rainScale     float64
+	windDirOffset float64
+	pmScale       float64
+	ratioPhase    float64
+
+	// Values eased toward deterministic targets.
+	cloud    float64
+	wet      float64
+	pm25Base float64
+	vocBase  float64
+
+	// Slow time-scaled noise.
+	pressureDrift float64
 	tempDrift     float64
 	humidityDrift float64
-	pressureDrift float64
-	windSpeed     float64
-	windAngle     float64
-	raining       bool
-	rainRate      float64
-	rainHistory   []rainSample
-	pm25Base      float64
-	vocBase       float64
+	windNoise     float64
+	windDirNoise  float64
+	rainNoise     float64
+	pmNoise       float64
+	vocNoise      float64
 }
 
-// Simulator maintains stateful weather physics per station node to produce realistic telemetry.
+// Simulator produces smooth, mostly deterministic telemetry per station node.
+// All nodes share the same daily rain calendar and pressure waves.
 type Simulator struct {
 	mu     sync.Mutex
 	states map[string]*nodeState
+	rain   *rainCalendar
 }
 
 // NewSimulator creates a new stateful weather Simulator instance.
 func NewSimulator() *Simulator {
 	return &Simulator{
 		states: make(map[string]*nodeState),
+		rain:   newRainCalendar(),
 	}
 }
 
@@ -55,125 +66,124 @@ func (s *Simulator) NextReading(nodeID string, now time.Time) ingest.ReadingPayl
 		s.states[nodeID] = state
 	}
 
-	dtHours := 1.0 / 360.0
-	if !state.lastTime.IsZero() && now.After(state.lastTime) {
-		dtHours = now.Sub(state.lastTime).Hours()
-		if dtHours > 1.0 {
-			dtHours = 1.0
-		}
+	var dt time.Duration
+	if now.After(state.lastTime) {
+		dt = now.Sub(state.lastTime)
 	}
 	state.lastTime = now
+	rng := state.rng
 
-	// 1. Synoptic pressure wave and mean-reverting drift (hPa).
-	dayFraction := float64(now.Unix()) / 86400.0
-	synopticWave := 8.5 * math.Sin(2.0*math.Pi*dayFraction/4.5)
-	state.pressureDrift = 0.96*state.pressureDrift + state.rng.NormFloat64()*0.35
-	pressure := clamp(1013.25+synopticWave+state.pressureDrift, 985.0, 1038.0)
+	utc := now.UTC()
+	hourUTC := float64(utc.Hour()) + float64(utc.Minute())/60.0 + float64(utc.Second())/3600.0
+	dayOfYear := float64(utc.YearDay()) + hourUTC/24.0
 
-	// 2. Diurnal temperature cycle peaking around 15h UTC and seasonal cycle.
-	hourUTC := float64(now.UTC().Hour()) + float64(now.UTC().Minute())/60.0
-	diurnalTemp := 5.5 * math.Sin(2.0*math.Pi*(hourUTC-9.0)/24.0)
-	dayOfYear := float64(now.UTC().YearDay())
-	seasonalTemp := 9.0 * math.Sin(2.0*math.Pi*(dayOfYear-105.0)/365.25)
-	state.tempDrift = 0.94*state.tempDrift + state.rng.NormFloat64()*0.25
-	temperature := clamp(state.baseTemp+seasonalTemp+diurnalTemp+state.tempDrift, -15.0, 42.0)
+	// 1. Rain from the shared calendar, shifted and scaled per node.
+	baseRate := s.rain.rateAt(now.Add(-state.rainShift)) * state.rainScale
+	state.rainNoise = ou(rng, state.rainNoise, dt, 20*time.Minute, 1.0)
+	rainRate := baseRate * (1.0 + 0.1*clamp(state.rainNoise, -2.0, 2.0))
+	rain1h := s.rainTotal(state, now, time.Hour)
+	rain24h := s.rainTotal(state, now, 24*time.Hour)
 
-	// 3. Precipitation Markov transition driven by low pressure.
-	rainStartProb := 0.02
-	if pressure < 1006.0 {
-		rainStartProb = 0.12
+	wetTarget := 1.0 - math.Exp(-baseRate/1.5)
+	cloudTarget := 0.0
+	if s.rain.nearRain(now.Add(-state.rainShift), 4*time.Hour, 2*time.Hour) {
+		cloudTarget = 1.0
 	}
-	if state.raining {
-		if state.rng.Float64() < 0.15 {
-			state.raining = false
-			state.rainRate = 0
-		} else {
-			state.rainRate = clamp(state.rainRate*0.85+math.Abs(state.rng.NormFloat64())*2.2, 0.4, 28.0)
-		}
-	} else if state.rng.Float64() < rainStartProb {
-		state.raining = true
-		state.rainRate = clamp(0.8+math.Abs(state.rng.NormFloat64())*3.0, 0.5, 18.0)
+	if !exists {
+		state.wet = wetTarget
+		state.cloud = cloudTarget
 	}
+	state.wet = ease(state.wet, wetTarget, dt, 45*time.Minute)
+	state.cloud = ease(state.cloud, cloudTarget, dt, 90*time.Minute)
 
-	if state.rainRate > 0 {
-		state.rainHistory = append(state.rainHistory, rainSample{
-			timestamp: now,
-			amountMM:  state.rainRate * dtHours,
-		})
-	}
-	cutoff24h := now.Add(-24 * time.Hour)
-	cutoff1h := now.Add(-1 * time.Hour)
-	var rain1h, rain24h float64
-	kept := state.rainHistory[:0]
-	for _, sample := range state.rainHistory {
-		if !sample.timestamp.Before(cutoff24h) {
-			kept = append(kept, sample)
-			rain24h += sample.amountMM
-			if !sample.timestamp.Before(cutoff1h) {
-				rain1h += sample.amountMM
-			}
-		}
-	}
-	state.rainHistory = kept
+	// 2. Pressure from synoptic waves, a slow drift and a dip during rain (hPa).
+	state.pressureDrift = ou(rng, state.pressureDrift, dt, 6*time.Hour, 0.6)
+	pressure := clamp(1013.25+synopticWave(now)+state.pressureDrift-3.0*state.wet, 985.0, 1038.0)
+	pressureTrend := (synopticWave(now.Add(time.Hour)) - synopticWave(now.Add(-time.Hour))) / 2.0 // hPa/h
 
-	// 4. Relative humidity inversely tracks diurnal temperature and rises during rain.
-	state.humidityDrift = 0.93*state.humidityDrift + state.rng.NormFloat64()*1.2
-	rainBoost := 0.0
-	if state.raining {
-		rainBoost = 22.0
-	}
-	humidity := clamp(62.0-diurnalTemp*2.8+rainBoost+state.humidityDrift, 18.0, 100.0)
+	// 3. Temperature with seasonal and diurnal cycles. Clouds damp the diurnal swing and rain cools.
+	diurnal := math.Sin(2.0 * math.Pi * (hourUTC - 9.0) / 24.0)
+	seasonalTemp := 9.0 * math.Sin(2.0*math.Pi*(dayOfYear-105.0)/daysPerYear)
+	state.tempDrift = ou(rng, state.tempDrift, dt, 3*time.Hour, 0.5)
+	meanTemp := state.baseTemp + seasonalTemp + state.tempDrift - 2.0*state.wet
+	temperature := clamp(meanTemp+5.5*(1.0-0.6*state.cloud)*diurnal, -15.0, 42.0)
 
-	// 5. Wind speed and circular wind direction.
-	targetWind := 3.2
-	if pressure < 1005.0 {
-		targetWind = 6.8
-	}
-	state.windSpeed = clamp(0.88*state.windSpeed+0.12*targetWind+state.rng.NormFloat64()*0.45, 0.0, 32.0)
-	state.windAngle = math.Mod(state.windAngle+state.rng.NormFloat64()*6.0+360.0, 360.0)
-	rawWindSpeed := clamp(state.windSpeed*(0.98+state.rng.NormFloat64()*0.01), 0.0, 35.0)
-	rawWindAngle := math.Mod(state.windAngle+state.rng.NormFloat64()*1.2+360.0, 360.0)
+	// 4. Relative humidity from temperature and dew point, rising toward saturation during rain.
+	dewPoint := meanTemp - (6.0 - 3.0*state.cloud)
+	rh := relativeHumidity(temperature, dewPoint)
+	state.humidityDrift = ou(rng, state.humidityDrift, dt, 2*time.Hour, 2.0)
+	humidity := clamp(rh+(97.0-rh)*state.wet+state.humidityDrift, 18.0, 100.0)
 
-	// 6. Particulate matter and VOC with rain washout.
-	washout := 1.0
-	if state.raining {
-		washout = 0.55
-	}
-	state.pm25Base = clamp(0.92*state.pm25Base+0.08*(12.0*washout)+state.rng.NormFloat64()*0.9, 2.0, 95.0)
-	pm1 := int32(math.Round(clamp(state.pm25Base*0.62, 1.0, state.pm25Base)))
-	pm25 := int32(math.Round(state.pm25Base))
-	pm10 := int32(math.Round(clamp(state.pm25Base*1.55+math.Abs(state.rng.NormFloat64())*2.0, float64(pm25), 180.0)))
+	// 5. Wind speed follows pressure changes, rain and afternoon mixing. Direction follows the passing systems.
+	targetWind := 2.8 + clamp(4.0*math.Abs(pressureTrend), 0.0, 2.0) + 1.5*state.wet + math.Max(0.0, diurnal)
+	state.windNoise = ou(rng, state.windNoise, dt, 20*time.Minute, 0.4)
+	windSpeed := clamp(targetWind+state.windNoise, 0.0, 32.0)
+	prevailing := 270.0 + 45.0*math.Tanh(pressureTrend/0.15) + state.windDirOffset
+	dirSigma := 12.0 + 23.0*math.Exp(-windSpeed/1.5)
+	state.windDirNoise = ou(rng, state.windDirNoise, dt, 30*time.Minute, dirSigma)
+	windAngle := wrapAngle(prevailing + state.windDirNoise)
+	rawWindSpeed := clamp(windSpeed*(1.0+0.08*rng.NormFloat64()), 0.0, 35.0)
+	rawWindAngle := wrapAngle(windAngle + 3.0*rng.NormFloat64())
 
-	state.vocBase = clamp(0.94*state.vocBase+0.06*115.0+state.rng.NormFloat64()*4.0, 40.0, 350.0)
-	voc := int32(math.Round(state.vocBase))
+	// 6. Particulate matter and VOC with traffic peaks, winter increase and rain washout.
+	winter := (math.Cos(2.0*math.Pi*(dayOfYear-15.0)/daysPerYear) + 1.0) / 2.0
+	traffic := 1.0 + 0.35*hourBump(hourUTC, 8.0, 1.5) + 0.3*hourBump(hourUTC, 19.0, 2.0)
+	pmTarget := 10.0 * state.pmScale * (1.0 + 0.25*winter) * traffic * (1.0 - 0.5*state.wet)
+	vocTarget := 110.0 * traffic * (1.0 - 0.1*state.wet)
+	if !exists {
+		state.pm25Base = pmTarget
+		state.vocBase = vocTarget
+	}
+	state.pm25Base = ease(state.pm25Base, pmTarget, dt, time.Hour)
+	state.pmNoise = ou(rng, state.pmNoise, dt, 2*time.Hour, 1.5)
+	pm25Value := clamp(state.pm25Base+state.pmNoise, 2.0, 95.0)
+	ratioWave := math.Sin(2.0*math.Pi*float64(now.Unix())/(3.0*secondsDay) + state.ratioPhase)
+	pm1 := int32(math.Round(clamp(pm25Value*(0.62+0.05*ratioWave), 1.0, pm25Value)))
+	pm25 := int32(math.Round(pm25Value))
+	pm10 := int32(math.Round(clamp(pm25Value*(1.55-0.15*ratioWave), float64(pm25), 180.0)))
+
+	state.vocBase = ease(state.vocBase, vocTarget, dt, time.Hour)
+	state.vocNoise = ou(rng, state.vocNoise, dt, 30*time.Minute, 4.0)
+	voc := int32(math.Round(clamp(state.vocBase+state.vocNoise, 40.0, 350.0)))
 
 	return ingest.ReadingPayload{
 		NodeID:           nodeID,
-		Timestamp:        now.UTC(),
-		WindSpeed:        float32(round2(state.windSpeed)),
-		WindAngle:        float32(round2(state.windAngle)),
+		Timestamp:        utc,
+		WindSpeed:        float32(round2(windSpeed)),
+		WindAngle:        float32(roundAngle(windAngle)),
 		RawWindSpeed:     float32(round2(rawWindSpeed)),
-		RawWindAngle:     float32(round2(rawWindAngle)),
+		RawWindAngle:     float32(roundAngle(rawWindAngle)),
 		Temperature:      float32(round2(temperature)),
 		Humidity:         float32(round2(humidity)),
 		Pressure:         float32(round2(pressure)),
 		Rain1h:           float32(round2(rain1h)),
 		Rain24h:          float32(round2(rain24h)),
-		RainRate:         float32(round2(state.rainRate)),
+		RainRate:         float32(round2(rainRate)),
 		PM1_0:            pm1,
 		PM2_5:            pm25,
 		PM10_0:           pm10,
 		VOC:              voc,
 		AnemoStatus:      32,
-		AnemoAGC:         int32(126 + state.rng.IntN(6)),
-		AnemoAGCVariance: int32(state.rng.IntN(3)),
+		AnemoAGC:         int32(126 + rng.IntN(6)),
+		AnemoAGCVariance: int32(rng.IntN(3)),
 		VaneStatus:       32,
-		VaneAGC:          int32(124 + state.rng.IntN(6)),
-		VaneAGCVariance:  int32(state.rng.IntN(3)),
+		VaneAGC:          int32(124 + rng.IntN(6)),
+		VaneAGCVariance:  int32(rng.IntN(3)),
 		RainStatus:       32,
-		RainAGC:          int32(128 + state.rng.IntN(5)),
-		RainAGCVariance:  int32(state.rng.IntN(2)),
+		RainAGC:          int32(128 + rng.IntN(5)),
+		RainAGCVariance:  int32(rng.IntN(2)),
 	}
+}
+
+// rainTotal integrates the node's deterministic rain rate over the span ending at now (mm).
+func (s *Simulator) rainTotal(state *nodeState, now time.Time, span time.Duration) float64 {
+	total := 0.0
+	steps := int(span / rainStep)
+	for i := range steps {
+		t := now.Add(-time.Duration(i)*rainStep - rainStep/2 - state.rainShift)
+		total += s.rain.rateAt(t) * state.rainScale * rainStep.Hours()
+	}
+	return total
 }
 
 func newNodeState(nodeID string, now time.Time) *nodeState {
@@ -183,14 +193,68 @@ func newNodeState(nodeID string, now time.Time) *nodeState {
 	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
 
 	return &nodeState{
-		rng:       rng,
-		lastTime:  now,
-		baseTemp:  15.0 + (rng.Float64()-0.5)*4.0,
-		windSpeed: 2.5 + rng.Float64()*2.0,
-		windAngle: rng.Float64() * 360.0,
-		pm25Base:  11.0 + rng.Float64()*5.0,
-		vocBase:   110.0 + rng.Float64()*20.0,
+		rng:           rng,
+		lastTime:      now,
+		baseTemp:      15.0 + (rng.Float64()-0.5)*2.0,
+		rainShift:     time.Duration((rng.Float64() - 0.5) * float64(time.Hour)),
+		rainScale:     0.8 + rng.Float64()*0.4,
+		windDirOffset: (rng.Float64() - 0.5) * 20.0,
+		pmScale:       0.85 + rng.Float64()*0.3,
+		ratioPhase:    rng.Float64() * 2.0 * math.Pi,
+		pressureDrift: rng.NormFloat64() * 0.6,
+		tempDrift:     rng.NormFloat64() * 0.5,
+		humidityDrift: rng.NormFloat64() * 2.0,
+		windNoise:     rng.NormFloat64() * 0.4,
+		windDirNoise:  rng.NormFloat64() * 12.0,
+		rainNoise:     rng.NormFloat64(),
+		pmNoise:       rng.NormFloat64() * 1.5,
+		vocNoise:      rng.NormFloat64() * 4.0,
 	}
+}
+
+// ou advances an Ornstein-Uhlenbeck process with time constant tau and stationary deviation sigma.
+// The exact discretization keeps the behavior independent of the sampling interval.
+func ou(rng *rand.Rand, x float64, dt, tau time.Duration, sigma float64) float64 {
+	if dt <= 0 {
+		return x
+	}
+	decay := math.Exp(-dt.Seconds() / tau.Seconds())
+	return x*decay + sigma*math.Sqrt(1.0-decay*decay)*rng.NormFloat64()
+}
+
+// ease moves x exponentially toward target with time constant tau.
+func ease(x, target float64, dt, tau time.Duration) float64 {
+	if dt <= 0 {
+		return x
+	}
+	return target + (x-target)*math.Exp(-dt.Seconds()/tau.Seconds())
+}
+
+// relativeHumidity returns RH (%) from temperature and dew point using the Magnus formula.
+func relativeHumidity(temp, dewPoint float64) float64 {
+	const a, b = 17.625, 243.04
+	return 100.0 * math.Exp(a*dewPoint/(b+dewPoint)-a*temp/(b+temp))
+}
+
+// hourBump is a Gaussian bump centered on hour center, wrapping around midnight.
+func hourBump(hour, center, width float64) float64 {
+	d := math.Abs(hour - center)
+	if d > 12.0 {
+		d = 24.0 - d
+	}
+	return math.Exp(-d * d / (2.0 * width * width))
+}
+
+func wrapAngle(deg float64) float64 {
+	return math.Mod(math.Mod(deg, 360.0)+360.0, 360.0)
+}
+
+func roundAngle(deg float64) float64 {
+	rounded := round2(deg)
+	if rounded >= 360.0 {
+		rounded -= 360.0
+	}
+	return rounded
 }
 
 func clamp(val, minVal, maxVal float64) float64 {
