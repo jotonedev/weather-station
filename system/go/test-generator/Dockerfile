@@ -17,7 +17,7 @@ WORKDIR /workspace
 
 # Copy module manifests for dependency caching
 COPY go/common/go.mod go/common/go.sum ./go/common/
-COPY go/test-generator/go.mod ./go/test-generator/
+COPY go/test-generator/go.mod go/test-generator/go.sum ./go/test-generator/
 
 # Download dependencies using BuildKit cache
 RUN --mount=type=cache,target=/go/pkg/mod \
