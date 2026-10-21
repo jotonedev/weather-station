@@ -54,8 +54,8 @@
 // Set to 0 for normal production operation.
 #define CALIBRATION_MODE 1
 
-// Speed factor for anemometer: m/s per RPM
-#define ANEMOMETER_SPEED_FACTOR 0.05f
+// Speed factor for anemometer: m/s per RPM (calculated from cup geometry R=100mm, cup factor f=3.0)
+#define ANEMOMETER_SPEED_FACTOR 0.032f
 
 // --- PMS7003 Particulate Matter Sensor (UART2) ---
 #define PMS_RX_PIN 17 // Connects to PMS7003 TX
