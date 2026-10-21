@@ -23,91 +23,34 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// PredictionMode defines the forecasting resolution and horizon.
-type PredictionMode int32
-
-const (
-	PredictionMode_PREDICTION_MODE_UNSPECIFIED PredictionMode = 0
-	// Forecasts next 24 hours hourly from up to 40 days of hourly history.
-	PredictionMode_PREDICTION_MODE_NEXT_24_HOURS PredictionMode = 1
-	// Forecasts next 10 days daily from up to 1 year of daily history.
-	PredictionMode_PREDICTION_MODE_NEXT_10_DAYS PredictionMode = 2
-)
-
-// Enum value maps for PredictionMode.
-var (
-	PredictionMode_name = map[int32]string{
-		0: "PREDICTION_MODE_UNSPECIFIED",
-		1: "PREDICTION_MODE_NEXT_24_HOURS",
-		2: "PREDICTION_MODE_NEXT_10_DAYS",
-	}
-	PredictionMode_value = map[string]int32{
-		"PREDICTION_MODE_UNSPECIFIED":   0,
-		"PREDICTION_MODE_NEXT_24_HOURS": 1,
-		"PREDICTION_MODE_NEXT_10_DAYS":  2,
-	}
-)
-
-func (x PredictionMode) Enum() *PredictionMode {
-	p := new(PredictionMode)
-	*p = x
-	return p
-}
-
-func (x PredictionMode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (PredictionMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_weather_inference_v1_inference_proto_enumTypes[0].Descriptor()
-}
-
-func (PredictionMode) Type() protoreflect.EnumType {
-	return &file_weather_inference_v1_inference_proto_enumTypes[0]
-}
-
-func (x PredictionMode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use PredictionMode.Descriptor instead.
-func (PredictionMode) EnumDescriptor() ([]byte, []int) {
-	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{0}
-}
-
-// PredictWeatherRequest contains the pre-aggregated historical series
-type PredictWeatherRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Station node identifier.
-	NodeId string `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	// Forecasting mode defining horizon and aggregation frequency.
-	Mode PredictionMode `protobuf:"varint,2,opt,name=mode,proto3,enum=weather.inference.v1.PredictionMode" json:"mode,omitempty"`
-	// Forecast reference timestamp.
-	IssueTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
-	// Structured time series observations.
-	History []*TimeSeriesObservation `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
-	// Optional serialized tensor or dataframe payload ready for tensor ingestion.
-	DataBlob []byte `protobuf:"bytes,5,opt,name=data_blob,json=dataBlob,proto3,oneof" json:"data_blob,omitempty"`
-	// Format descriptor for data_blob, such as application/arrow or tensor/float32.
-	DataBlobFormat *string `protobuf:"bytes,6,opt,name=data_blob_format,json=dataBlobFormat,proto3,oneof" json:"data_blob_format,omitempty"`
+// PredictHourlyWeatherRequest contains input data for hourly weather forecasting.
+type PredictHourlyWeatherRequest struct {
+	state          protoimpl.MessageState   `protogen:"open.v1"`
+	NodeId         string                   `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	IssueTime      *timestamppb.Timestamp   `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
+	HorizonHours   int32                    `protobuf:"varint,3,opt,name=horizon_hours,json=horizonHours,proto3" json:"horizon_hours,omitempty"`
+	History        []*TimeSeriesObservation `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
+	Latitude       *float64                 `protobuf:"fixed64,5,opt,name=latitude,proto3,oneof" json:"latitude,omitempty"`
+	DataBlob       []byte                   `protobuf:"bytes,6,opt,name=data_blob,json=dataBlob,proto3,oneof" json:"data_blob,omitempty"`
+	DataBlobFormat *string                  `protobuf:"bytes,7,opt,name=data_blob_format,json=dataBlobFormat,proto3,oneof" json:"data_blob_format,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *PredictWeatherRequest) Reset() {
-	*x = PredictWeatherRequest{}
+func (x *PredictHourlyWeatherRequest) Reset() {
+	*x = PredictHourlyWeatherRequest{}
 	mi := &file_weather_inference_v1_inference_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PredictWeatherRequest) String() string {
+func (x *PredictHourlyWeatherRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PredictWeatherRequest) ProtoMessage() {}
+func (*PredictHourlyWeatherRequest) ProtoMessage() {}
 
-func (x *PredictWeatherRequest) ProtoReflect() protoreflect.Message {
+func (x *PredictHourlyWeatherRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_weather_inference_v1_inference_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -119,51 +62,273 @@ func (x *PredictWeatherRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PredictWeatherRequest.ProtoReflect.Descriptor instead.
-func (*PredictWeatherRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use PredictHourlyWeatherRequest.ProtoReflect.Descriptor instead.
+func (*PredictHourlyWeatherRequest) Descriptor() ([]byte, []int) {
 	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *PredictWeatherRequest) GetNodeId() string {
+func (x *PredictHourlyWeatherRequest) GetNodeId() string {
 	if x != nil {
 		return x.NodeId
 	}
 	return ""
 }
 
-func (x *PredictWeatherRequest) GetMode() PredictionMode {
-	if x != nil {
-		return x.Mode
-	}
-	return PredictionMode_PREDICTION_MODE_UNSPECIFIED
-}
-
-func (x *PredictWeatherRequest) GetIssueTime() *timestamppb.Timestamp {
+func (x *PredictHourlyWeatherRequest) GetIssueTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.IssueTime
 	}
 	return nil
 }
 
-func (x *PredictWeatherRequest) GetHistory() []*TimeSeriesObservation {
+func (x *PredictHourlyWeatherRequest) GetHorizonHours() int32 {
+	if x != nil {
+		return x.HorizonHours
+	}
+	return 0
+}
+
+func (x *PredictHourlyWeatherRequest) GetHistory() []*TimeSeriesObservation {
 	if x != nil {
 		return x.History
 	}
 	return nil
 }
 
-func (x *PredictWeatherRequest) GetDataBlob() []byte {
+func (x *PredictHourlyWeatherRequest) GetLatitude() float64 {
+	if x != nil && x.Latitude != nil {
+		return *x.Latitude
+	}
+	return 0
+}
+
+func (x *PredictHourlyWeatherRequest) GetDataBlob() []byte {
 	if x != nil {
 		return x.DataBlob
 	}
 	return nil
 }
 
-func (x *PredictWeatherRequest) GetDataBlobFormat() string {
+func (x *PredictHourlyWeatherRequest) GetDataBlobFormat() string {
 	if x != nil && x.DataBlobFormat != nil {
 		return *x.DataBlobFormat
 	}
 	return ""
+}
+
+// PredictHourlyWeatherResponse contains hourly predictions.
+type PredictHourlyWeatherResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Predictions   []*v1.HourlyPrediction `protobuf:"bytes,1,rep,name=predictions,proto3" json:"predictions,omitempty"`
+	ComputedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=computed_at,json=computedAt,proto3" json:"computed_at,omitempty"`
+	OutputBlob    []byte                 `protobuf:"bytes,3,opt,name=output_blob,json=outputBlob,proto3,oneof" json:"output_blob,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PredictHourlyWeatherResponse) Reset() {
+	*x = PredictHourlyWeatherResponse{}
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PredictHourlyWeatherResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PredictHourlyWeatherResponse) ProtoMessage() {}
+
+func (x *PredictHourlyWeatherResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PredictHourlyWeatherResponse.ProtoReflect.Descriptor instead.
+func (*PredictHourlyWeatherResponse) Descriptor() ([]byte, []int) {
+	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PredictHourlyWeatherResponse) GetPredictions() []*v1.HourlyPrediction {
+	if x != nil {
+		return x.Predictions
+	}
+	return nil
+}
+
+func (x *PredictHourlyWeatherResponse) GetComputedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ComputedAt
+	}
+	return nil
+}
+
+func (x *PredictHourlyWeatherResponse) GetOutputBlob() []byte {
+	if x != nil {
+		return x.OutputBlob
+	}
+	return nil
+}
+
+// PredictDailyWeatherRequest contains input data for daily weather forecasting.
+type PredictDailyWeatherRequest struct {
+	state          protoimpl.MessageState   `protogen:"open.v1"`
+	NodeId         string                   `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	IssueTime      *timestamppb.Timestamp   `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
+	HorizonDays    int32                    `protobuf:"varint,3,opt,name=horizon_days,json=horizonDays,proto3" json:"horizon_days,omitempty"`
+	History        []*TimeSeriesObservation `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
+	Latitude       *float64                 `protobuf:"fixed64,5,opt,name=latitude,proto3,oneof" json:"latitude,omitempty"`
+	DataBlob       []byte                   `protobuf:"bytes,6,opt,name=data_blob,json=dataBlob,proto3,oneof" json:"data_blob,omitempty"`
+	DataBlobFormat *string                  `protobuf:"bytes,7,opt,name=data_blob_format,json=dataBlobFormat,proto3,oneof" json:"data_blob_format,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PredictDailyWeatherRequest) Reset() {
+	*x = PredictDailyWeatherRequest{}
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PredictDailyWeatherRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PredictDailyWeatherRequest) ProtoMessage() {}
+
+func (x *PredictDailyWeatherRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PredictDailyWeatherRequest.ProtoReflect.Descriptor instead.
+func (*PredictDailyWeatherRequest) Descriptor() ([]byte, []int) {
+	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PredictDailyWeatherRequest) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *PredictDailyWeatherRequest) GetIssueTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.IssueTime
+	}
+	return nil
+}
+
+func (x *PredictDailyWeatherRequest) GetHorizonDays() int32 {
+	if x != nil {
+		return x.HorizonDays
+	}
+	return 0
+}
+
+func (x *PredictDailyWeatherRequest) GetHistory() []*TimeSeriesObservation {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *PredictDailyWeatherRequest) GetLatitude() float64 {
+	if x != nil && x.Latitude != nil {
+		return *x.Latitude
+	}
+	return 0
+}
+
+func (x *PredictDailyWeatherRequest) GetDataBlob() []byte {
+	if x != nil {
+		return x.DataBlob
+	}
+	return nil
+}
+
+func (x *PredictDailyWeatherRequest) GetDataBlobFormat() string {
+	if x != nil && x.DataBlobFormat != nil {
+		return *x.DataBlobFormat
+	}
+	return ""
+}
+
+// PredictDailyWeatherResponse contains daily predictions.
+type PredictDailyWeatherResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Predictions   []*v1.DailyPrediction  `protobuf:"bytes,1,rep,name=predictions,proto3" json:"predictions,omitempty"`
+	ComputedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=computed_at,json=computedAt,proto3" json:"computed_at,omitempty"`
+	OutputBlob    []byte                 `protobuf:"bytes,3,opt,name=output_blob,json=outputBlob,proto3,oneof" json:"output_blob,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PredictDailyWeatherResponse) Reset() {
+	*x = PredictDailyWeatherResponse{}
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PredictDailyWeatherResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PredictDailyWeatherResponse) ProtoMessage() {}
+
+func (x *PredictDailyWeatherResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PredictDailyWeatherResponse.ProtoReflect.Descriptor instead.
+func (*PredictDailyWeatherResponse) Descriptor() ([]byte, []int) {
+	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PredictDailyWeatherResponse) GetPredictions() []*v1.DailyPrediction {
+	if x != nil {
+		return x.Predictions
+	}
+	return nil
+}
+
+func (x *PredictDailyWeatherResponse) GetComputedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ComputedAt
+	}
+	return nil
+}
+
+func (x *PredictDailyWeatherResponse) GetOutputBlob() []byte {
+	if x != nil {
+		return x.OutputBlob
+	}
+	return nil
 }
 
 // TimeSeriesObservation is an aggregated time bucket
@@ -182,14 +347,26 @@ type TimeSeriesObservation struct {
 	// Mean wind direction in degrees.
 	WindDirectionDeg *float32 `protobuf:"fixed32,6,opt,name=wind_direction_deg,json=windDirectionDeg,proto3,oneof" json:"wind_direction_deg,omitempty"`
 	// Total accumulated rainfall in millimeters.
-	RainfallMm    *float32 `protobuf:"fixed32,7,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RainfallMm *float32 `protobuf:"fixed32,7,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
+	// Minimum ambient temperature in Celsius.
+	MinTemperatureC *float32 `protobuf:"fixed32,8,opt,name=min_temperature_c,json=minTemperatureC,proto3,oneof" json:"min_temperature_c,omitempty"`
+	// Maximum ambient temperature in Celsius.
+	MaxTemperatureC *float32 `protobuf:"fixed32,9,opt,name=max_temperature_c,json=maxTemperatureC,proto3,oneof" json:"max_temperature_c,omitempty"`
+	// Minimum relative humidity percentage.
+	MinHumidityPct *float32 `protobuf:"fixed32,10,opt,name=min_humidity_pct,json=minHumidityPct,proto3,oneof" json:"min_humidity_pct,omitempty"`
+	// Maximum relative humidity percentage.
+	MaxHumidityPct *float32 `protobuf:"fixed32,11,opt,name=max_humidity_pct,json=maxHumidityPct,proto3,oneof" json:"max_humidity_pct,omitempty"`
+	// Minimum atmospheric pressure in hectopascals.
+	MinPressureHpa *float32 `protobuf:"fixed32,12,opt,name=min_pressure_hpa,json=minPressureHpa,proto3,oneof" json:"min_pressure_hpa,omitempty"`
+	// Maximum atmospheric pressure in hectopascals.
+	MaxPressureHpa *float32 `protobuf:"fixed32,13,opt,name=max_pressure_hpa,json=maxPressureHpa,proto3,oneof" json:"max_pressure_hpa,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TimeSeriesObservation) Reset() {
 	*x = TimeSeriesObservation{}
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[1]
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -201,7 +378,7 @@ func (x *TimeSeriesObservation) String() string {
 func (*TimeSeriesObservation) ProtoMessage() {}
 
 func (x *TimeSeriesObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[1]
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -214,7 +391,7 @@ func (x *TimeSeriesObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimeSeriesObservation.ProtoReflect.Descriptor instead.
 func (*TimeSeriesObservation) Descriptor() ([]byte, []int) {
-	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{1}
+	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *TimeSeriesObservation) GetTimestamp() *timestamppb.Timestamp {
@@ -266,68 +443,46 @@ func (x *TimeSeriesObservation) GetRainfallMm() float32 {
 	return 0
 }
 
-// PredictWeatherResponse contains predictions
-type PredictWeatherResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Generated predictions conforming to the database prediction schema.
-	Predictions []*v1.Prediction `protobuf:"bytes,1,rep,name=predictions,proto3" json:"predictions,omitempty"`
-	// Timestamp when inference completed.
-	ComputedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=computed_at,json=computedAt,proto3" json:"computed_at,omitempty"`
-	// Optional raw quantile output tensor payload.
-	OutputBlob    []byte `protobuf:"bytes,4,opt,name=output_blob,json=outputBlob,proto3,oneof" json:"output_blob,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PredictWeatherResponse) Reset() {
-	*x = PredictWeatherResponse{}
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PredictWeatherResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PredictWeatherResponse) ProtoMessage() {}
-
-func (x *PredictWeatherResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+func (x *TimeSeriesObservation) GetMinTemperatureC() float32 {
+	if x != nil && x.MinTemperatureC != nil {
+		return *x.MinTemperatureC
 	}
-	return mi.MessageOf(x)
+	return 0
 }
 
-// Deprecated: Use PredictWeatherResponse.ProtoReflect.Descriptor instead.
-func (*PredictWeatherResponse) Descriptor() ([]byte, []int) {
-	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *PredictWeatherResponse) GetPredictions() []*v1.Prediction {
-	if x != nil {
-		return x.Predictions
+func (x *TimeSeriesObservation) GetMaxTemperatureC() float32 {
+	if x != nil && x.MaxTemperatureC != nil {
+		return *x.MaxTemperatureC
 	}
-	return nil
+	return 0
 }
 
-func (x *PredictWeatherResponse) GetComputedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ComputedAt
+func (x *TimeSeriesObservation) GetMinHumidityPct() float32 {
+	if x != nil && x.MinHumidityPct != nil {
+		return *x.MinHumidityPct
 	}
-	return nil
+	return 0
 }
 
-func (x *PredictWeatherResponse) GetOutputBlob() []byte {
-	if x != nil {
-		return x.OutputBlob
+func (x *TimeSeriesObservation) GetMaxHumidityPct() float32 {
+	if x != nil && x.MaxHumidityPct != nil {
+		return *x.MaxHumidityPct
 	}
-	return nil
+	return 0
+}
+
+func (x *TimeSeriesObservation) GetMinPressureHpa() float32 {
+	if x != nil && x.MinPressureHpa != nil {
+		return *x.MinPressureHpa
+	}
+	return 0
+}
+
+func (x *TimeSeriesObservation) GetMaxPressureHpa() float32 {
+	if x != nil && x.MaxPressureHpa != nil {
+		return *x.MaxPressureHpa
+	}
+	return 0
 }
 
 // GetModelInfoRequest requests metadata for the inference model.
@@ -339,7 +494,7 @@ type GetModelInfoRequest struct {
 
 func (x *GetModelInfoRequest) Reset() {
 	*x = GetModelInfoRequest{}
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[3]
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -351,7 +506,7 @@ func (x *GetModelInfoRequest) String() string {
 func (*GetModelInfoRequest) ProtoMessage() {}
 
 func (x *GetModelInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[3]
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -364,7 +519,7 @@ func (x *GetModelInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetModelInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetModelInfoRequest) Descriptor() ([]byte, []int) {
-	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{3}
+	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{5}
 }
 
 // GetModelInfoResponse returns metadata for the inference model.
@@ -380,7 +535,7 @@ type GetModelInfoResponse struct {
 
 func (x *GetModelInfoResponse) Reset() {
 	*x = GetModelInfoResponse{}
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[4]
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -392,7 +547,7 @@ func (x *GetModelInfoResponse) String() string {
 func (*GetModelInfoResponse) ProtoMessage() {}
 
 func (x *GetModelInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_inference_v1_inference_proto_msgTypes[4]
+	mi := &file_weather_inference_v1_inference_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -405,7 +560,7 @@ func (x *GetModelInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetModelInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetModelInfoResponse) Descriptor() ([]byte, []int) {
-	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{4}
+	return file_weather_inference_v1_inference_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetModelInfoResponse) GetModelName() string {
@@ -426,18 +581,47 @@ var File_weather_inference_v1_inference_proto protoreflect.FileDescriptor
 
 const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\n" +
-	"$weather/inference/v1/inference.proto\x12\x14weather.inference.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$weather/database/v1/prediction.proto\"\xe0\x02\n" +
-	"\x15PredictWeatherRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x128\n" +
-	"\x04mode\x18\x02 \x01(\x0e2$.weather.inference.v1.PredictionModeR\x04mode\x129\n" +
+	"$weather/inference/v1/inference.proto\x12\x14weather.inference.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$weather/database/v1/prediction.proto\"\xff\x02\n" +
+	"\x1bPredictHourlyWeatherRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
 	"\n" +
-	"issue_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tissueTime\x12E\n" +
-	"\ahistory\x18\x04 \x03(\v2+.weather.inference.v1.TimeSeriesObservationR\ahistory\x12 \n" +
-	"\tdata_blob\x18\x05 \x01(\fH\x00R\bdataBlob\x88\x01\x01\x12-\n" +
-	"\x10data_blob_format\x18\x06 \x01(\tH\x01R\x0edataBlobFormat\x88\x01\x01B\f\n" +
+	"issue_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tissueTime\x12#\n" +
+	"\rhorizon_hours\x18\x03 \x01(\x05R\fhorizonHours\x12E\n" +
+	"\ahistory\x18\x04 \x03(\v2+.weather.inference.v1.TimeSeriesObservationR\ahistory\x12\x1f\n" +
+	"\blatitude\x18\x05 \x01(\x01H\x00R\blatitude\x88\x01\x01\x12 \n" +
+	"\tdata_blob\x18\x06 \x01(\fH\x01R\bdataBlob\x88\x01\x01\x12-\n" +
+	"\x10data_blob_format\x18\a \x01(\tH\x02R\x0edataBlobFormat\x88\x01\x01B\v\n" +
+	"\t_latitudeB\f\n" +
 	"\n" +
 	"_data_blobB\x13\n" +
-	"\x11_data_blob_format\"\xbd\x03\n" +
+	"\x11_data_blob_format\"\xda\x01\n" +
+	"\x1cPredictHourlyWeatherResponse\x12G\n" +
+	"\vpredictions\x18\x01 \x03(\v2%.weather.database.v1.HourlyPredictionR\vpredictions\x12;\n" +
+	"\vcomputed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"computedAt\x12$\n" +
+	"\voutput_blob\x18\x03 \x01(\fH\x00R\n" +
+	"outputBlob\x88\x01\x01B\x0e\n" +
+	"\f_output_blob\"\xfc\x02\n" +
+	"\x1aPredictDailyWeatherRequest\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
+	"\n" +
+	"issue_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tissueTime\x12!\n" +
+	"\fhorizon_days\x18\x03 \x01(\x05R\vhorizonDays\x12E\n" +
+	"\ahistory\x18\x04 \x03(\v2+.weather.inference.v1.TimeSeriesObservationR\ahistory\x12\x1f\n" +
+	"\blatitude\x18\x05 \x01(\x01H\x00R\blatitude\x88\x01\x01\x12 \n" +
+	"\tdata_blob\x18\x06 \x01(\fH\x01R\bdataBlob\x88\x01\x01\x12-\n" +
+	"\x10data_blob_format\x18\a \x01(\tH\x02R\x0edataBlobFormat\x88\x01\x01B\v\n" +
+	"\t_latitudeB\f\n" +
+	"\n" +
+	"_data_blobB\x13\n" +
+	"\x11_data_blob_format\"\xd8\x01\n" +
+	"\x1bPredictDailyWeatherResponse\x12F\n" +
+	"\vpredictions\x18\x01 \x03(\v2$.weather.database.v1.DailyPredictionR\vpredictions\x12;\n" +
+	"\vcomputed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"computedAt\x12$\n" +
+	"\voutput_blob\x18\x03 \x01(\fH\x00R\n" +
+	"outputBlob\x88\x01\x01B\x0e\n" +
+	"\f_output_blob\"\xdb\x06\n" +
 	"\x15TimeSeriesObservation\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12(\n" +
 	"\rtemperature_c\x18\x02 \x01(\x02H\x00R\ftemperatureC\x88\x01\x01\x12&\n" +
@@ -446,31 +630,35 @@ const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\x0ewind_speed_mps\x18\x05 \x01(\x02H\x03R\fwindSpeedMps\x88\x01\x01\x121\n" +
 	"\x12wind_direction_deg\x18\x06 \x01(\x02H\x04R\x10windDirectionDeg\x88\x01\x01\x12$\n" +
 	"\vrainfall_mm\x18\a \x01(\x02H\x05R\n" +
-	"rainfallMm\x88\x01\x01B\x10\n" +
+	"rainfallMm\x88\x01\x01\x12/\n" +
+	"\x11min_temperature_c\x18\b \x01(\x02H\x06R\x0fminTemperatureC\x88\x01\x01\x12/\n" +
+	"\x11max_temperature_c\x18\t \x01(\x02H\aR\x0fmaxTemperatureC\x88\x01\x01\x12-\n" +
+	"\x10min_humidity_pct\x18\n" +
+	" \x01(\x02H\bR\x0eminHumidityPct\x88\x01\x01\x12-\n" +
+	"\x10max_humidity_pct\x18\v \x01(\x02H\tR\x0emaxHumidityPct\x88\x01\x01\x12-\n" +
+	"\x10min_pressure_hpa\x18\f \x01(\x02H\n" +
+	"R\x0eminPressureHpa\x88\x01\x01\x12-\n" +
+	"\x10max_pressure_hpa\x18\r \x01(\x02H\vR\x0emaxPressureHpa\x88\x01\x01B\x10\n" +
 	"\x0e_temperature_cB\x0f\n" +
 	"\r_humidity_pctB\x0f\n" +
 	"\r_pressure_hpaB\x11\n" +
 	"\x0f_wind_speed_mpsB\x15\n" +
 	"\x13_wind_direction_degB\x0e\n" +
-	"\f_rainfall_mm\"\xce\x01\n" +
-	"\x16PredictWeatherResponse\x12A\n" +
-	"\vpredictions\x18\x01 \x03(\v2\x1f.weather.database.v1.PredictionR\vpredictions\x12;\n" +
-	"\vcomputed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"computedAt\x12$\n" +
-	"\voutput_blob\x18\x04 \x01(\fH\x00R\n" +
-	"outputBlob\x88\x01\x01B\x0e\n" +
-	"\f_output_blob\"\x15\n" +
+	"\f_rainfall_mmB\x14\n" +
+	"\x12_min_temperature_cB\x14\n" +
+	"\x12_max_temperature_cB\x13\n" +
+	"\x11_min_humidity_pctB\x13\n" +
+	"\x11_max_humidity_pctB\x13\n" +
+	"\x11_min_pressure_hpaB\x13\n" +
+	"\x11_max_pressure_hpa\"\x15\n" +
 	"\x13GetModelInfoRequest\"a\n" +
 	"\x14GetModelInfoResponse\x12\x1d\n" +
 	"\n" +
 	"model_name\x18\x01 \x01(\tR\tmodelName\x12*\n" +
-	"\x11max_horizon_hours\x18\x03 \x01(\x05R\x0fmaxHorizonHours*v\n" +
-	"\x0ePredictionMode\x12\x1f\n" +
-	"\x1bPREDICTION_MODE_UNSPECIFIED\x10\x00\x12!\n" +
-	"\x1dPREDICTION_MODE_NEXT_24_HOURS\x10\x01\x12 \n" +
-	"\x1cPREDICTION_MODE_NEXT_10_DAYS\x10\x022\xe6\x01\n" +
-	"\x10InferenceService\x12k\n" +
-	"\x0ePredictWeather\x12+.weather.inference.v1.PredictWeatherRequest\x1a,.weather.inference.v1.PredictWeatherResponse\x12e\n" +
+	"\x11max_horizon_hours\x18\x03 \x01(\x05R\x0fmaxHorizonHours2\xf4\x02\n" +
+	"\x10InferenceService\x12}\n" +
+	"\x14PredictHourlyWeather\x121.weather.inference.v1.PredictHourlyWeatherRequest\x1a2.weather.inference.v1.PredictHourlyWeatherResponse\x12z\n" +
+	"\x13PredictDailyWeather\x120.weather.inference.v1.PredictDailyWeatherRequest\x1a1.weather.inference.v1.PredictDailyWeatherResponse\x12e\n" +
 	"\fGetModelInfo\x12).weather.inference.v1.GetModelInfoRequest\x1a*.weather.inference.v1.GetModelInfoResponseB9Z7weather-station/gen/go/weather/inference/v1;inferencev1b\x06proto3"
 
 var (
@@ -485,34 +673,40 @@ func file_weather_inference_v1_inference_proto_rawDescGZIP() []byte {
 	return file_weather_inference_v1_inference_proto_rawDescData
 }
 
-var file_weather_inference_v1_inference_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_weather_inference_v1_inference_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_weather_inference_v1_inference_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_weather_inference_v1_inference_proto_goTypes = []any{
-	(PredictionMode)(0),            // 0: weather.inference.v1.PredictionMode
-	(*PredictWeatherRequest)(nil),  // 1: weather.inference.v1.PredictWeatherRequest
-	(*TimeSeriesObservation)(nil),  // 2: weather.inference.v1.TimeSeriesObservation
-	(*PredictWeatherResponse)(nil), // 3: weather.inference.v1.PredictWeatherResponse
-	(*GetModelInfoRequest)(nil),    // 4: weather.inference.v1.GetModelInfoRequest
-	(*GetModelInfoResponse)(nil),   // 5: weather.inference.v1.GetModelInfoResponse
-	(*timestamppb.Timestamp)(nil),  // 6: google.protobuf.Timestamp
-	(*v1.Prediction)(nil),          // 7: weather.database.v1.Prediction
+	(*PredictHourlyWeatherRequest)(nil),  // 0: weather.inference.v1.PredictHourlyWeatherRequest
+	(*PredictHourlyWeatherResponse)(nil), // 1: weather.inference.v1.PredictHourlyWeatherResponse
+	(*PredictDailyWeatherRequest)(nil),   // 2: weather.inference.v1.PredictDailyWeatherRequest
+	(*PredictDailyWeatherResponse)(nil),  // 3: weather.inference.v1.PredictDailyWeatherResponse
+	(*TimeSeriesObservation)(nil),        // 4: weather.inference.v1.TimeSeriesObservation
+	(*GetModelInfoRequest)(nil),          // 5: weather.inference.v1.GetModelInfoRequest
+	(*GetModelInfoResponse)(nil),         // 6: weather.inference.v1.GetModelInfoResponse
+	(*timestamppb.Timestamp)(nil),        // 7: google.protobuf.Timestamp
+	(*v1.HourlyPrediction)(nil),          // 8: weather.database.v1.HourlyPrediction
+	(*v1.DailyPrediction)(nil),           // 9: weather.database.v1.DailyPrediction
 }
 var file_weather_inference_v1_inference_proto_depIdxs = []int32{
-	0, // 0: weather.inference.v1.PredictWeatherRequest.mode:type_name -> weather.inference.v1.PredictionMode
-	6, // 1: weather.inference.v1.PredictWeatherRequest.issue_time:type_name -> google.protobuf.Timestamp
-	2, // 2: weather.inference.v1.PredictWeatherRequest.history:type_name -> weather.inference.v1.TimeSeriesObservation
-	6, // 3: weather.inference.v1.TimeSeriesObservation.timestamp:type_name -> google.protobuf.Timestamp
-	7, // 4: weather.inference.v1.PredictWeatherResponse.predictions:type_name -> weather.database.v1.Prediction
-	6, // 5: weather.inference.v1.PredictWeatherResponse.computed_at:type_name -> google.protobuf.Timestamp
-	1, // 6: weather.inference.v1.InferenceService.PredictWeather:input_type -> weather.inference.v1.PredictWeatherRequest
-	4, // 7: weather.inference.v1.InferenceService.GetModelInfo:input_type -> weather.inference.v1.GetModelInfoRequest
-	3, // 8: weather.inference.v1.InferenceService.PredictWeather:output_type -> weather.inference.v1.PredictWeatherResponse
-	5, // 9: weather.inference.v1.InferenceService.GetModelInfo:output_type -> weather.inference.v1.GetModelInfoResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7,  // 0: weather.inference.v1.PredictHourlyWeatherRequest.issue_time:type_name -> google.protobuf.Timestamp
+	4,  // 1: weather.inference.v1.PredictHourlyWeatherRequest.history:type_name -> weather.inference.v1.TimeSeriesObservation
+	8,  // 2: weather.inference.v1.PredictHourlyWeatherResponse.predictions:type_name -> weather.database.v1.HourlyPrediction
+	7,  // 3: weather.inference.v1.PredictHourlyWeatherResponse.computed_at:type_name -> google.protobuf.Timestamp
+	7,  // 4: weather.inference.v1.PredictDailyWeatherRequest.issue_time:type_name -> google.protobuf.Timestamp
+	4,  // 5: weather.inference.v1.PredictDailyWeatherRequest.history:type_name -> weather.inference.v1.TimeSeriesObservation
+	9,  // 6: weather.inference.v1.PredictDailyWeatherResponse.predictions:type_name -> weather.database.v1.DailyPrediction
+	7,  // 7: weather.inference.v1.PredictDailyWeatherResponse.computed_at:type_name -> google.protobuf.Timestamp
+	7,  // 8: weather.inference.v1.TimeSeriesObservation.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 9: weather.inference.v1.InferenceService.PredictHourlyWeather:input_type -> weather.inference.v1.PredictHourlyWeatherRequest
+	2,  // 10: weather.inference.v1.InferenceService.PredictDailyWeather:input_type -> weather.inference.v1.PredictDailyWeatherRequest
+	5,  // 11: weather.inference.v1.InferenceService.GetModelInfo:input_type -> weather.inference.v1.GetModelInfoRequest
+	1,  // 12: weather.inference.v1.InferenceService.PredictHourlyWeather:output_type -> weather.inference.v1.PredictHourlyWeatherResponse
+	3,  // 13: weather.inference.v1.InferenceService.PredictDailyWeather:output_type -> weather.inference.v1.PredictDailyWeatherResponse
+	6,  // 14: weather.inference.v1.InferenceService.GetModelInfo:output_type -> weather.inference.v1.GetModelInfoResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_weather_inference_v1_inference_proto_init() }
@@ -523,19 +717,20 @@ func file_weather_inference_v1_inference_proto_init() {
 	file_weather_inference_v1_inference_proto_msgTypes[0].OneofWrappers = []any{}
 	file_weather_inference_v1_inference_proto_msgTypes[1].OneofWrappers = []any{}
 	file_weather_inference_v1_inference_proto_msgTypes[2].OneofWrappers = []any{}
+	file_weather_inference_v1_inference_proto_msgTypes[3].OneofWrappers = []any{}
+	file_weather_inference_v1_inference_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_weather_inference_v1_inference_proto_rawDesc), len(file_weather_inference_v1_inference_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   5,
+			NumEnums:      0,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_weather_inference_v1_inference_proto_goTypes,
 		DependencyIndexes: file_weather_inference_v1_inference_proto_depIdxs,
-		EnumInfos:         file_weather_inference_v1_inference_proto_enumTypes,
 		MessageInfos:      file_weather_inference_v1_inference_proto_msgTypes,
 	}.Build()
 	File_weather_inference_v1_inference_proto = out.File

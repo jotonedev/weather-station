@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	InferenceService_PredictWeather_FullMethodName = "/weather.inference.v1.InferenceService/PredictWeather"
-	InferenceService_GetModelInfo_FullMethodName   = "/weather.inference.v1.InferenceService/GetModelInfo"
+	InferenceService_PredictHourlyWeather_FullMethodName = "/weather.inference.v1.InferenceService/PredictHourlyWeather"
+	InferenceService_PredictDailyWeather_FullMethodName  = "/weather.inference.v1.InferenceService/PredictDailyWeather"
+	InferenceService_GetModelInfo_FullMethodName         = "/weather.inference.v1.InferenceService/GetModelInfo"
 )
 
 // InferenceServiceClient is the client API for InferenceService service.
@@ -29,8 +30,10 @@ const (
 //
 // InferenceService provides weather forecasts
 type InferenceServiceClient interface {
-	// PredictWeather executes time series inference for a node and mode.
-	PredictWeather(ctx context.Context, in *PredictWeatherRequest, opts ...grpc.CallOption) (*PredictWeatherResponse, error)
+	// PredictHourlyWeather executes hourly forecasting up to horizon_hours.
+	PredictHourlyWeather(ctx context.Context, in *PredictHourlyWeatherRequest, opts ...grpc.CallOption) (*PredictHourlyWeatherResponse, error)
+	// PredictDailyWeather executes daily forecasting up to horizon_days.
+	PredictDailyWeather(ctx context.Context, in *PredictDailyWeatherRequest, opts ...grpc.CallOption) (*PredictDailyWeatherResponse, error)
 	// GetModelInfo returns metadata and operational bounds for the active model.
 	GetModelInfo(ctx context.Context, in *GetModelInfoRequest, opts ...grpc.CallOption) (*GetModelInfoResponse, error)
 }
@@ -43,10 +46,20 @@ func NewInferenceServiceClient(cc grpc.ClientConnInterface) InferenceServiceClie
 	return &inferenceServiceClient{cc}
 }
 
-func (c *inferenceServiceClient) PredictWeather(ctx context.Context, in *PredictWeatherRequest, opts ...grpc.CallOption) (*PredictWeatherResponse, error) {
+func (c *inferenceServiceClient) PredictHourlyWeather(ctx context.Context, in *PredictHourlyWeatherRequest, opts ...grpc.CallOption) (*PredictHourlyWeatherResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PredictWeatherResponse)
-	err := c.cc.Invoke(ctx, InferenceService_PredictWeather_FullMethodName, in, out, cOpts...)
+	out := new(PredictHourlyWeatherResponse)
+	err := c.cc.Invoke(ctx, InferenceService_PredictHourlyWeather_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *inferenceServiceClient) PredictDailyWeather(ctx context.Context, in *PredictDailyWeatherRequest, opts ...grpc.CallOption) (*PredictDailyWeatherResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PredictDailyWeatherResponse)
+	err := c.cc.Invoke(ctx, InferenceService_PredictDailyWeather_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +82,10 @@ func (c *inferenceServiceClient) GetModelInfo(ctx context.Context, in *GetModelI
 //
 // InferenceService provides weather forecasts
 type InferenceServiceServer interface {
-	// PredictWeather executes time series inference for a node and mode.
-	PredictWeather(context.Context, *PredictWeatherRequest) (*PredictWeatherResponse, error)
+	// PredictHourlyWeather executes hourly forecasting up to horizon_hours.
+	PredictHourlyWeather(context.Context, *PredictHourlyWeatherRequest) (*PredictHourlyWeatherResponse, error)
+	// PredictDailyWeather executes daily forecasting up to horizon_days.
+	PredictDailyWeather(context.Context, *PredictDailyWeatherRequest) (*PredictDailyWeatherResponse, error)
 	// GetModelInfo returns metadata and operational bounds for the active model.
 	GetModelInfo(context.Context, *GetModelInfoRequest) (*GetModelInfoResponse, error)
 	mustEmbedUnimplementedInferenceServiceServer()
@@ -83,8 +98,11 @@ type InferenceServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedInferenceServiceServer struct{}
 
-func (UnimplementedInferenceServiceServer) PredictWeather(context.Context, *PredictWeatherRequest) (*PredictWeatherResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method PredictWeather not implemented")
+func (UnimplementedInferenceServiceServer) PredictHourlyWeather(context.Context, *PredictHourlyWeatherRequest) (*PredictHourlyWeatherResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PredictHourlyWeather not implemented")
+}
+func (UnimplementedInferenceServiceServer) PredictDailyWeather(context.Context, *PredictDailyWeatherRequest) (*PredictDailyWeatherResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PredictDailyWeather not implemented")
 }
 func (UnimplementedInferenceServiceServer) GetModelInfo(context.Context, *GetModelInfoRequest) (*GetModelInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetModelInfo not implemented")
@@ -110,20 +128,38 @@ func RegisterInferenceServiceServer(s grpc.ServiceRegistrar, srv InferenceServic
 	s.RegisterService(&InferenceService_ServiceDesc, srv)
 }
 
-func _InferenceService_PredictWeather_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PredictWeatherRequest)
+func _InferenceService_PredictHourlyWeather_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PredictHourlyWeatherRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(InferenceServiceServer).PredictWeather(ctx, in)
+		return srv.(InferenceServiceServer).PredictHourlyWeather(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: InferenceService_PredictWeather_FullMethodName,
+		FullMethod: InferenceService_PredictHourlyWeather_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(InferenceServiceServer).PredictWeather(ctx, req.(*PredictWeatherRequest))
+		return srv.(InferenceServiceServer).PredictHourlyWeather(ctx, req.(*PredictHourlyWeatherRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InferenceService_PredictDailyWeather_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PredictDailyWeatherRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InferenceServiceServer).PredictDailyWeather(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InferenceService_PredictDailyWeather_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InferenceServiceServer).PredictDailyWeather(ctx, req.(*PredictDailyWeatherRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -154,8 +190,12 @@ var InferenceService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*InferenceServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "PredictWeather",
-			Handler:    _InferenceService_PredictWeather_Handler,
+			MethodName: "PredictHourlyWeather",
+			Handler:    _InferenceService_PredictHourlyWeather_Handler,
+		},
+		{
+			MethodName: "PredictDailyWeather",
+			Handler:    _InferenceService_PredictDailyWeather_Handler,
 		},
 		{
 			MethodName: "GetModelInfo",

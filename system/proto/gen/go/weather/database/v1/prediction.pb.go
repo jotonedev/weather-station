@@ -22,32 +22,229 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Prediction is a single forecast for a node and horizon.
-// Only rainfall, temperature, humidity and wind direction are predicted. Each
-// metric and its confidence is optional (explicit presence); missing values are
-// stored as NULL.
+// HourlyPrediction is a forecast for an hourly horizon.
+type HourlyPrediction struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	NodeId             string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	IssueTime          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
+	HorizonHours       int32                  `protobuf:"varint,3,opt,name=horizon_hours,json=horizonHours,proto3" json:"horizon_hours,omitempty"`
+	TemperatureC       *float32               `protobuf:"fixed32,4,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
+	HumidityPct        *float32               `protobuf:"fixed32,5,opt,name=humidity_pct,json=humidityPct,proto3,oneof" json:"humidity_pct,omitempty"`
+	RainfallMm         *float32               `protobuf:"fixed32,6,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
+	RainfallConfidence *float32               `protobuf:"fixed32,7,opt,name=rainfall_confidence,json=rainfallConfidence,proto3,oneof" json:"rainfall_confidence,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *HourlyPrediction) Reset() {
+	*x = HourlyPrediction{}
+	mi := &file_weather_database_v1_prediction_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HourlyPrediction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HourlyPrediction) ProtoMessage() {}
+
+func (x *HourlyPrediction) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_database_v1_prediction_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HourlyPrediction.ProtoReflect.Descriptor instead.
+func (*HourlyPrediction) Descriptor() ([]byte, []int) {
+	return file_weather_database_v1_prediction_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *HourlyPrediction) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *HourlyPrediction) GetIssueTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.IssueTime
+	}
+	return nil
+}
+
+func (x *HourlyPrediction) GetHorizonHours() int32 {
+	if x != nil {
+		return x.HorizonHours
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetTemperatureC() float32 {
+	if x != nil && x.TemperatureC != nil {
+		return *x.TemperatureC
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetHumidityPct() float32 {
+	if x != nil && x.HumidityPct != nil {
+		return *x.HumidityPct
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetRainfallMm() float32 {
+	if x != nil && x.RainfallMm != nil {
+		return *x.RainfallMm
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetRainfallConfidence() float32 {
+	if x != nil && x.RainfallConfidence != nil {
+		return *x.RainfallConfidence
+	}
+	return 0
+}
+
+// DailyPrediction is a forecast for a daily horizon.
+type DailyPrediction struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	NodeId             string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	IssueTime          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
+	HorizonDays        int32                  `protobuf:"varint,3,opt,name=horizon_days,json=horizonDays,proto3" json:"horizon_days,omitempty"`
+	MinTemperatureC    *float32               `protobuf:"fixed32,4,opt,name=min_temperature_c,json=minTemperatureC,proto3,oneof" json:"min_temperature_c,omitempty"`
+	MaxTemperatureC    *float32               `protobuf:"fixed32,5,opt,name=max_temperature_c,json=maxTemperatureC,proto3,oneof" json:"max_temperature_c,omitempty"`
+	MinHumidityPct     *float32               `protobuf:"fixed32,6,opt,name=min_humidity_pct,json=minHumidityPct,proto3,oneof" json:"min_humidity_pct,omitempty"`
+	MaxHumidityPct     *float32               `protobuf:"fixed32,7,opt,name=max_humidity_pct,json=maxHumidityPct,proto3,oneof" json:"max_humidity_pct,omitempty"`
+	RainfallMm         *float32               `protobuf:"fixed32,8,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
+	RainfallConfidence *float32               `protobuf:"fixed32,9,opt,name=rainfall_confidence,json=rainfallConfidence,proto3,oneof" json:"rainfall_confidence,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *DailyPrediction) Reset() {
+	*x = DailyPrediction{}
+	mi := &file_weather_database_v1_prediction_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DailyPrediction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DailyPrediction) ProtoMessage() {}
+
+func (x *DailyPrediction) ProtoReflect() protoreflect.Message {
+	mi := &file_weather_database_v1_prediction_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DailyPrediction.ProtoReflect.Descriptor instead.
+func (*DailyPrediction) Descriptor() ([]byte, []int) {
+	return file_weather_database_v1_prediction_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DailyPrediction) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *DailyPrediction) GetIssueTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.IssueTime
+	}
+	return nil
+}
+
+func (x *DailyPrediction) GetHorizonDays() int32 {
+	if x != nil {
+		return x.HorizonDays
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetMinTemperatureC() float32 {
+	if x != nil && x.MinTemperatureC != nil {
+		return *x.MinTemperatureC
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetMaxTemperatureC() float32 {
+	if x != nil && x.MaxTemperatureC != nil {
+		return *x.MaxTemperatureC
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetMinHumidityPct() float32 {
+	if x != nil && x.MinHumidityPct != nil {
+		return *x.MinHumidityPct
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetMaxHumidityPct() float32 {
+	if x != nil && x.MaxHumidityPct != nil {
+		return *x.MaxHumidityPct
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetRainfallMm() float32 {
+	if x != nil && x.RainfallMm != nil {
+		return *x.RainfallMm
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetRainfallConfidence() float32 {
+	if x != nil && x.RainfallConfidence != nil {
+		return *x.RainfallConfidence
+	}
+	return 0
+}
+
+// Prediction is the unified record stored in the database predictions table.
 type Prediction struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	NodeId           string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	IssueTime        *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
-	HorizonHours     int32                  `protobuf:"varint,3,opt,name=horizon_hours,json=horizonHours,proto3" json:"horizon_hours,omitempty"`
-	RainfallMm       *float32               `protobuf:"fixed32,4,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
-	TemperatureC     *float32               `protobuf:"fixed32,5,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
-	HumidityPct      *float32               `protobuf:"fixed32,6,opt,name=humidity_pct,json=humidityPct,proto3,oneof" json:"humidity_pct,omitempty"`
-	WindDirectionDeg *float32               `protobuf:"fixed32,7,opt,name=wind_direction_deg,json=windDirectionDeg,proto3,oneof" json:"wind_direction_deg,omitempty"`
-	// Confidence is in the range 0 to 1 and reflects how reliable the value is
-	// expected to be at its horizon.
-	RainfallConfidence      *float32 `protobuf:"fixed32,8,opt,name=rainfall_confidence,json=rainfallConfidence,proto3,oneof" json:"rainfall_confidence,omitempty"`
-	TemperatureConfidence   *float32 `protobuf:"fixed32,9,opt,name=temperature_confidence,json=temperatureConfidence,proto3,oneof" json:"temperature_confidence,omitempty"`
-	HumidityConfidence      *float32 `protobuf:"fixed32,10,opt,name=humidity_confidence,json=humidityConfidence,proto3,oneof" json:"humidity_confidence,omitempty"`
-	WindDirectionConfidence *float32 `protobuf:"fixed32,11,opt,name=wind_direction_confidence,json=windDirectionConfidence,proto3,oneof" json:"wind_direction_confidence,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	NodeId             string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	IssueTime          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
+	HorizonHours       int32                  `protobuf:"varint,3,opt,name=horizon_hours,json=horizonHours,proto3" json:"horizon_hours,omitempty"`
+	RainfallMm         *float32               `protobuf:"fixed32,4,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
+	TemperatureC       *float32               `protobuf:"fixed32,5,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
+	MinTemperatureC    *float32               `protobuf:"fixed32,6,opt,name=min_temperature_c,json=minTemperatureC,proto3,oneof" json:"min_temperature_c,omitempty"`
+	MaxTemperatureC    *float32               `protobuf:"fixed32,7,opt,name=max_temperature_c,json=maxTemperatureC,proto3,oneof" json:"max_temperature_c,omitempty"`
+	HumidityPct        *float32               `protobuf:"fixed32,8,opt,name=humidity_pct,json=humidityPct,proto3,oneof" json:"humidity_pct,omitempty"`
+	MinHumidityPct     *float32               `protobuf:"fixed32,9,opt,name=min_humidity_pct,json=minHumidityPct,proto3,oneof" json:"min_humidity_pct,omitempty"`
+	MaxHumidityPct     *float32               `protobuf:"fixed32,10,opt,name=max_humidity_pct,json=maxHumidityPct,proto3,oneof" json:"max_humidity_pct,omitempty"`
+	RainfallConfidence *float32               `protobuf:"fixed32,11,opt,name=rainfall_confidence,json=rainfallConfidence,proto3,oneof" json:"rainfall_confidence,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Prediction) Reset() {
 	*x = Prediction{}
-	mi := &file_weather_database_v1_prediction_proto_msgTypes[0]
+	mi := &file_weather_database_v1_prediction_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59,7 +256,7 @@ func (x *Prediction) String() string {
 func (*Prediction) ProtoMessage() {}
 
 func (x *Prediction) ProtoReflect() protoreflect.Message {
-	mi := &file_weather_database_v1_prediction_proto_msgTypes[0]
+	mi := &file_weather_database_v1_prediction_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -72,7 +269,7 @@ func (x *Prediction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Prediction.ProtoReflect.Descriptor instead.
 func (*Prediction) Descriptor() ([]byte, []int) {
-	return file_weather_database_v1_prediction_proto_rawDescGZIP(), []int{0}
+	return file_weather_database_v1_prediction_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Prediction) GetNodeId() string {
@@ -110,6 +307,20 @@ func (x *Prediction) GetTemperatureC() float32 {
 	return 0
 }
 
+func (x *Prediction) GetMinTemperatureC() float32 {
+	if x != nil && x.MinTemperatureC != nil {
+		return *x.MinTemperatureC
+	}
+	return 0
+}
+
+func (x *Prediction) GetMaxTemperatureC() float32 {
+	if x != nil && x.MaxTemperatureC != nil {
+		return *x.MaxTemperatureC
+	}
+	return 0
+}
+
 func (x *Prediction) GetHumidityPct() float32 {
 	if x != nil && x.HumidityPct != nil {
 		return *x.HumidityPct
@@ -117,9 +328,16 @@ func (x *Prediction) GetHumidityPct() float32 {
 	return 0
 }
 
-func (x *Prediction) GetWindDirectionDeg() float32 {
-	if x != nil && x.WindDirectionDeg != nil {
-		return *x.WindDirectionDeg
+func (x *Prediction) GetMinHumidityPct() float32 {
+	if x != nil && x.MinHumidityPct != nil {
+		return *x.MinHumidityPct
+	}
+	return 0
+}
+
+func (x *Prediction) GetMaxHumidityPct() float32 {
+	if x != nil && x.MaxHumidityPct != nil {
+		return *x.MaxHumidityPct
 	}
 	return 0
 }
@@ -131,32 +349,43 @@ func (x *Prediction) GetRainfallConfidence() float32 {
 	return 0
 }
 
-func (x *Prediction) GetTemperatureConfidence() float32 {
-	if x != nil && x.TemperatureConfidence != nil {
-		return *x.TemperatureConfidence
-	}
-	return 0
-}
-
-func (x *Prediction) GetHumidityConfidence() float32 {
-	if x != nil && x.HumidityConfidence != nil {
-		return *x.HumidityConfidence
-	}
-	return 0
-}
-
-func (x *Prediction) GetWindDirectionConfidence() float32 {
-	if x != nil && x.WindDirectionConfidence != nil {
-		return *x.WindDirectionConfidence
-	}
-	return 0
-}
-
 var File_weather_database_v1_prediction_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_prediction_proto_rawDesc = "" +
 	"\n" +
-	"$weather/database/v1/prediction.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcc\x05\n" +
+	"$weather/database/v1/prediction.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x84\x03\n" +
+	"\x10HourlyPrediction\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
+	"\n" +
+	"issue_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tissueTime\x12#\n" +
+	"\rhorizon_hours\x18\x03 \x01(\x05R\fhorizonHours\x12(\n" +
+	"\rtemperature_c\x18\x04 \x01(\x02H\x00R\ftemperatureC\x88\x01\x01\x12&\n" +
+	"\fhumidity_pct\x18\x05 \x01(\x02H\x01R\vhumidityPct\x88\x01\x01\x12$\n" +
+	"\vrainfall_mm\x18\x06 \x01(\x02H\x02R\n" +
+	"rainfallMm\x88\x01\x01\x124\n" +
+	"\x13rainfall_confidence\x18\a \x01(\x02H\x03R\x12rainfallConfidence\x88\x01\x01B\x10\n" +
+	"\x0e_temperature_cB\x0f\n" +
+	"\r_humidity_pctB\x0e\n" +
+	"\f_rainfall_mmB\x16\n" +
+	"\x14_rainfall_confidence\"\xa2\x04\n" +
+	"\x0fDailyPrediction\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
+	"\n" +
+	"issue_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tissueTime\x12!\n" +
+	"\fhorizon_days\x18\x03 \x01(\x05R\vhorizonDays\x12/\n" +
+	"\x11min_temperature_c\x18\x04 \x01(\x02H\x00R\x0fminTemperatureC\x88\x01\x01\x12/\n" +
+	"\x11max_temperature_c\x18\x05 \x01(\x02H\x01R\x0fmaxTemperatureC\x88\x01\x01\x12-\n" +
+	"\x10min_humidity_pct\x18\x06 \x01(\x02H\x02R\x0eminHumidityPct\x88\x01\x01\x12-\n" +
+	"\x10max_humidity_pct\x18\a \x01(\x02H\x03R\x0emaxHumidityPct\x88\x01\x01\x12$\n" +
+	"\vrainfall_mm\x18\b \x01(\x02H\x04R\n" +
+	"rainfallMm\x88\x01\x01\x124\n" +
+	"\x13rainfall_confidence\x18\t \x01(\x02H\x05R\x12rainfallConfidence\x88\x01\x01B\x14\n" +
+	"\x12_min_temperature_cB\x14\n" +
+	"\x12_max_temperature_cB\x13\n" +
+	"\x11_min_humidity_pctB\x13\n" +
+	"\x11_max_humidity_pctB\x0e\n" +
+	"\f_rainfall_mmB\x16\n" +
+	"\x14_rainfall_confidence\"\x94\x05\n" +
 	"\n" +
 	"Prediction\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
@@ -165,22 +394,22 @@ const file_weather_database_v1_prediction_proto_rawDesc = "" +
 	"\rhorizon_hours\x18\x03 \x01(\x05R\fhorizonHours\x12$\n" +
 	"\vrainfall_mm\x18\x04 \x01(\x02H\x00R\n" +
 	"rainfallMm\x88\x01\x01\x12(\n" +
-	"\rtemperature_c\x18\x05 \x01(\x02H\x01R\ftemperatureC\x88\x01\x01\x12&\n" +
-	"\fhumidity_pct\x18\x06 \x01(\x02H\x02R\vhumidityPct\x88\x01\x01\x121\n" +
-	"\x12wind_direction_deg\x18\a \x01(\x02H\x03R\x10windDirectionDeg\x88\x01\x01\x124\n" +
-	"\x13rainfall_confidence\x18\b \x01(\x02H\x04R\x12rainfallConfidence\x88\x01\x01\x12:\n" +
-	"\x16temperature_confidence\x18\t \x01(\x02H\x05R\x15temperatureConfidence\x88\x01\x01\x124\n" +
-	"\x13humidity_confidence\x18\n" +
-	" \x01(\x02H\x06R\x12humidityConfidence\x88\x01\x01\x12?\n" +
-	"\x19wind_direction_confidence\x18\v \x01(\x02H\aR\x17windDirectionConfidence\x88\x01\x01B\x0e\n" +
+	"\rtemperature_c\x18\x05 \x01(\x02H\x01R\ftemperatureC\x88\x01\x01\x12/\n" +
+	"\x11min_temperature_c\x18\x06 \x01(\x02H\x02R\x0fminTemperatureC\x88\x01\x01\x12/\n" +
+	"\x11max_temperature_c\x18\a \x01(\x02H\x03R\x0fmaxTemperatureC\x88\x01\x01\x12&\n" +
+	"\fhumidity_pct\x18\b \x01(\x02H\x04R\vhumidityPct\x88\x01\x01\x12-\n" +
+	"\x10min_humidity_pct\x18\t \x01(\x02H\x05R\x0eminHumidityPct\x88\x01\x01\x12-\n" +
+	"\x10max_humidity_pct\x18\n" +
+	" \x01(\x02H\x06R\x0emaxHumidityPct\x88\x01\x01\x124\n" +
+	"\x13rainfall_confidence\x18\v \x01(\x02H\aR\x12rainfallConfidence\x88\x01\x01B\x0e\n" +
 	"\f_rainfall_mmB\x10\n" +
-	"\x0e_temperature_cB\x0f\n" +
-	"\r_humidity_pctB\x15\n" +
-	"\x13_wind_direction_degB\x16\n" +
-	"\x14_rainfall_confidenceB\x19\n" +
-	"\x17_temperature_confidenceB\x16\n" +
-	"\x14_humidity_confidenceB\x1c\n" +
-	"\x1a_wind_direction_confidenceB7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
+	"\x0e_temperature_cB\x14\n" +
+	"\x12_min_temperature_cB\x14\n" +
+	"\x12_max_temperature_cB\x0f\n" +
+	"\r_humidity_pctB\x13\n" +
+	"\x11_min_humidity_pctB\x13\n" +
+	"\x11_max_humidity_pctB\x16\n" +
+	"\x14_rainfall_confidenceB7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
 
 var (
 	file_weather_database_v1_prediction_proto_rawDescOnce sync.Once
@@ -194,18 +423,22 @@ func file_weather_database_v1_prediction_proto_rawDescGZIP() []byte {
 	return file_weather_database_v1_prediction_proto_rawDescData
 }
 
-var file_weather_database_v1_prediction_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_weather_database_v1_prediction_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_weather_database_v1_prediction_proto_goTypes = []any{
-	(*Prediction)(nil),            // 0: weather.database.v1.Prediction
-	(*timestamppb.Timestamp)(nil), // 1: google.protobuf.Timestamp
+	(*HourlyPrediction)(nil),      // 0: weather.database.v1.HourlyPrediction
+	(*DailyPrediction)(nil),       // 1: weather.database.v1.DailyPrediction
+	(*Prediction)(nil),            // 2: weather.database.v1.Prediction
+	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
 }
 var file_weather_database_v1_prediction_proto_depIdxs = []int32{
-	1, // 0: weather.database.v1.Prediction.issue_time:type_name -> google.protobuf.Timestamp
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 0: weather.database.v1.HourlyPrediction.issue_time:type_name -> google.protobuf.Timestamp
+	3, // 1: weather.database.v1.DailyPrediction.issue_time:type_name -> google.protobuf.Timestamp
+	3, // 2: weather.database.v1.Prediction.issue_time:type_name -> google.protobuf.Timestamp
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_weather_database_v1_prediction_proto_init() }
@@ -214,13 +447,15 @@ func file_weather_database_v1_prediction_proto_init() {
 		return
 	}
 	file_weather_database_v1_prediction_proto_msgTypes[0].OneofWrappers = []any{}
+	file_weather_database_v1_prediction_proto_msgTypes[1].OneofWrappers = []any{}
+	file_weather_database_v1_prediction_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_weather_database_v1_prediction_proto_rawDesc), len(file_weather_database_v1_prediction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

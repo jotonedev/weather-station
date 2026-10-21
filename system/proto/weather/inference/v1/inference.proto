@@ -9,41 +9,50 @@ option go_package = "weather-station/gen/go/weather/inference/v1;inferencev1";
 
 // InferenceService provides weather forecasts
 service InferenceService {
-  // PredictWeather executes time series inference for a node and mode.
-  rpc PredictWeather(PredictWeatherRequest) returns (PredictWeatherResponse);
+  // PredictHourlyWeather executes hourly forecasting up to horizon_hours.
+  rpc PredictHourlyWeather(PredictHourlyWeatherRequest) returns (PredictHourlyWeatherResponse);
+
+  // PredictDailyWeather executes daily forecasting up to horizon_days.
+  rpc PredictDailyWeather(PredictDailyWeatherRequest) returns (PredictDailyWeatherResponse);
 
   // GetModelInfo returns metadata and operational bounds for the active model.
   rpc GetModelInfo(GetModelInfoRequest) returns (GetModelInfoResponse);
 }
 
-// PredictionMode defines the forecasting resolution and horizon.
-enum PredictionMode {
-  PREDICTION_MODE_UNSPECIFIED = 0;
-  // Forecasts next 24 hours hourly from up to 40 days of hourly history.
-  PREDICTION_MODE_NEXT_24_HOURS = 1;
-  // Forecasts next 10 days daily from up to 1 year of daily history.
-  PREDICTION_MODE_NEXT_10_DAYS = 2;
+// PredictHourlyWeatherRequest contains input data for hourly weather forecasting.
+message PredictHourlyWeatherRequest {
+  string node_id = 1;
+  google.protobuf.Timestamp issue_time = 2;
+  int32 horizon_hours = 3;
+  repeated TimeSeriesObservation history = 4;
+  optional double latitude = 5;
+  optional bytes data_blob = 6;
+  optional string data_blob_format = 7;
 }
 
-// PredictWeatherRequest contains the pre-aggregated historical series
-message PredictWeatherRequest {
-  // Station node identifier.
+// PredictHourlyWeatherResponse contains hourly predictions.
+message PredictHourlyWeatherResponse {
+  repeated weather.database.v1.HourlyPrediction predictions = 1;
+  google.protobuf.Timestamp computed_at = 2;
+  optional bytes output_blob = 3;
+}
+
+// PredictDailyWeatherRequest contains input data for daily weather forecasting.
+message PredictDailyWeatherRequest {
   string node_id = 1;
-
-  // Forecasting mode defining horizon and aggregation frequency.
-  PredictionMode mode = 2;
-
-  // Forecast reference timestamp.
-  google.protobuf.Timestamp issue_time = 3;
-
-  // Structured time series observations.
+  google.protobuf.Timestamp issue_time = 2;
+  int32 horizon_days = 3;
   repeated TimeSeriesObservation history = 4;
+  optional double latitude = 5;
+  optional bytes data_blob = 6;
+  optional string data_blob_format = 7;
+}
 
-  // Optional serialized tensor or dataframe payload ready for tensor ingestion.
-  optional bytes data_blob = 5;
-
-  // Format descriptor for data_blob, such as application/arrow or tensor/float32.
-  optional string data_blob_format = 6;
+// PredictDailyWeatherResponse contains daily predictions.
+message PredictDailyWeatherResponse {
+  repeated weather.database.v1.DailyPrediction predictions = 1;
+  google.protobuf.Timestamp computed_at = 2;
+  optional bytes output_blob = 3;
 }
 
 // TimeSeriesObservation is an aggregated time bucket
@@ -68,18 +77,24 @@ message TimeSeriesObservation {
 
   // Total accumulated rainfall in millimeters.
   optional float rainfall_mm = 7;
-}
 
-// PredictWeatherResponse contains predictions
-message PredictWeatherResponse {
-  // Generated predictions conforming to the database prediction schema.
-  repeated weather.database.v1.Prediction predictions = 1;
+  // Minimum ambient temperature in Celsius.
+  optional float min_temperature_c = 8;
 
-  // Timestamp when inference completed.
-  google.protobuf.Timestamp computed_at = 3;
+  // Maximum ambient temperature in Celsius.
+  optional float max_temperature_c = 9;
 
-  // Optional raw quantile output tensor payload.
-  optional bytes output_blob = 4;
+  // Minimum relative humidity percentage.
+  optional float min_humidity_pct = 10;
+
+  // Maximum relative humidity percentage.
+  optional float max_humidity_pct = 11;
+
+  // Minimum atmospheric pressure in hectopascals.
+  optional float min_pressure_hpa = 12;
+
+  // Maximum atmospheric pressure in hectopascals.
+  optional float max_pressure_hpa = 13;
 }
 
 // GetModelInfoRequest requests metadata for the inference model.

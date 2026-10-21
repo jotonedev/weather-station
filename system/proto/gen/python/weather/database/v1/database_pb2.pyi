@@ -156,3 +156,13 @@ class GetAirQualityAggregatesResponse(_message.Message):
     AGGREGATES_FIELD_NUMBER: _ClassVar[int]
     aggregates: _containers.RepeatedCompositeFieldContainer[_aggregate_pb2.AirQualityAggregate]
     def __init__(self, aggregates: _Optional[_Iterable[_Union[_aggregate_pb2.AirQualityAggregate, _Mapping]]] = ...) -> None: ...
+
+class DeleteNodeRequest(_message.Message):
+    __slots__ = ("node_id",)
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    node_id: str
+    def __init__(self, node_id: _Optional[str] = ...) -> None: ...
+
+class DeleteNodeResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...

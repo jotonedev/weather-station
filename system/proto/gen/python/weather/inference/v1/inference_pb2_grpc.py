@@ -15,10 +15,15 @@ class InferenceServiceStub:
         Args:
             channel: A grpc.Channel.
         """
-        self.PredictWeather = channel.unary_unary(
-                '/weather.inference.v1.InferenceService/PredictWeather',
-                request_serializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictWeatherRequest.SerializeToString,
-                response_deserializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictWeatherResponse.FromString,
+        self.PredictHourlyWeather = channel.unary_unary(
+                '/weather.inference.v1.InferenceService/PredictHourlyWeather',
+                request_serializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictHourlyWeatherRequest.SerializeToString,
+                response_deserializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictHourlyWeatherResponse.FromString,
+                _registered_method=True)
+        self.PredictDailyWeather = channel.unary_unary(
+                '/weather.inference.v1.InferenceService/PredictDailyWeather',
+                request_serializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictDailyWeatherRequest.SerializeToString,
+                response_deserializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictDailyWeatherResponse.FromString,
                 _registered_method=True)
         self.GetModelInfo = channel.unary_unary(
                 '/weather.inference.v1.InferenceService/GetModelInfo',
@@ -31,8 +36,15 @@ class InferenceServiceServicer:
     """InferenceService provides weather forecasts
     """
 
-    def PredictWeather(self, request, context):
-        """PredictWeather executes time series inference for a node and mode.
+    def PredictHourlyWeather(self, request, context):
+        """PredictHourlyWeather executes hourly forecasting up to horizon_hours.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PredictDailyWeather(self, request, context):
+        """PredictDailyWeather executes daily forecasting up to horizon_days.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -48,10 +60,15 @@ class InferenceServiceServicer:
 
 def add_InferenceServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'PredictWeather': grpc.unary_unary_rpc_method_handler(
-                    servicer.PredictWeather,
-                    request_deserializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictWeatherRequest.FromString,
-                    response_serializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictWeatherResponse.SerializeToString,
+            'PredictHourlyWeather': grpc.unary_unary_rpc_method_handler(
+                    servicer.PredictHourlyWeather,
+                    request_deserializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictHourlyWeatherRequest.FromString,
+                    response_serializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictHourlyWeatherResponse.SerializeToString,
+            ),
+            'PredictDailyWeather': grpc.unary_unary_rpc_method_handler(
+                    servicer.PredictDailyWeather,
+                    request_deserializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictDailyWeatherRequest.FromString,
+                    response_serializer=weather_dot_inference_dot_v1_dot_inference__pb2.PredictDailyWeatherResponse.SerializeToString,
             ),
             'GetModelInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.GetModelInfo,
@@ -71,7 +88,7 @@ class InferenceService:
     """
 
     @staticmethod
-    def PredictWeather(request,
+    def PredictHourlyWeather(request,
             target,
             options=(),
             channel_credentials=None,
@@ -84,9 +101,36 @@ class InferenceService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/weather.inference.v1.InferenceService/PredictWeather',
-            weather_dot_inference_dot_v1_dot_inference__pb2.PredictWeatherRequest.SerializeToString,
-            weather_dot_inference_dot_v1_dot_inference__pb2.PredictWeatherResponse.FromString,
+            '/weather.inference.v1.InferenceService/PredictHourlyWeather',
+            weather_dot_inference_dot_v1_dot_inference__pb2.PredictHourlyWeatherRequest.SerializeToString,
+            weather_dot_inference_dot_v1_dot_inference__pb2.PredictHourlyWeatherResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PredictDailyWeather(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/weather.inference.v1.InferenceService/PredictDailyWeather',
+            weather_dot_inference_dot_v1_dot_inference__pb2.PredictDailyWeatherRequest.SerializeToString,
+            weather_dot_inference_dot_v1_dot_inference__pb2.PredictDailyWeatherResponse.FromString,
             options,
             channel_credentials,
             insecure,

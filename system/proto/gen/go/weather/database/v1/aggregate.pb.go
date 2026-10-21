@@ -40,6 +40,8 @@ type ClimateAggregate struct {
 	TotalRainfallMm     *float32               `protobuf:"fixed32,11,opt,name=total_rainfall_mm,json=totalRainfallMm,proto3,oneof" json:"total_rainfall_mm,omitempty"`
 	AvgWindSpeedMps     *float32               `protobuf:"fixed32,12,opt,name=avg_wind_speed_mps,json=avgWindSpeedMps,proto3,oneof" json:"avg_wind_speed_mps,omitempty"`
 	AvgWindDirectionDeg *float32               `protobuf:"fixed32,13,opt,name=avg_wind_direction_deg,json=avgWindDirectionDeg,proto3,oneof" json:"avg_wind_direction_deg,omitempty"`
+	MinPressureHpa      *float32               `protobuf:"fixed32,14,opt,name=min_pressure_hpa,json=minPressureHpa,proto3,oneof" json:"min_pressure_hpa,omitempty"`
+	MaxPressureHpa      *float32               `protobuf:"fixed32,15,opt,name=max_pressure_hpa,json=maxPressureHpa,proto3,oneof" json:"max_pressure_hpa,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -165,6 +167,20 @@ func (x *ClimateAggregate) GetAvgWindDirectionDeg() float32 {
 	return 0
 }
 
+func (x *ClimateAggregate) GetMinPressureHpa() float32 {
+	if x != nil && x.MinPressureHpa != nil {
+		return *x.MinPressureHpa
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetMaxPressureHpa() float32 {
+	if x != nil && x.MaxPressureHpa != nil {
+		return *x.MaxPressureHpa
+	}
+	return 0
+}
+
 // AirQualityAggregate is a bucket of aggregated air quality metrics for a node.
 // Metric fields are optional: a bucket with no samples for a metric reports it
 // as not present, matching the nullable source columns.
@@ -267,7 +283,7 @@ var File_weather_database_v1_aggregate_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\n" +
-	"#weather/database/v1/aggregate.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd7\x06\n" +
+	"#weather/database/v1/aggregate.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdf\a\n" +
 	"\x10ClimateAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12/\n" +
@@ -282,7 +298,10 @@ const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	" \x01(\x04R\vsampleCount\x12/\n" +
 	"\x11total_rainfall_mm\x18\v \x01(\x02H\aR\x0ftotalRainfallMm\x88\x01\x01\x120\n" +
 	"\x12avg_wind_speed_mps\x18\f \x01(\x02H\bR\x0favgWindSpeedMps\x88\x01\x01\x128\n" +
-	"\x16avg_wind_direction_deg\x18\r \x01(\x02H\tR\x13avgWindDirectionDeg\x88\x01\x01B\x14\n" +
+	"\x16avg_wind_direction_deg\x18\r \x01(\x02H\tR\x13avgWindDirectionDeg\x88\x01\x01\x12-\n" +
+	"\x10min_pressure_hpa\x18\x0e \x01(\x02H\n" +
+	"R\x0eminPressureHpa\x88\x01\x01\x12-\n" +
+	"\x10max_pressure_hpa\x18\x0f \x01(\x02H\vR\x0emaxPressureHpa\x88\x01\x01B\x14\n" +
 	"\x12_avg_temperature_cB\x14\n" +
 	"\x12_min_temperature_cB\x14\n" +
 	"\x12_max_temperature_cB\x13\n" +
@@ -292,7 +311,9 @@ const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\x11_avg_pressure_hpaB\x14\n" +
 	"\x12_total_rainfall_mmB\x15\n" +
 	"\x13_avg_wind_speed_mpsB\x19\n" +
-	"\x17_avg_wind_direction_deg\"\xbe\x02\n" +
+	"\x17_avg_wind_direction_degB\x13\n" +
+	"\x11_min_pressure_hpaB\x13\n" +
+	"\x11_max_pressure_hpa\"\xbe\x02\n" +
 	"\x13AirQualityAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12\x1c\n" +

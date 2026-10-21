@@ -23,6 +23,8 @@ message ClimateAggregate {
   optional float total_rainfall_mm = 11;
   optional float avg_wind_speed_mps = 12;
   optional float avg_wind_direction_deg = 13;
+  optional float min_pressure_hpa = 14;
+  optional float max_pressure_hpa = 15;
 }
 
 // AirQualityAggregate is a bucket of aggregated air quality metrics for a node.

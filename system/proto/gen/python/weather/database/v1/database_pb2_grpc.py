@@ -419,6 +419,11 @@ class NodeDatabaseServiceStub:
                 request_serializer=weather_dot_database_dot_v1_dot_database__pb2.UpdateNodeRequest.SerializeToString,
                 response_deserializer=weather_dot_database_dot_v1_dot_database__pb2.UpdateNodeResponse.FromString,
                 _registered_method=True)
+        self.DeleteNode = channel.unary_unary(
+                '/weather.database.v1.NodeDatabaseService/DeleteNode',
+                request_serializer=weather_dot_database_dot_v1_dot_database__pb2.DeleteNodeRequest.SerializeToString,
+                response_deserializer=weather_dot_database_dot_v1_dot_database__pb2.DeleteNodeResponse.FromString,
+                _registered_method=True)
         self.GetNodeCoordinates = channel.unary_unary(
                 '/weather.database.v1.NodeDatabaseService/GetNodeCoordinates',
                 request_serializer=weather_dot_database_dot_v1_dot_database__pb2.GetNodeCoordinatesRequest.SerializeToString,
@@ -443,6 +448,13 @@ class NodeDatabaseServiceServicer:
 
     def UpdateNode(self, request, context):
         """Update the location metadata of an existing node.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteNode(self, request, context):
+        """Delete a node and all of its stored readings and predictions.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -474,6 +486,11 @@ def add_NodeDatabaseServiceServicer_to_server(servicer, server):
                     servicer.UpdateNode,
                     request_deserializer=weather_dot_database_dot_v1_dot_database__pb2.UpdateNodeRequest.FromString,
                     response_serializer=weather_dot_database_dot_v1_dot_database__pb2.UpdateNodeResponse.SerializeToString,
+            ),
+            'DeleteNode': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteNode,
+                    request_deserializer=weather_dot_database_dot_v1_dot_database__pb2.DeleteNodeRequest.FromString,
+                    response_serializer=weather_dot_database_dot_v1_dot_database__pb2.DeleteNodeResponse.SerializeToString,
             ),
             'GetNodeCoordinates': grpc.unary_unary_rpc_method_handler(
                     servicer.GetNodeCoordinates,
@@ -540,6 +557,33 @@ class NodeDatabaseService:
             '/weather.database.v1.NodeDatabaseService/UpdateNode',
             weather_dot_database_dot_v1_dot_database__pb2.UpdateNodeRequest.SerializeToString,
             weather_dot_database_dot_v1_dot_database__pb2.UpdateNodeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteNode(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/weather.database.v1.NodeDatabaseService/DeleteNode',
+            weather_dot_database_dot_v1_dot_database__pb2.DeleteNodeRequest.SerializeToString,
+            weather_dot_database_dot_v1_dot_database__pb2.DeleteNodeResponse.FromString,
             options,
             channel_credentials,
             insecure,
