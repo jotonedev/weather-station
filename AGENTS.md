@@ -9,4 +9,3 @@
 - Do not repeat information said in other files
 - Do not use "It's not X, it's Y"
 - Be clear and concise
-- Wrap meaningful changes in \changed{}
