@@ -21,6 +21,7 @@ func TestHomepageControllerRender(t *testing.T) {
 	forecastTemp := float32(17.2)
 	dailyForecastTemp := float32(14.8)
 	forecastRain := float32(2.4)
+	rainRate := float32(3.5)
 	pm25 := int32(4)
 	testTime := time.Date(2026, 10, 10, 14, 30, 0, 0, time.UTC)
 
@@ -55,6 +56,7 @@ func TestHomepageControllerRender(t *testing.T) {
 								NodeId:      "station-test",
 								Timestamp:   pb.Time(testTime),
 								Temperature: &temp,
+								RainRate:    &rainRate,
 								Pm25:        &pm25,
 							},
 						},
@@ -89,6 +91,8 @@ func TestHomepageControllerRender(t *testing.T) {
 					"/static/css/styles.css",
 					"station-test",
 					"21.5 °C",
+					"Rain Rate",
+					"3.5 mm/h",
 					"Good",
 					"Hourly Forecast (Next 24 Hours)",
 					"Daily Forecast (Next 10 Days)",
