@@ -6,5 +6,6 @@ use (
 	./go/database
 	./go/frontend
 	./go/inference-job
+	./go/test-generator
 	./proto/gen/go
 )

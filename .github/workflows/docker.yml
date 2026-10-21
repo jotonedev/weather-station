@@ -90,6 +90,7 @@ jobs:
           - database
           - frontend
           - inference-job
+          - test-generator
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
