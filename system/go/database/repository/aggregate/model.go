@@ -13,6 +13,8 @@ type ClimateAggregate struct {
 	MinHumidityPct      *float32
 	MaxHumidityPct      *float32
 	AvgPressureHpa      *float32
+	MinPressureHpa      *float32
+	MaxPressureHpa      *float32
 	TotalRainfallMm     *float32
 	AvgWindSpeedMps     *float32
 	AvgWindDirectionDeg *float32

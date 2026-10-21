@@ -20,8 +20,9 @@ func New(client *duckdb.Client, log *zap.Logger) *Repository {
 
 const insertPredictionSQL = `INSERT INTO predictions (
 	node_id, ts, horizon_hours,
-	rainfall_mm, temperature_c, humidity_pct, wind_direction_deg,
-	rainfall_confidence, temperature_confidence, humidity_confidence, wind_direction_confidence
+	rainfall_mm, temperature_c, min_temperature_c, max_temperature_c,
+	humidity_pct, min_humidity_pct, max_humidity_pct,
+	rainfall_confidence
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 // StorePredictions bulk-inserts predictions and returns the number of rows written.
@@ -65,8 +66,9 @@ func (r *Repository) StorePredictions(ctx context.Context, predictions []Predict
 
 // predictionSelectColumns lists the SELECT columns.
 var predictionSelectColumns = `node_id, ts, horizon_hours,
-	rainfall_mm, temperature_c, humidity_pct, wind_direction_deg,
-	rainfall_confidence, temperature_confidence, humidity_confidence, wind_direction_confidence`
+	rainfall_mm, temperature_c, min_temperature_c, max_temperature_c,
+	humidity_pct, min_humidity_pct, max_humidity_pct,
+	rainfall_confidence`
 
 // GetForecast returns the latest short-range (<24h) and long-range (>=24h) forecast predictions for a node, ordered by horizon.
 func (r *Repository) GetForecast(ctx context.Context, nodeID string) ([]Prediction, error) {

@@ -19,6 +19,8 @@ func modelClimateToPB(aggregate repository.ClimateAggregate) *protodatabasev1.Cl
 		MinHumidityPct:      aggregate.MinHumidityPct,
 		MaxHumidityPct:      aggregate.MaxHumidityPct,
 		AvgPressureHpa:      aggregate.AvgPressureHpa,
+		MinPressureHpa:      aggregate.MinPressureHpa,
+		MaxPressureHpa:      aggregate.MaxPressureHpa,
 		TotalRainfallMm:     aggregate.TotalRainfallMm,
 		AvgWindSpeedMps:     aggregate.AvgWindSpeedMps,
 		AvgWindDirectionDeg: aggregate.AvgWindDirectionDeg,

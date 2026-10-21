@@ -146,17 +146,17 @@ func (c *Client) initSchema(ctx context.Context) error {
 
 		// 3. Forecast predictions table
 		`CREATE TABLE IF NOT EXISTS predictions (
-			node_id                   VARCHAR NOT NULL,
-			ts                        TIMESTAMP NOT NULL,
-			horizon_hours             INTEGER NOT NULL,
-			rainfall_mm               FLOAT,
-			temperature_c             FLOAT,
-			humidity_pct              FLOAT,
-			wind_direction_deg        FLOAT,
-			rainfall_confidence       FLOAT,
-			temperature_confidence    FLOAT,
-			humidity_confidence       FLOAT,
-			wind_direction_confidence FLOAT
+			node_id             VARCHAR NOT NULL,
+			ts                  TIMESTAMP NOT NULL,
+			horizon_hours       INTEGER NOT NULL,
+			rainfall_mm         FLOAT,
+			temperature_c       FLOAT,
+			min_temperature_c   FLOAT,
+			max_temperature_c   FLOAT,
+			humidity_pct        FLOAT,
+			min_humidity_pct    FLOAT,
+			max_humidity_pct    FLOAT,
+			rainfall_confidence FLOAT
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_predictions_node_ts ON predictions (node_id, ts);`,
 	}
