@@ -24,6 +24,39 @@ pushes it into an outbox. A separate task builds a JSON batch and POSTs it to
 the ingest `/readings` endpoint, retrying transient failures with backoff.
 The outbox keeps roughly two hours of readings when the network is down.
 
+```mermaid
+sequenceDiagram
+    participant CN as Control Node
+    participant BS as Base Station
+    participant IN as Ingest Service
+
+    loop Every 60s
+        CN->>CN: Sample sensors and pack WeatherData
+        CN->>BS: ARQ DATA_FRAME (433 MHz CC1101)
+        alt Frame valid
+            BS-->>CN: ARQ ACK
+            BS->>BS: Unpack, stamp NTP time and push to RTC outbox
+        else No ACK
+            CN->>BS: Retry up to TX_MAX_ATTEMPTS
+        end
+    end
+
+    loop OutboxSender task
+        BS->>BS: Peek batch from outbox and build JSON
+        BS->>IN: POST /readings
+        alt 2xx OK
+            IN-->>BS: 200 OK
+            BS->>BS: Pop sent batch from outbox
+        else Transient failure (5xx, 408, 429, network error)
+            IN-->>BS: Error or timeout
+            BS->>BS: Keep batch and backoff before retry
+        else Permanent 4xx error
+            IN-->>BS: 4xx Client Error
+            BS->>BS: Drop oldest entry from outbox
+        end
+    end
+```
+
 ## Flash
 
 ```bash
