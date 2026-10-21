@@ -48,25 +48,13 @@ func degreesToCardinal(angle *float32) (string, int, bool) {
 // classifyWeatherCondition determines a Weather Icons class name and human-readable label from metrics.
 func classifyWeatherCondition(tempC, humidityPct, rainfallMm *float32) (string, string) {
 	if rainfallMm != nil && *rainfallMm >= 0.2 {
-		if tempC != nil && *tempC <= 0.5 {
-			return "wi-snow", "Snow"
-		}
 		if *rainfallMm >= 4.0 {
 			return "wi-rain", "Heavy Rain"
 		}
 		return "wi-showers", "Light Rain"
 	}
 
-	if humidityPct != nil {
-		if *humidityPct >= 82.0 {
-			return "wi-cloudy", "Overcast"
-		}
-		if *humidityPct >= 55.0 {
-			return "wi-day-cloudy", "Partly Cloudy"
-		}
-	}
-
-	return "wi-day-sunny", "Clear Sky"
+	return "wi-day-cloudy", "Clear Sky"
 }
 
 // classifyAirQuality returns an air quality label and level class from PM2.5 and PM10 readings

@@ -76,6 +76,7 @@ func TestHomepageControllerRender(t *testing.T) {
 								IssueTime:    pb.Time(testTime),
 								HorizonHours: 24,
 								TemperatureC: &dailyForecastTemp,
+								RainfallMm:   &forecastRain,
 							},
 						},
 					}, nil)

@@ -1,7 +1,22 @@
-{{ define "forecast-card" }}
+{{ define "hourly-forecast-card" }}
+<div class="forecast-card forecast-card-compact">
+  {{ if .TargetTimeISO }}
+  <time class="forecast-time" datetime="{{ .TargetTimeISO }}" data-time-format="time">{{ .HorizonLabel }}</time>
+  {{ else }}
+  <span class="forecast-time">{{ .HorizonLabel }}</span>
+  {{ end }}
+  <div class="forecast-icon-wrap">
+    <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
+  </div>
+  <span class="forecast-temp">{{ .Temperature }}</span>
+  <span class="forecast-conf-compact" title="Confidence">{{ .Confidence }}</span>
+</div>
+{{ end }}
+
+{{ define "daily-forecast-card" }}
 <div class="forecast-card">
   {{ if .TargetTimeISO }}
-  <time class="forecast-time" datetime="{{ .TargetTimeISO }}" data-time-format="{{ if .IsDaily }}date{{ else }}time{{ end }}">{{ .HorizonLabel }}</time>
+  <time class="forecast-time" datetime="{{ .TargetTimeISO }}" data-time-format="date">{{ .HorizonLabel }}</time>
   {{ else }}
   <span class="forecast-time">{{ .HorizonLabel }}</span>
   {{ end }}
@@ -17,19 +32,6 @@
       <span>Rain</span>
       <strong>{{ .Rainfall }}</strong>
     </div>
-    <div class="forecast-detail-row">
-      <span>Humidity</span>
-      <strong>{{ .Humidity }}</strong>
-    </div>
-    {{ if .HasWindDirection }}
-    <div class="forecast-detail-row">
-      <span>Wind Dir</span>
-      <strong>
-        <i class="wi wi-wind towards-{{ .WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
-        {{ .WindCardinal }} ({{ .WindDirection }})
-      </strong>
-    </div>
-    {{ end }}
     <div class="confidence-bar-wrap">
       <div class="forecast-detail-row">
         <span>Confidence</span>
@@ -139,9 +141,9 @@
         </div>
 
         {{ if .HourlyForecast }}
-        <div class="forecast-strip">
+        <div class="forecast-strip forecast-strip-compact">
           {{ range .HourlyForecast }}
-          {{ template "forecast-card" . }}
+          {{ template "hourly-forecast-card" . }}
           {{ end }}
         </div>
         {{ else }}
@@ -161,7 +163,7 @@
         {{ if .DailyForecast }}
         <div class="forecast-strip">
           {{ range .DailyForecast }}
-          {{ template "forecast-card" . }}
+          {{ template "daily-forecast-card" . }}
           {{ end }}
         </div>
         {{ else }}
@@ -185,9 +187,6 @@
             <div class="metric">
               <span class="metric-label">Humidity</span>
               <span class="metric-value">{{ .LatestReading.Humidity }}</span>
-            </div>
-            <div class="progress-track" aria-hidden="true">
-              <div class="progress-fill" style="width: {{ .LatestReading.HumidityPercent }}%"></div>
             </div>
             <div class="metric">
               <span class="metric-label">Pressure</span>
