@@ -43,11 +43,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.15-slim-bookworm AS release-stage
 
-# Install runtime ca-certificates
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /workspace/python/inference-server
 
 # Create unprivileged runtime user and cache directories
