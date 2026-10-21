@@ -67,8 +67,8 @@ func TestPBReadingToView(t *testing.T) {
 				if view.AirQualityLabel != "Moderate" || view.AirQualityLevel != "moderate" {
 					t.Fatalf("AirQuality = %q/%q, want Moderate/moderate", view.AirQualityLabel, view.AirQualityLevel)
 				}
-				if view.ConditionIcon != "partly-cloudy" {
-					t.Fatalf("ConditionIcon = %q, want partly-cloudy", view.ConditionIcon)
+				if view.ConditionIcon != "wi-day-cloudy" {
+					t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)
 				}
 				if view.VOC != "—" {
 					t.Fatalf("VOC = %q, want —", view.VOC)
@@ -85,8 +85,8 @@ func TestPBReadingToView(t *testing.T) {
 				Pm25:        &goodPm25,
 			},
 			check: func(t *testing.T, view ReadingView) {
-				if view.ConditionIcon != "heavy-rain" || view.ConditionLabel != "Heavy Rain" {
-					t.Fatalf("Condition = %q/%q, want heavy-rain/Heavy Rain", view.ConditionIcon, view.ConditionLabel)
+				if view.ConditionIcon != "wi-rain" || view.ConditionLabel != "Heavy Rain" {
+					t.Fatalf("Condition = %q/%q, want wi-rain/Heavy Rain", view.ConditionIcon, view.ConditionLabel)
 				}
 				if view.AirQualityLabel != "Good" || view.AirQualityLevel != "good" {
 					t.Fatalf("AirQuality = %q/%q, want Good/good", view.AirQualityLabel, view.AirQualityLevel)
@@ -101,8 +101,8 @@ func TestPBReadingToView(t *testing.T) {
 				RainRate:    &lightRain,
 			},
 			check: func(t *testing.T, view ReadingView) {
-				if view.ConditionIcon != "snow" || view.ConditionLabel != "Snow" {
-					t.Fatalf("Condition = %q/%q, want snow/Snow", view.ConditionIcon, view.ConditionLabel)
+				if view.ConditionIcon != "wi-snow" || view.ConditionLabel != "Snow" {
+					t.Fatalf("Condition = %q/%q, want wi-snow/Snow", view.ConditionIcon, view.ConditionLabel)
 				}
 			},
 		},
@@ -159,8 +159,8 @@ func TestPBPredictionToView(t *testing.T) {
 				if view.TimeSubLabel != "+3h" {
 					t.Fatalf("TimeSubLabel = %q, want +3h", view.TimeSubLabel)
 				}
-				if view.ConditionIcon != "light-rain" {
-					t.Fatalf("ConditionIcon = %q, want light-rain", view.ConditionIcon)
+				if view.ConditionIcon != "wi-showers" {
+					t.Fatalf("ConditionIcon = %q, want wi-showers", view.ConditionIcon)
 				}
 				if view.Temperature != "18.4 °C" {
 					t.Fatalf("Temperature = %q, want 18.4 °C", view.Temperature)
@@ -191,8 +191,8 @@ func TestPBPredictionToView(t *testing.T) {
 				if view.TimeSubLabel != "+2d" {
 					t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)
 				}
-				if view.ConditionIcon != "sunny" {
-					t.Fatalf("ConditionIcon = %q, want sunny", view.ConditionIcon)
+				if view.ConditionIcon != "wi-day-sunny" {
+					t.Fatalf("ConditionIcon = %q, want wi-day-sunny", view.ConditionIcon)
 				}
 			},
 		},

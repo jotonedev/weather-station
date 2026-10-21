@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	homepage "weather-station/frontend/controller/homepage"
+	static "weather-station/frontend/controller/static"
 	weatherdata "weather-station/frontend/controller/weatherdata"
 )
 
@@ -12,5 +13,6 @@ var Module = fx.Module("controller",
 	fx.Provide(
 		weatherdata.New,
 		homepage.New,
+		static.New,
 	),
 )

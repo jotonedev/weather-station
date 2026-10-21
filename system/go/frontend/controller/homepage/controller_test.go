@@ -71,13 +71,16 @@ func TestHomepageControllerRender(t *testing.T) {
 			check: func(t *testing.T, content string) {
 				for _, want := range []string{
 					"<!DOCTYPE html>",
+					"/static/css/weather-icons.min.css",
+					"/static/css/styles.css",
 					"station-test",
 					"21.5 °C",
 					"Good",
 					"Weather Forecast",
 					"17.2 °C",
 					"2.4 mm",
-					"wx-light-rain",
+					"wi-showers",
+					"Erik Flowers",
 				} {
 					if !strings.Contains(content, want) {
 						t.Fatalf("Render() output missing %q", want)

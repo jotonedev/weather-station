@@ -7,3 +7,15 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+Third-Party Notices
+--------------------------------------------------------------------------------
+
+Weather Icons (v2.0.12)
+Author: Erik Flowers (https://erikflowers.github.io/weather-icons/)
+Repository: https://github.com/erikflowers/weather-icons
+- Font files (controller/static/assets/font/weathericons-regular-webfont.*) are licensed under the SIL Open Font License 1.1 (https://scripts.sil.org/OFL).
+- CSS files (controller/static/assets/css/weather-icons*.min.css) are licensed under the MIT License (https://opensource.org/licenses/MIT).
+See controller/static/assets/WEATHER_ICONS_LICENSE.txt for full license texts.
+
