@@ -47,29 +47,3 @@ class DailyPrediction(_message.Message):
     rainfall_mm: float
     rainfall_confidence: float
     def __init__(self, node_id: _Optional[str] = ..., issue_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., horizon_days: _Optional[int] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., rainfall_mm: _Optional[float] = ..., rainfall_confidence: _Optional[float] = ...) -> None: ...
-
-class Prediction(_message.Message):
-    __slots__ = ("node_id", "issue_time", "horizon_hours", "rainfall_mm", "temperature_c", "min_temperature_c", "max_temperature_c", "humidity_pct", "min_humidity_pct", "max_humidity_pct", "rainfall_confidence")
-    NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    ISSUE_TIME_FIELD_NUMBER: _ClassVar[int]
-    HORIZON_HOURS_FIELD_NUMBER: _ClassVar[int]
-    RAINFALL_MM_FIELD_NUMBER: _ClassVar[int]
-    TEMPERATURE_C_FIELD_NUMBER: _ClassVar[int]
-    MIN_TEMPERATURE_C_FIELD_NUMBER: _ClassVar[int]
-    MAX_TEMPERATURE_C_FIELD_NUMBER: _ClassVar[int]
-    HUMIDITY_PCT_FIELD_NUMBER: _ClassVar[int]
-    MIN_HUMIDITY_PCT_FIELD_NUMBER: _ClassVar[int]
-    MAX_HUMIDITY_PCT_FIELD_NUMBER: _ClassVar[int]
-    RAINFALL_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
-    node_id: str
-    issue_time: _timestamp_pb2.Timestamp
-    horizon_hours: int
-    rainfall_mm: float
-    temperature_c: float
-    min_temperature_c: float
-    max_temperature_c: float
-    humidity_pct: float
-    min_humidity_pct: float
-    max_humidity_pct: float
-    rainfall_confidence: float
-    def __init__(self, node_id: _Optional[str] = ..., issue_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., horizon_hours: _Optional[int] = ..., rainfall_mm: _Optional[float] = ..., temperature_c: _Optional[float] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., humidity_pct: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., rainfall_confidence: _Optional[float] = ...) -> None: ...

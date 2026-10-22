@@ -25,13 +25,25 @@ class StoreReadingsResponse(_message.Message):
     stored: int
     def __init__(self, stored: _Optional[int] = ...) -> None: ...
 
-class StorePredictionsRequest(_message.Message):
+class StoreHourlyPredictionsRequest(_message.Message):
     __slots__ = ("predictions",)
     PREDICTIONS_FIELD_NUMBER: _ClassVar[int]
-    predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.Prediction]
-    def __init__(self, predictions: _Optional[_Iterable[_Union[_prediction_pb2.Prediction, _Mapping]]] = ...) -> None: ...
+    predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.HourlyPrediction]
+    def __init__(self, predictions: _Optional[_Iterable[_Union[_prediction_pb2.HourlyPrediction, _Mapping]]] = ...) -> None: ...
 
-class StorePredictionsResponse(_message.Message):
+class StoreHourlyPredictionsResponse(_message.Message):
+    __slots__ = ("stored",)
+    STORED_FIELD_NUMBER: _ClassVar[int]
+    stored: int
+    def __init__(self, stored: _Optional[int] = ...) -> None: ...
+
+class StoreDailyPredictionsRequest(_message.Message):
+    __slots__ = ("predictions",)
+    PREDICTIONS_FIELD_NUMBER: _ClassVar[int]
+    predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.DailyPrediction]
+    def __init__(self, predictions: _Optional[_Iterable[_Union[_prediction_pb2.DailyPrediction, _Mapping]]] = ...) -> None: ...
+
+class StoreDailyPredictionsResponse(_message.Message):
     __slots__ = ("stored",)
     STORED_FIELD_NUMBER: _ClassVar[int]
     stored: int
@@ -94,10 +106,12 @@ class GetForecastRequest(_message.Message):
     def __init__(self, node_id: _Optional[str] = ...) -> None: ...
 
 class GetForecastResponse(_message.Message):
-    __slots__ = ("predictions",)
-    PREDICTIONS_FIELD_NUMBER: _ClassVar[int]
-    predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.Prediction]
-    def __init__(self, predictions: _Optional[_Iterable[_Union[_prediction_pb2.Prediction, _Mapping]]] = ...) -> None: ...
+    __slots__ = ("hourly_predictions", "daily_predictions")
+    HOURLY_PREDICTIONS_FIELD_NUMBER: _ClassVar[int]
+    DAILY_PREDICTIONS_FIELD_NUMBER: _ClassVar[int]
+    hourly_predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.HourlyPrediction]
+    daily_predictions: _containers.RepeatedCompositeFieldContainer[_prediction_pb2.DailyPrediction]
+    def __init__(self, hourly_predictions: _Optional[_Iterable[_Union[_prediction_pb2.HourlyPrediction, _Mapping]]] = ..., daily_predictions: _Optional[_Iterable[_Union[_prediction_pb2.DailyPrediction, _Mapping]]] = ...) -> None: ...
 
 class GetNodeCoordinatesRequest(_message.Message):
     __slots__ = ("node_id",)

@@ -175,10 +175,15 @@ class PredictionDatabaseServiceStub:
         Args:
             channel: A grpc.Channel.
         """
-        self.StorePredictions = channel.unary_unary(
-                '/weather.database.v1.PredictionDatabaseService/StorePredictions',
-                request_serializer=weather_dot_database_dot_v1_dot_database__pb2.StorePredictionsRequest.SerializeToString,
-                response_deserializer=weather_dot_database_dot_v1_dot_database__pb2.StorePredictionsResponse.FromString,
+        self.StoreHourlyPredictions = channel.unary_unary(
+                '/weather.database.v1.PredictionDatabaseService/StoreHourlyPredictions',
+                request_serializer=weather_dot_database_dot_v1_dot_database__pb2.StoreHourlyPredictionsRequest.SerializeToString,
+                response_deserializer=weather_dot_database_dot_v1_dot_database__pb2.StoreHourlyPredictionsResponse.FromString,
+                _registered_method=True)
+        self.StoreDailyPredictions = channel.unary_unary(
+                '/weather.database.v1.PredictionDatabaseService/StoreDailyPredictions',
+                request_serializer=weather_dot_database_dot_v1_dot_database__pb2.StoreDailyPredictionsRequest.SerializeToString,
+                response_deserializer=weather_dot_database_dot_v1_dot_database__pb2.StoreDailyPredictionsResponse.FromString,
                 _registered_method=True)
         self.GetForecast = channel.unary_unary(
                 '/weather.database.v1.PredictionDatabaseService/GetForecast',
@@ -190,8 +195,15 @@ class PredictionDatabaseServiceStub:
 class PredictionDatabaseServiceServicer:
     """Missing associated documentation comment in .proto file."""
 
-    def StorePredictions(self, request, context):
-        """Store a batch of forecast predictions.
+    def StoreHourlyPredictions(self, request, context):
+        """Store a batch of hourly forecast predictions.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StoreDailyPredictions(self, request, context):
+        """Store a batch of daily forecast predictions.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -207,10 +219,15 @@ class PredictionDatabaseServiceServicer:
 
 def add_PredictionDatabaseServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StorePredictions': grpc.unary_unary_rpc_method_handler(
-                    servicer.StorePredictions,
-                    request_deserializer=weather_dot_database_dot_v1_dot_database__pb2.StorePredictionsRequest.FromString,
-                    response_serializer=weather_dot_database_dot_v1_dot_database__pb2.StorePredictionsResponse.SerializeToString,
+            'StoreHourlyPredictions': grpc.unary_unary_rpc_method_handler(
+                    servicer.StoreHourlyPredictions,
+                    request_deserializer=weather_dot_database_dot_v1_dot_database__pb2.StoreHourlyPredictionsRequest.FromString,
+                    response_serializer=weather_dot_database_dot_v1_dot_database__pb2.StoreHourlyPredictionsResponse.SerializeToString,
+            ),
+            'StoreDailyPredictions': grpc.unary_unary_rpc_method_handler(
+                    servicer.StoreDailyPredictions,
+                    request_deserializer=weather_dot_database_dot_v1_dot_database__pb2.StoreDailyPredictionsRequest.FromString,
+                    response_serializer=weather_dot_database_dot_v1_dot_database__pb2.StoreDailyPredictionsResponse.SerializeToString,
             ),
             'GetForecast': grpc.unary_unary_rpc_method_handler(
                     servicer.GetForecast,
@@ -229,7 +246,7 @@ class PredictionDatabaseService:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def StorePredictions(request,
+    def StoreHourlyPredictions(request,
             target,
             options=(),
             channel_credentials=None,
@@ -242,9 +259,36 @@ class PredictionDatabaseService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/weather.database.v1.PredictionDatabaseService/StorePredictions',
-            weather_dot_database_dot_v1_dot_database__pb2.StorePredictionsRequest.SerializeToString,
-            weather_dot_database_dot_v1_dot_database__pb2.StorePredictionsResponse.FromString,
+            '/weather.database.v1.PredictionDatabaseService/StoreHourlyPredictions',
+            weather_dot_database_dot_v1_dot_database__pb2.StoreHourlyPredictionsRequest.SerializeToString,
+            weather_dot_database_dot_v1_dot_database__pb2.StoreHourlyPredictionsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StoreDailyPredictions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/weather.database.v1.PredictionDatabaseService/StoreDailyPredictions',
+            weather_dot_database_dot_v1_dot_database__pb2.StoreDailyPredictionsRequest.SerializeToString,
+            weather_dot_database_dot_v1_dot_database__pb2.StoreDailyPredictionsResponse.FromString,
             options,
             channel_credentials,
             insecure,
