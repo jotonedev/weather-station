@@ -282,7 +282,7 @@ func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
 		minTemp = formatFloat(pred.MinTemperatureC, "%.1f", "°C")
 	}
 	if pred.MaxTemperatureC != nil {
-		maxTemp = formatFloat(pred.MaxTemperatureC, "%.1f", "°")
+		maxTemp = formatFloat(pred.MaxTemperatureC, "%.1f", "°C")
 	}
 
 	return ForecastItemView{

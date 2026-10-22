@@ -78,8 +78,8 @@ func TestPBPredictionToView(t *testing.T) {
 				if view.TimeSubLabel != "+2d" {
 					t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)
 				}
-				if view.MinTemperature != "18.4 °C" || view.MaxTemperature != "18.4 °" {
-					t.Fatalf("Min/Max = %q / %q, want 18.4 °C / 18.4 °", view.MinTemperature, view.MaxTemperature)
+				if view.MinTemperature != "18.4 °C" || view.MaxTemperature != "18.4 °C" {
+					t.Fatalf("Min/Max = %q / %q, want 18.4 °C / 18.4 °C", view.MinTemperature, view.MaxTemperature)
 				}
 				if view.ConditionIcon != "wi-day-cloudy" {
 					t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)

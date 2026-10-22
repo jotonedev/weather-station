@@ -134,7 +134,7 @@
       <!-- Hourly Weather Forecast Section -->
       <section class="section-card" aria-label="Hourly weather forecast">
         <div class="section-header">
-          <h2 class="section-title">Hourly Forecast (Next 24 Hours)</h2>
+          <h2 class="section-title">Hourly Forecast</h2>
           {{ if .HourlyIssuedAt }}
           <span class="section-subtitle">Issued {{ if .HourlyIssuedAtISO }}<time datetime="{{ .HourlyIssuedAtISO }}" data-time-format="datetime">{{ .HourlyIssuedAt }}</time>{{ else }}{{ .HourlyIssuedAt }}{{ end }}</span>
           {{ end }}
@@ -154,7 +154,7 @@
       <!-- Daily Weather Forecast Section -->
       <section class="section-card" aria-label="Daily weather forecast">
         <div class="section-header">
-          <h2 class="section-title">Daily Forecast (Next 10 Days)</h2>
+          <h2 class="section-title">Daily Forecast</h2>
           {{ if .DailyIssuedAt }}
           <span class="section-subtitle">Issued {{ if .DailyIssuedAtISO }}<time datetime="{{ .DailyIssuedAtISO }}" data-time-format="datetime">{{ .DailyIssuedAt }}</time>{{ else }}{{ .DailyIssuedAt }}{{ end }}</span>
           {{ end }}
