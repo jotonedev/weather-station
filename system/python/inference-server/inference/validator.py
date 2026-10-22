@@ -6,7 +6,6 @@ from weather.inference.v1.inference_pb2 import (
     TimeSeriesObservation,
 )
 
-
 MAX_MISSING_RATIO = 0.50
 HOURLY_STEP_SECONDS = 3600
 DAILY_STEP_SECONDS = 86400
@@ -39,6 +38,21 @@ def is_effectively_missing(obs: TimeSeriesObservation, field_name: str) -> bool:
     return not obs.HasField(field_name) or not math.isfinite(getattr(obs, field_name))
 
 
+def _is_valid_suffix(
+    items: list[TimeSeriesObservation],
+    floored_issue_time_sec: int,
+    step_seconds: int,
+) -> bool:
+    first_sec = items[0].timestamp.seconds
+    diff = max(0, floored_issue_time_sec - first_sec)
+    total_steps = max(len(items), (diff + step_seconds - 1) // step_seconds)
+    if total_steps <= 0:
+        return False
+    missing_temp = total_steps - sum(1 for item in items if not is_effectively_missing(item, "temperature_c"))
+    missing_hum = total_steps - sum(1 for item in items if not is_effectively_missing(item, "humidity_pct"))
+    return (missing_temp / total_steps) <= MAX_MISSING_RATIO and (missing_hum / total_steps) <= MAX_MISSING_RATIO
+
+
 def trim_early_outage(
     observations: list[TimeSeriesObservation],
     floored_issue_time_sec: int,
@@ -48,36 +62,15 @@ def trim_early_outage(
     if not observations:
         return observations
 
-    first_sec = observations[0].timestamp.seconds
-    diff = max(0, floored_issue_time_sec - first_sec)
-    total_steps = max(len(observations), (diff + step_seconds - 1) // step_seconds)
-    if total_steps > 0:
-        missing_temp = total_steps - sum(
-            1 for item in observations if not is_effectively_missing(item, "temperature_c")
-        )
-        missing_hum = total_steps - sum(
-            1 for item in observations if not is_effectively_missing(item, "humidity_pct")
-        )
-        if (missing_temp / total_steps) <= MAX_MISSING_RATIO and (missing_hum / total_steps) <= MAX_MISSING_RATIO:
-            return observations
+    if _is_valid_suffix(observations, floored_issue_time_sec, step_seconds):
+        return observations
 
     for start_index in range(1, len(observations)):
         gap = observations[start_index].timestamp.seconds - observations[start_index - 1].timestamp.seconds
         if gap <= step_seconds:
             continue
         suffix = observations[start_index:]
-        suffix_first_sec = suffix[0].timestamp.seconds
-        suffix_diff = max(0, floored_issue_time_sec - suffix_first_sec)
-        suffix_steps = max(len(suffix), (suffix_diff + step_seconds - 1) // step_seconds)
-        if suffix_steps <= 0:
-            continue
-        missing_temp = suffix_steps - sum(
-            1 for item in suffix if not is_effectively_missing(item, "temperature_c")
-        )
-        missing_hum = suffix_steps - sum(
-            1 for item in suffix if not is_effectively_missing(item, "humidity_pct")
-        )
-        if (missing_temp / suffix_steps) <= MAX_MISSING_RATIO and (missing_hum / suffix_steps) <= MAX_MISSING_RATIO:
+        if _is_valid_suffix(suffix, floored_issue_time_sec, step_seconds):
             return suffix
 
     return observations

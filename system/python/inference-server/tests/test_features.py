@@ -237,9 +237,7 @@ def test_extract_observation_dataframe_reindexes_interior_gaps() -> None:
     for step in [0, 1, 4, 5]:
         ts = Timestamp()
         ts.FromSeconds(360000 + (step * 3600))
-        observations.append(
-            TimeSeriesObservation(timestamp=ts, temperature_c=20.0 + step, humidity_pct=50.0)
-        )
+        observations.append(TimeSeriesObservation(timestamp=ts, temperature_c=20.0 + step, humidity_pct=50.0))
 
     df = extract_observation_dataframe(observations, step=timedelta(hours=1))
     assert len(df) == 6
@@ -258,9 +256,7 @@ def test_extract_observation_dataframe_trailing_downtime() -> None:
     for step in range(3):
         ts = Timestamp()
         ts.FromSeconds(360000 + (step * 3600))
-        observations.append(
-            TimeSeriesObservation(timestamp=ts, temperature_c=22.0, humidity_pct=55.0)
-        )
+        observations.append(TimeSeriesObservation(timestamp=ts, temperature_c=22.0, humidity_pct=55.0))
 
     # issue_time at 15h00 (station offline between 13h00 and 15h00)
     issue_time = datetime.fromtimestamp(360000 + (5 * 3600), tz=UTC)
@@ -308,9 +304,7 @@ def test_diurnal_profile_imputation_preserves_cycle() -> None:
         hour_of_day = (start_dt + timedelta(hours=hour)).hour
         # Diurnal pattern: warmer at 14h (28C), cooler at 04h (12C)
         temp = 20.0 + (8.0 * np.sin(2 * np.pi * (hour_of_day - 8) / 24.0))
-        observations.append(
-            TimeSeriesObservation(timestamp=ts, temperature_c=temp, humidity_pct=60.0)
-        )
+        observations.append(TimeSeriesObservation(timestamp=ts, temperature_c=temp, humidity_pct=60.0))
 
     df = extract_observation_dataframe(observations, step=timedelta(hours=1))
     assert len(df) == 96

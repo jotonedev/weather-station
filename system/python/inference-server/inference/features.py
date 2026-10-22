@@ -33,34 +33,35 @@ def sort_observations(observations: Sequence[TimeSeriesObservation]) -> list[Tim
     )
 
 
-def extract_observation_dataframe(
-    observations: list[TimeSeriesObservation],
-    step: timedelta = timedelta(hours=1),
-    issue_time: datetime | None = None,
-) -> pd.DataFrame:
-    """extract_observation_dataframe extracts observation metrics into a regular time grid dataframe."""
-    if not observations:
-        return pd.DataFrame()
-
-    sorted_obs = sort_observations(observations)
+def _filter_and_trim_history(
+    sorted_obs: list[TimeSeriesObservation],
+    issue_time: datetime | None,
+    step: timedelta,
+) -> list[TimeSeriesObservation]:
+    if issue_time is None:
+        return sorted_obs
     step_seconds = int(step.total_seconds())
+    if step >= timedelta(days=1):
+        issue_sec = int(issue_time.timestamp())
+        completed = [obs for obs in sorted_obs if obs.timestamp.seconds <= issue_sec]
+        if completed:
+            sorted_obs = completed
+        return trim_early_outage(sorted_obs, issue_sec, step_seconds)
+
+    floored_issue = floor_to_hour(issue_time)
+    floored_issue_sec = int(floored_issue.timestamp())
+    completed = [obs for obs in sorted_obs if obs.timestamp.seconds < floored_issue_sec]
+    if completed:
+        sorted_obs = completed
+    return trim_early_outage(sorted_obs, floored_issue_sec, step_seconds)
+
+
+def _compute_grid_bounds(
+    sorted_obs: list[TimeSeriesObservation],
+    issue_time: datetime | None,
+    step: timedelta,
+) -> tuple[datetime, datetime]:
     is_daily = step >= timedelta(days=1)
-
-    if issue_time is not None:
-        if is_daily:
-            issue_sec = int(issue_time.timestamp())
-            completed = [obs for obs in sorted_obs if obs.timestamp.seconds <= issue_sec]
-            if completed:
-                sorted_obs = completed
-            sorted_obs = trim_early_outage(sorted_obs, issue_sec, step_seconds)
-        else:
-            floored_issue = floor_to_hour(issue_time)
-            floored_issue_sec = int(floored_issue.timestamp())
-            completed = [obs for obs in sorted_obs if obs.timestamp.seconds < floored_issue_sec]
-            if completed:
-                sorted_obs = completed
-            sorted_obs = trim_early_outage(sorted_obs, floored_issue_sec, step_seconds)
-
     first_dt = sorted_obs[0].timestamp.ToDatetime().replace(tzinfo=UTC)
     if issue_time is not None and not is_daily:
         first_dt = floor_to_hour(first_dt)
@@ -75,79 +76,83 @@ def extract_observation_dataframe(
     else:
         grid_end = sorted_obs[-1].timestamp.ToDatetime().replace(tzinfo=UTC)
 
+    return first_dt, grid_end
+
+
+def _observation_to_record(ts: datetime, obs: TimeSeriesObservation | None) -> dict[str, object]:
+    if obs is None:
+        return {
+            "timestamp": ts,
+            "temperature_c": np.nan,
+            "min_temperature_c": np.nan,
+            "max_temperature_c": np.nan,
+            "humidity_pct": np.nan,
+            "min_humidity_pct": np.nan,
+            "max_humidity_pct": np.nan,
+            "pressure_hpa": np.nan,
+            "min_pressure_hpa": np.nan,
+            "max_pressure_hpa": np.nan,
+            "rainfall_mm": np.nan,
+            "wind_speed_mps": np.nan,
+            "wind_direction_deg": np.nan,
+        }
+
+    temp = obs.temperature_c if obs.HasField("temperature_c") else np.nan
+    hum = obs.humidity_pct if obs.HasField("humidity_pct") else np.nan
+    pressure = obs.pressure_hpa if obs.HasField("pressure_hpa") else np.nan
+
+    return {
+        "timestamp": ts,
+        "temperature_c": temp,
+        "min_temperature_c": obs.min_temperature_c if obs.HasField("min_temperature_c") else temp,
+        "max_temperature_c": obs.max_temperature_c if obs.HasField("max_temperature_c") else temp,
+        "humidity_pct": hum,
+        "min_humidity_pct": obs.min_humidity_pct if obs.HasField("min_humidity_pct") else hum,
+        "max_humidity_pct": obs.max_humidity_pct if obs.HasField("max_humidity_pct") else hum,
+        "pressure_hpa": pressure,
+        "min_pressure_hpa": obs.min_pressure_hpa if obs.HasField("min_pressure_hpa") else pressure,
+        "max_pressure_hpa": obs.max_pressure_hpa if obs.HasField("max_pressure_hpa") else pressure,
+        "rainfall_mm": obs.rainfall_mm if obs.HasField("rainfall_mm") else np.nan,
+        "wind_speed_mps": obs.wind_speed_mps if obs.HasField("wind_speed_mps") else np.nan,
+        "wind_direction_deg": obs.wind_direction_deg if obs.HasField("wind_direction_deg") else np.nan,
+    }
+
+
+def extract_observation_dataframe(
+    observations: list[TimeSeriesObservation],
+    step: timedelta = timedelta(hours=1),
+    issue_time: datetime | None = None,
+) -> pd.DataFrame:
+    """extract_observation_dataframe extracts observation metrics into a regular time grid dataframe."""
+    if not observations:
+        return pd.DataFrame()
+
+    sorted_obs = sort_observations(observations)
+    sorted_obs = _filter_and_trim_history(sorted_obs, issue_time, step)
+    first_dt, grid_end = _compute_grid_bounds(sorted_obs, issue_time, step)
+
     grid_timestamps: list[datetime] = []
     current = first_dt
     while current <= grid_end:
         grid_timestamps.append(current)
         current += step
 
-    if not grid_timestamps:
-        grid_timestamps = [first_dt]
-
-    grid_records: list[dict[str, object]] = []
+    step_seconds = int(step.total_seconds())
     obs_by_index: dict[int, TimeSeriesObservation] = {}
     for obs in sorted_obs:
         obs_dt = obs.timestamp.ToDatetime().replace(tzinfo=UTC)
-        idx = int(round((obs_dt - first_dt).total_seconds() / step_seconds))
+        idx = round((obs_dt - first_dt).total_seconds() / step_seconds)
         if 0 <= idx < len(grid_timestamps):
             obs_by_index[idx] = obs
 
-    for idx, ts in enumerate(grid_timestamps):
-        obs = obs_by_index.get(idx)
-        if obs is not None:
-            temp = obs.temperature_c if obs.HasField("temperature_c") else np.nan
-            min_temp = obs.min_temperature_c if obs.HasField("min_temperature_c") else temp
-            max_temp = obs.max_temperature_c if obs.HasField("max_temperature_c") else temp
-
-            hum = obs.humidity_pct if obs.HasField("humidity_pct") else np.nan
-            min_hum = obs.min_humidity_pct if obs.HasField("min_humidity_pct") else hum
-            max_hum = obs.max_humidity_pct if obs.HasField("max_humidity_pct") else hum
-
-            pressure = obs.pressure_hpa if obs.HasField("pressure_hpa") else np.nan
-            min_press = obs.min_pressure_hpa if obs.HasField("min_pressure_hpa") else pressure
-            max_press = obs.max_pressure_hpa if obs.HasField("max_pressure_hpa") else pressure
-
-            record = {
-                "timestamp": ts,
-                "temperature_c": temp,
-                "min_temperature_c": min_temp,
-                "max_temperature_c": max_temp,
-                "humidity_pct": hum,
-                "min_humidity_pct": min_hum,
-                "max_humidity_pct": max_hum,
-                "pressure_hpa": pressure,
-                "min_pressure_hpa": min_press,
-                "max_pressure_hpa": max_press,
-                "rainfall_mm": obs.rainfall_mm if obs.HasField("rainfall_mm") else np.nan,
-                "wind_speed_mps": obs.wind_speed_mps if obs.HasField("wind_speed_mps") else np.nan,
-                "wind_direction_deg": obs.wind_direction_deg if obs.HasField("wind_direction_deg") else np.nan,
-            }
-        else:
-            record = {
-                "timestamp": ts,
-                "temperature_c": np.nan,
-                "min_temperature_c": np.nan,
-                "max_temperature_c": np.nan,
-                "humidity_pct": np.nan,
-                "min_humidity_pct": np.nan,
-                "max_humidity_pct": np.nan,
-                "pressure_hpa": np.nan,
-                "min_pressure_hpa": np.nan,
-                "max_pressure_hpa": np.nan,
-                "rainfall_mm": np.nan,
-                "wind_speed_mps": np.nan,
-                "wind_direction_deg": np.nan,
-            }
-        grid_records.append(record)
-
+    grid_records = [_observation_to_record(ts, obs_by_index.get(idx)) for idx, ts in enumerate(grid_timestamps)]
     df = pd.DataFrame(grid_records)
     # Normalize NaN and infinities to a single missing representation so that
     # imputation and sparsity checks treat them uniformly.
     return df.replace([np.inf, -np.inf], np.nan)
 
 
-def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -> tuple[pd.DataFrame, list[str]]:
-    """filter_and_impute_columns drops sparse optional columns and imputes missing values."""
+def _select_columns(df: pd.DataFrame) -> list[str]:
     total_rows = len(df)
     surviving_columns = [
         "temperature_c",
@@ -171,9 +176,10 @@ def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -
             missing_ratio = df[column_name].isna().sum() / total_rows
             if missing_ratio <= OPTIONAL_COLUMN_THRESHOLD:
                 surviving_columns.append(column_name)
+    return surviving_columns
 
-    clean_df = df[surviving_columns].copy()
 
+def _impute_columns(clean_df: pd.DataFrame, df: pd.DataFrame, surviving_columns: list[str], max_gap: int) -> None:
     # Rainfall is episodic, so missing periods during downtime are imputed with 0.0
     if "rainfall_mm" in surviving_columns:
         clean_df["rainfall_mm"] = clean_df["rainfall_mm"].fillna(0.0)
@@ -204,9 +210,8 @@ def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -
         clean_df[col] = clean_df[col].fillna(diurnal_profile)
         clean_df[col] = clean_df[col].bfill().ffill()
 
-    if not np.isfinite(clean_df.to_numpy(dtype=float)).all():
-        raise ValidationError("history contains unresolvable missing values after imputation")
 
+def _add_derived_features(clean_df: pd.DataFrame, surviving_columns: list[str]) -> None:
     # Derived meteorological features
     # 1. Diurnal temperature range (proxy for clear sky / radiative cooling)
     clean_df["temp_range_c"] = np.maximum(0.0, clean_df["max_temperature_c"] - clean_df["min_temperature_c"])
@@ -240,6 +245,18 @@ def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -
         clean_df["wind_v"] = -speed * np.cos(rad)
         surviving_columns.extend(["wind_u", "wind_v"])
 
+
+def filter_and_impute_columns(df: pd.DataFrame, max_gap: int = MAX_GAP_HOURLY) -> tuple[pd.DataFrame, list[str]]:
+    """filter_and_impute_columns drops sparse optional columns and imputes missing values."""
+    surviving_columns = _select_columns(df)
+    clean_df = df[surviving_columns].copy()
+
+    _impute_columns(clean_df, df, surviving_columns, max_gap)
+
+    if not np.isfinite(clean_df.to_numpy(dtype=float)).all():
+        raise ValidationError("history contains unresolvable missing values after imputation")
+
+    _add_derived_features(clean_df, surviving_columns)
     return clean_df, surviving_columns
 
 

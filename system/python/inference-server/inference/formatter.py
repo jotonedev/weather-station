@@ -49,6 +49,26 @@ def format_hourly_predictions(
     return predictions
 
 
+def _extract_bounded_range(
+    var_indices: dict[str, int],
+    quantiles: np.ndarray,
+    step_idx: int,
+    min_col: str,
+    max_col: str,
+    clip_min: float,
+    clip_max: float,
+) -> tuple[float | None, float | None]:
+    """_extract_bounded_range retrieves and orders clipped min/max quantiles."""
+    min_val, max_val = None, None
+    if min_col in var_indices:
+        min_val = float(np.clip(quantiles[var_indices[min_col], step_idx, 1], clip_min, clip_max))
+    if max_col in var_indices:
+        max_val = float(np.clip(quantiles[var_indices[max_col], step_idx, 1], clip_min, clip_max))
+    if min_val is not None and max_val is not None and min_val > max_val:
+        min_val, max_val = max_val, min_val
+    return min_val, max_val
+
+
 def format_daily_predictions(
     node_id: str,
     issue_time: Timestamp,
@@ -62,40 +82,23 @@ def format_daily_predictions(
     total_steps = min(horizon_days, quantiles.shape[1])
 
     for step_idx in range(total_steps):
-        step_day = step_idx + 1
         prediction = DailyPrediction(
             node_id=node_id,
             issue_time=issue_time,
-            horizon_days=step_day,
+            horizon_days=step_idx + 1,
         )
 
-        min_temp, max_temp = None, None
-        if "min_temperature_c" in var_indices:
-            idx = var_indices["min_temperature_c"]
-            min_temp = float(np.clip(quantiles[idx, step_idx, 1], -90.0, 70.0))
-        if "max_temperature_c" in var_indices:
-            idx = var_indices["max_temperature_c"]
-            max_temp = float(np.clip(quantiles[idx, step_idx, 1], -90.0, 70.0))
-
-        if min_temp is not None and max_temp is not None and min_temp > max_temp:
-            min_temp, max_temp = max_temp, min_temp
-
+        min_temp, max_temp = _extract_bounded_range(
+            var_indices, quantiles, step_idx, "min_temperature_c", "max_temperature_c", -90.0, 70.0
+        )
         if min_temp is not None:
             prediction.min_temperature_c = min_temp
         if max_temp is not None:
             prediction.max_temperature_c = max_temp
 
-        min_hum, max_hum = None, None
-        if "min_humidity_pct" in var_indices:
-            idx = var_indices["min_humidity_pct"]
-            min_hum = float(np.clip(quantiles[idx, step_idx, 1], 0.0, 100.0))
-        if "max_humidity_pct" in var_indices:
-            idx = var_indices["max_humidity_pct"]
-            max_hum = float(np.clip(quantiles[idx, step_idx, 1], 0.0, 100.0))
-
-        if min_hum is not None and max_hum is not None and min_hum > max_hum:
-            min_hum, max_hum = max_hum, min_hum
-
+        min_hum, max_hum = _extract_bounded_range(
+            var_indices, quantiles, step_idx, "min_humidity_pct", "max_humidity_pct", 0.0, 100.0
+        )
         if min_hum is not None:
             prediction.min_humidity_pct = min_hum
         if max_hum is not None:
