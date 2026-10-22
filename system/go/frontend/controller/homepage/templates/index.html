@@ -25,7 +25,7 @@
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
   </div>
   <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
-  <span class="forecast-temp">{{ .MaxTemperature }} <span class="forecast-temp-min">/ {{ .MinTemperature }}</span></span>
+  <span class="forecast-temp">{{ .MaxTemperature }}<br><span class="forecast-temp-min">{{ .MinTemperature }}</span></span>
 
   <div class="forecast-details">
     <div class="forecast-detail-row">
@@ -198,11 +198,10 @@
 
         <!-- Rainfall Card -->
         <div class="card">
+          <div class="card-header">
+            <span class="card-title">Rainfall</span>
+          </div>
           <div class="metrics">
-            <div class="metric">
-              <span class="metric-label">Rain Rate</span>
-              <span class="metric-value featured">{{ .LatestReading.RainRate }}</span>
-            </div>
             <div class="metric">
               <span class="metric-label">Last 1 Hour</span>
               <span class="metric-value">{{ .LatestReading.Rain1h }}</span>
