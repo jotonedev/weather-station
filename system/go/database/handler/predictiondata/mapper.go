@@ -7,36 +7,58 @@ import (
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 )
 
-// pbPredictionToModel converts a proto Prediction into the repository model.
-func pbPredictionToModel(p *protodatabasev1.Prediction) prediction.Prediction {
-	return prediction.Prediction{
+// pbHourlyToModel converts a proto HourlyPrediction into the repository model.
+func pbHourlyToModel(p *protodatabasev1.HourlyPrediction) prediction.HourlyPrediction {
+	return prediction.HourlyPrediction{
 		NodeID:             p.NodeId,
 		Ts:                 pb.FromTime(p.IssueTime),
 		HorizonHours:       p.HorizonHours,
-		RainfallMm:         p.RainfallMm,
 		TemperatureC:       p.TemperatureC,
-		MinTemperatureC:    p.MinTemperatureC,
-		MaxTemperatureC:    p.MaxTemperatureC,
 		HumidityPct:        p.HumidityPct,
-		MinHumidityPct:     p.MinHumidityPct,
-		MaxHumidityPct:     p.MaxHumidityPct,
+		RainfallMm:         p.RainfallMm,
 		RainfallConfidence: p.RainfallConfidence,
 	}
 }
 
-// modelPredictionToPB converts a repository Prediction model into a proto Prediction.
-func modelPredictionToPB(p prediction.Prediction) *protodatabasev1.Prediction {
-	return &protodatabasev1.Prediction{
+// pbDailyToModel converts a proto DailyPrediction into the repository model.
+func pbDailyToModel(p *protodatabasev1.DailyPrediction) prediction.DailyPrediction {
+	return prediction.DailyPrediction{
+		NodeID:             p.NodeId,
+		Ts:                 pb.FromTime(p.IssueTime),
+		HorizonDays:        p.HorizonDays,
+		MinTemperatureC:    p.MinTemperatureC,
+		MaxTemperatureC:    p.MaxTemperatureC,
+		MinHumidityPct:     p.MinHumidityPct,
+		MaxHumidityPct:     p.MaxHumidityPct,
+		RainfallMm:         p.RainfallMm,
+		RainfallConfidence: p.RainfallConfidence,
+	}
+}
+
+// modelHourlyToPB converts a repository HourlyPrediction model into a proto HourlyPrediction.
+func modelHourlyToPB(p prediction.HourlyPrediction) *protodatabasev1.HourlyPrediction {
+	return &protodatabasev1.HourlyPrediction{
 		NodeId:             p.NodeID,
 		IssueTime:          pb.Time(p.Ts),
 		HorizonHours:       p.HorizonHours,
-		RainfallMm:         p.RainfallMm,
 		TemperatureC:       p.TemperatureC,
+		HumidityPct:        p.HumidityPct,
+		RainfallMm:         p.RainfallMm,
+		RainfallConfidence: p.RainfallConfidence,
+	}
+}
+
+// modelDailyToPB converts a repository DailyPrediction model into a proto DailyPrediction.
+func modelDailyToPB(p prediction.DailyPrediction) *protodatabasev1.DailyPrediction {
+	return &protodatabasev1.DailyPrediction{
+		NodeId:             p.NodeID,
+		IssueTime:          pb.Time(p.Ts),
+		HorizonDays:        p.HorizonDays,
 		MinTemperatureC:    p.MinTemperatureC,
 		MaxTemperatureC:    p.MaxTemperatureC,
-		HumidityPct:        p.HumidityPct,
 		MinHumidityPct:     p.MinHumidityPct,
 		MaxHumidityPct:     p.MaxHumidityPct,
+		RainfallMm:         p.RainfallMm,
 		RainfallConfidence: p.RainfallConfidence,
 	}
 }

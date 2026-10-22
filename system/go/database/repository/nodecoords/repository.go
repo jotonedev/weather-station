@@ -119,7 +119,8 @@ func (r *Repository) DeleteNode(ctx context.Context, nodeID string) error {
 
 	statements := []string{
 		`DELETE FROM weather WHERE node_id = ?;`,
-		`DELETE FROM predictions WHERE node_id = ?;`,
+		`DELETE FROM hourly_predictions WHERE node_id = ?;`,
+		`DELETE FROM daily_predictions WHERE node_id = ?;`,
 		`DELETE FROM node_coordinates WHERE node_id = ?;`,
 	}
 

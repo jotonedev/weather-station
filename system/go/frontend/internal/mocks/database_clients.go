@@ -102,6 +102,90 @@ func (mr *MockReadingDatabaseServiceClientMockRecorder) StoreReadings(ctx, in an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreReadings", reflect.TypeOf((*MockReadingDatabaseServiceClient)(nil).StoreReadings), varargs...)
 }
 
+// MockPredictionDatabaseServiceClient is a mock of PredictionDatabaseServiceClient interface.
+type MockPredictionDatabaseServiceClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockPredictionDatabaseServiceClientMockRecorder
+	isgomock struct{}
+}
+
+// MockPredictionDatabaseServiceClientMockRecorder is the mock recorder for MockPredictionDatabaseServiceClient.
+type MockPredictionDatabaseServiceClientMockRecorder struct {
+	mock *MockPredictionDatabaseServiceClient
+}
+
+// NewMockPredictionDatabaseServiceClient creates a new mock instance.
+func NewMockPredictionDatabaseServiceClient(ctrl *gomock.Controller) *MockPredictionDatabaseServiceClient {
+	mock := &MockPredictionDatabaseServiceClient{ctrl: ctrl}
+	mock.recorder = &MockPredictionDatabaseServiceClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockPredictionDatabaseServiceClient) EXPECT() *MockPredictionDatabaseServiceClientMockRecorder {
+	return m.recorder
+}
+
+// GetForecast mocks base method.
+func (m *MockPredictionDatabaseServiceClient) GetForecast(ctx context.Context, in *databasev1.GetForecastRequest, opts ...grpc.CallOption) (*databasev1.GetForecastResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetForecast", varargs...)
+	ret0, _ := ret[0].(*databasev1.GetForecastResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetForecast indicates an expected call of GetForecast.
+func (mr *MockPredictionDatabaseServiceClientMockRecorder) GetForecast(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForecast", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).GetForecast), varargs...)
+}
+
+// StoreDailyPredictions mocks base method.
+func (m *MockPredictionDatabaseServiceClient) StoreDailyPredictions(ctx context.Context, in *databasev1.StoreDailyPredictionsRequest, opts ...grpc.CallOption) (*databasev1.StoreDailyPredictionsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StoreDailyPredictions", varargs...)
+	ret0, _ := ret[0].(*databasev1.StoreDailyPredictionsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StoreDailyPredictions indicates an expected call of StoreDailyPredictions.
+func (mr *MockPredictionDatabaseServiceClientMockRecorder) StoreDailyPredictions(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreDailyPredictions", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).StoreDailyPredictions), varargs...)
+}
+
+// StoreHourlyPredictions mocks base method.
+func (m *MockPredictionDatabaseServiceClient) StoreHourlyPredictions(ctx context.Context, in *databasev1.StoreHourlyPredictionsRequest, opts ...grpc.CallOption) (*databasev1.StoreHourlyPredictionsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StoreHourlyPredictions", varargs...)
+	ret0, _ := ret[0].(*databasev1.StoreHourlyPredictionsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StoreHourlyPredictions indicates an expected call of StoreHourlyPredictions.
+func (mr *MockPredictionDatabaseServiceClientMockRecorder) StoreHourlyPredictions(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreHourlyPredictions", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).StoreHourlyPredictions), varargs...)
+}
+
 // MockNodeDatabaseServiceClient is a mock of NodeDatabaseServiceClient interface.
 type MockNodeDatabaseServiceClient struct {
 	ctrl     *gomock.Controller
@@ -225,68 +309,3 @@ func (mr *MockNodeDatabaseServiceClientMockRecorder) UpdateNode(ctx, in any, opt
 	varargs := append([]any{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNode", reflect.TypeOf((*MockNodeDatabaseServiceClient)(nil).UpdateNode), varargs...)
 }
-
-// MockPredictionDatabaseServiceClient is a mock of PredictionDatabaseServiceClient interface.
-type MockPredictionDatabaseServiceClient struct {
-	ctrl     *gomock.Controller
-	recorder *MockPredictionDatabaseServiceClientMockRecorder
-	isgomock struct{}
-}
-
-// MockPredictionDatabaseServiceClientMockRecorder is the mock recorder for MockPredictionDatabaseServiceClient.
-type MockPredictionDatabaseServiceClientMockRecorder struct {
-	mock *MockPredictionDatabaseServiceClient
-}
-
-// NewMockPredictionDatabaseServiceClient creates a new mock instance.
-func NewMockPredictionDatabaseServiceClient(ctrl *gomock.Controller) *MockPredictionDatabaseServiceClient {
-	mock := &MockPredictionDatabaseServiceClient{ctrl: ctrl}
-	mock.recorder = &MockPredictionDatabaseServiceClientMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockPredictionDatabaseServiceClient) EXPECT() *MockPredictionDatabaseServiceClientMockRecorder {
-	return m.recorder
-}
-
-// GetForecast mocks base method.
-func (m *MockPredictionDatabaseServiceClient) GetForecast(ctx context.Context, in *databasev1.GetForecastRequest, opts ...grpc.CallOption) (*databasev1.GetForecastResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []any{ctx, in}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "GetForecast", varargs...)
-	ret0, _ := ret[0].(*databasev1.GetForecastResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetForecast indicates an expected call of GetForecast.
-func (mr *MockPredictionDatabaseServiceClientMockRecorder) GetForecast(ctx, in any, opts ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForecast", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).GetForecast), varargs...)
-}
-
-// StorePredictions mocks base method.
-func (m *MockPredictionDatabaseServiceClient) StorePredictions(ctx context.Context, in *databasev1.StorePredictionsRequest, opts ...grpc.CallOption) (*databasev1.StorePredictionsResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []any{ctx, in}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "StorePredictions", varargs...)
-	ret0, _ := ret[0].(*databasev1.StorePredictionsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// StorePredictions indicates an expected call of StorePredictions.
-func (mr *MockPredictionDatabaseServiceClientMockRecorder) StorePredictions(ctx, in any, opts ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePredictions", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).StorePredictions), varargs...)
-}
-

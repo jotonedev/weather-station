@@ -65,7 +65,7 @@ func TestHomepageControllerRender(t *testing.T) {
 				predictionClient.EXPECT().
 					GetForecast(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetForecastResponse{
-						Predictions: []*protodatabasev1.Prediction{
+						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{
 								NodeId:       "station-test",
 								IssueTime:    pb.Time(testTime),
@@ -73,10 +73,12 @@ func TestHomepageControllerRender(t *testing.T) {
 								TemperatureC: &forecastTemp,
 								RainfallMm:   &forecastRain,
 							},
+						},
+						DailyPredictions: []*protodatabasev1.DailyPrediction{
 							{
 								NodeId:          "station-test",
 								IssueTime:       pb.Time(testTime),
-								HorizonHours:    24,
+								HorizonDays:     1,
 								MinTemperatureC: &dailyForecastTemp,
 								MaxTemperatureC: &forecastTemp,
 								RainfallMm:      &forecastRain,

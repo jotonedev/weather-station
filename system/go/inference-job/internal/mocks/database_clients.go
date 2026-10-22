@@ -126,24 +126,44 @@ func (mr *MockPredictionDatabaseServiceClientMockRecorder) GetForecast(ctx, in a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForecast", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).GetForecast), varargs...)
 }
 
-// StorePredictions mocks base method.
-func (m *MockPredictionDatabaseServiceClient) StorePredictions(ctx context.Context, in *databasev1.StorePredictionsRequest, opts ...grpc.CallOption) (*databasev1.StorePredictionsResponse, error) {
+// StoreDailyPredictions mocks base method.
+func (m *MockPredictionDatabaseServiceClient) StoreDailyPredictions(ctx context.Context, in *databasev1.StoreDailyPredictionsRequest, opts ...grpc.CallOption) (*databasev1.StoreDailyPredictionsResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "StorePredictions", varargs...)
-	ret0, _ := ret[0].(*databasev1.StorePredictionsResponse)
+	ret := m.ctrl.Call(m, "StoreDailyPredictions", varargs...)
+	ret0, _ := ret[0].(*databasev1.StoreDailyPredictionsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StorePredictions indicates an expected call of StorePredictions.
-func (mr *MockPredictionDatabaseServiceClientMockRecorder) StorePredictions(ctx, in any, opts ...any) *gomock.Call {
+// StoreDailyPredictions indicates an expected call of StoreDailyPredictions.
+func (mr *MockPredictionDatabaseServiceClientMockRecorder) StoreDailyPredictions(ctx, in any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePredictions", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).StorePredictions), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreDailyPredictions", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).StoreDailyPredictions), varargs...)
+}
+
+// StoreHourlyPredictions mocks base method.
+func (m *MockPredictionDatabaseServiceClient) StoreHourlyPredictions(ctx context.Context, in *databasev1.StoreHourlyPredictionsRequest, opts ...grpc.CallOption) (*databasev1.StoreHourlyPredictionsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StoreHourlyPredictions", varargs...)
+	ret0, _ := ret[0].(*databasev1.StoreHourlyPredictionsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StoreHourlyPredictions indicates an expected call of StoreHourlyPredictions.
+func (mr *MockPredictionDatabaseServiceClientMockRecorder) StoreHourlyPredictions(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreHourlyPredictions", reflect.TypeOf((*MockPredictionDatabaseServiceClient)(nil).StoreHourlyPredictions), varargs...)
 }
 
 // MockNodeDatabaseServiceClient is a mock of NodeDatabaseServiceClient interface.

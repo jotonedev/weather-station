@@ -151,7 +151,7 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 						},
 					}, nil)
 				mockDB.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Len(1)).
+					StoreHourlyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(errStore)
 			},
 			wantErr: true,
@@ -174,7 +174,7 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 						},
 					}, nil)
 				mockDB.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Len(1)).
+					StoreHourlyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(nil)
 			},
 			wantErr: false,
@@ -208,7 +208,7 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 						}, nil
 					})
 				mockDB.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Len(1)).
+					StoreHourlyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(nil)
 			},
 			wantErr: false,
@@ -321,7 +321,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 						},
 					}, nil)
 				mockDB.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Len(1)).
+					StoreDailyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(errStore)
 			},
 			wantErr: true,
@@ -344,7 +344,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 						},
 					}, nil)
 				mockDB.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Len(1)).
+					StoreDailyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(nil)
 			},
 			wantErr: false,
@@ -378,7 +378,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 						}, nil
 					})
 				mockDB.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Len(1)).
+					StoreDailyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(nil)
 			},
 			wantErr: false,
@@ -455,7 +455,7 @@ func TestRunHourlyForecast(t *testing.T) {
 							},
 						}, nil)
 					mockDB.EXPECT().
-						StorePredictions(gomock.Any(), gomock.Len(1)).
+						StoreHourlyPredictions(gomock.Any(), gomock.Len(1)).
 						Return(nil)
 				}
 			},
@@ -528,7 +528,7 @@ func TestRunDailyForecast(t *testing.T) {
 							},
 						}, nil)
 					mockDB.EXPECT().
-						StorePredictions(gomock.Any(), gomock.Len(1)).
+						StoreDailyPredictions(gomock.Any(), gomock.Len(1)).
 						Return(nil)
 				}
 			},

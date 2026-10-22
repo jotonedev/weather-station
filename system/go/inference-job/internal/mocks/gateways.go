@@ -73,18 +73,32 @@ func (mr *MockDatabaseGatewayMockRecorder) ListNodeCoordinates(ctx any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNodeCoordinates", reflect.TypeOf((*MockDatabaseGateway)(nil).ListNodeCoordinates), ctx)
 }
 
-// StorePredictions mocks base method.
-func (m *MockDatabaseGateway) StorePredictions(ctx context.Context, predictions []*databasev1.Prediction) error {
+// StoreDailyPredictions mocks base method.
+func (m *MockDatabaseGateway) StoreDailyPredictions(ctx context.Context, predictions []*databasev1.DailyPrediction) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StorePredictions", ctx, predictions)
+	ret := m.ctrl.Call(m, "StoreDailyPredictions", ctx, predictions)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// StorePredictions indicates an expected call of StorePredictions.
-func (mr *MockDatabaseGatewayMockRecorder) StorePredictions(ctx, predictions any) *gomock.Call {
+// StoreDailyPredictions indicates an expected call of StoreDailyPredictions.
+func (mr *MockDatabaseGatewayMockRecorder) StoreDailyPredictions(ctx, predictions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePredictions", reflect.TypeOf((*MockDatabaseGateway)(nil).StorePredictions), ctx, predictions)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreDailyPredictions", reflect.TypeOf((*MockDatabaseGateway)(nil).StoreDailyPredictions), ctx, predictions)
+}
+
+// StoreHourlyPredictions mocks base method.
+func (m *MockDatabaseGateway) StoreHourlyPredictions(ctx context.Context, predictions []*databasev1.HourlyPrediction) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StoreHourlyPredictions", ctx, predictions)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StoreHourlyPredictions indicates an expected call of StoreHourlyPredictions.
+func (mr *MockDatabaseGatewayMockRecorder) StoreHourlyPredictions(ctx, predictions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreHourlyPredictions", reflect.TypeOf((*MockDatabaseGateway)(nil).StoreHourlyPredictions), ctx, predictions)
 }
 
 // MockInferenceGateway is a mock of InferenceGateway interface.

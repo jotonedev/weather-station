@@ -8,7 +8,7 @@ import (
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 )
 
-func TestPBPredictionToView(t *testing.T) {
+func TestPbHourlyToView(t *testing.T) {
 	issueTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	temp := float32(18.4)
 	rain := float32(1.2)
@@ -16,12 +16,12 @@ func TestPBPredictionToView(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		prediction *protodatabasev1.Prediction
+		prediction *protodatabasev1.HourlyPrediction
 		check      func(t *testing.T, view ForecastItemView)
 	}{
 		{
 			name: "converts hourly forecast prediction with light rain and confidence",
-			prediction: &protodatabasev1.Prediction{
+			prediction: &protodatabasev1.HourlyPrediction{
 				NodeId:             "station-1",
 				IssueTime:          pb.Time(issueTime),
 				HorizonHours:       3,
@@ -37,7 +37,7 @@ func TestPBPredictionToView(t *testing.T) {
 					t.Fatalf("TargetTimeISO = %q, want 2026-10-10T15:00:00Z", view.TargetTimeISO)
 				}
 				if view.IsDaily {
-					t.Fatal("expected IsDaily to be false for 3h horizon")
+					t.Fatal("expected IsDaily to be false for an hourly prediction")
 				}
 				if view.TimeSubLabel != "+3h" {
 					t.Fatalf("TimeSubLabel = %q, want +3h", view.TimeSubLabel)
@@ -57,36 +57,6 @@ func TestPBPredictionToView(t *testing.T) {
 			},
 		},
 		{
-			name: "converts multi-day horizon label with min and max temperature",
-			prediction: &protodatabasev1.Prediction{
-				NodeId:          "station-1",
-				IssueTime:       pb.Time(issueTime),
-				HorizonHours:    48,
-				MinTemperatureC: &temp,
-				MaxTemperatureC: &temp,
-			},
-			check: func(t *testing.T, view ForecastItemView) {
-				if view.HorizonLabel != "Mon 12 Oct" {
-					t.Fatalf("HorizonLabel = %q, want Mon 12 Oct", view.HorizonLabel)
-				}
-				if view.TargetTimeISO != "2026-10-12T12:00:00Z" {
-					t.Fatalf("TargetTimeISO = %q, want 2026-10-12T12:00:00Z", view.TargetTimeISO)
-				}
-				if !view.IsDaily {
-					t.Fatal("expected IsDaily to be true for 48h horizon")
-				}
-				if view.TimeSubLabel != "+2d" {
-					t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)
-				}
-				if view.MinTemperature != "18.4 °C" || view.MaxTemperature != "18.4 °C" {
-					t.Fatalf("Min/Max = %q / %q, want 18.4 °C / 18.4 °C", view.MinTemperature, view.MaxTemperature)
-				}
-				if view.ConditionIcon != "wi-day-cloudy" {
-					t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)
-				}
-			},
-		},
-		{
 			name:       "handles nil prediction",
 			prediction: nil,
 			check: func(t *testing.T, view ForecastItemView) {
@@ -99,9 +69,46 @@ func TestPBPredictionToView(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			view := pbPredictionToView(testCase.prediction)
+			view := pbHourlyToView(testCase.prediction)
 			testCase.check(t, view)
 		})
+	}
+}
+
+func TestPbDailyToView(t *testing.T) {
+	issueTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	temp := float32(18.4)
+
+	prediction := &protodatabasev1.DailyPrediction{
+		NodeId:          "station-1",
+		IssueTime:       pb.Time(issueTime),
+		HorizonDays:     2,
+		MinTemperatureC: &temp,
+		MaxTemperatureC: &temp,
+	}
+	view := pbDailyToView(prediction)
+
+	if view.HorizonLabel != "Mon 12 Oct" {
+		t.Fatalf("HorizonLabel = %q, want Mon 12 Oct", view.HorizonLabel)
+	}
+	if view.TargetTimeISO != "2026-10-12T12:00:00Z" {
+		t.Fatalf("TargetTimeISO = %q, want 2026-10-12T12:00:00Z", view.TargetTimeISO)
+	}
+	if !view.IsDaily {
+		t.Fatal("expected IsDaily to be true for a daily prediction")
+	}
+	if view.TimeSubLabel != "+2d" {
+		t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)
+	}
+	if view.MinTemperature != "18.4 °C" || view.MaxTemperature != "18.4 °C" {
+		t.Fatalf("Min/Max = %q / %q, want 18.4 °C / 18.4 °C", view.MinTemperature, view.MaxTemperature)
+	}
+	if view.ConditionIcon != "wi-day-cloudy" {
+		t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)
+	}
+
+	if pbDailyToView(nil).HorizonHours != 0 {
+		t.Fatal("nil prediction should produce an empty view")
 	}
 }
 

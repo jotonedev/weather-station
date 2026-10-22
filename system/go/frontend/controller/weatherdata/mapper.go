@@ -163,20 +163,24 @@ func formatConfidence(conf *float32) (string, int) {
 	return fmt.Sprintf("%d%%", pct), pct
 }
 
-// formatHorizonLabels builds the primary time label and relative horizon sub-label for a forecast item.
-func formatHorizonLabels(issueTime time.Time, horizonHours int32) (string, string) {
+// formatHourlyHorizonLabel builds the primary time label and relative horizon sub-label for an hourly forecast item.
+func formatHourlyHorizonLabel(issueTime time.Time, horizonHours int32) (string, string) {
 	subLabel := fmt.Sprintf("+%dh", horizonHours)
-	if horizonHours >= 24 && horizonHours%24 == 0 {
-		subLabel = fmt.Sprintf("+%dd", horizonHours/24)
-	}
 	if issueTime.IsZero() {
 		return subLabel, "Forecast"
 	}
 	targetTime := issueTime.UTC().Add(time.Duration(horizonHours) * time.Hour)
-	if horizonHours >= 24 && horizonHours%24 == 0 {
-		return targetTime.Format("Mon 02 Jan"), subLabel
-	}
 	return targetTime.Format("15:04 UTC"), subLabel
+}
+
+// formatDailyHorizonLabel builds the primary time label and relative horizon sub-label for a daily forecast item.
+func formatDailyHorizonLabel(issueTime time.Time, horizonDays int32) (string, string) {
+	subLabel := fmt.Sprintf("+%dd", horizonDays)
+	if issueTime.IsZero() {
+		return subLabel, "Forecast"
+	}
+	targetTime := issueTime.UTC().Add(time.Duration(horizonDays) * 24 * time.Hour)
+	return targetTime.Format("Mon 02 Jan"), subLabel
 }
 
 // pbReadingToView converts a protobuf Reading into a template-friendly ReadingView.
@@ -256,8 +260,8 @@ func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 	}
 }
 
-// pbPredictionToView converts a protobuf Prediction into a template-friendly ForecastItemView.
-func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
+// pbHourlyToView converts a protobuf HourlyPrediction into a template-friendly ForecastItemView.
+func pbHourlyToView(pred *protodatabasev1.HourlyPrediction) ForecastItemView {
 	if pred == nil {
 		return ForecastItemView{}
 	}
@@ -267,14 +271,49 @@ func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
 		issueTime = pred.IssueTime.AsTime()
 	}
 
-	horizonLabel, subLabel := formatHorizonLabels(issueTime, pred.HorizonHours)
-	isDaily := pred.HorizonHours >= 24 && pred.HorizonHours%24 == 0
+	horizonLabel, subLabel := formatHourlyHorizonLabel(issueTime, pred.HorizonHours)
 	var targetTimeISO string
 	if !issueTime.IsZero() {
 		targetTime := issueTime.UTC().Add(time.Duration(pred.HorizonHours) * time.Hour)
 		targetTimeISO = targetTime.Format(time.RFC3339)
 	}
 	condIcon, condLabel := classifyWeatherCondition(pred.TemperatureC, nil, pred.RainfallMm)
+	confText, confPct := formatConfidence(pred.RainfallConfidence)
+
+	return ForecastItemView{
+		HorizonHours:   pred.HorizonHours,
+		HorizonLabel:   horizonLabel,
+		TimeSubLabel:   subLabel,
+		TargetTimeISO:  targetTimeISO,
+		IsDaily:        false,
+		ConditionIcon:  condIcon,
+		ConditionLabel: condLabel,
+		Temperature:    formatFloat(pred.TemperatureC, "%.1f", "°C"),
+		Rainfall:       formatFloat(pred.RainfallMm, "%.1f", "mm"),
+		Confidence:     confText,
+		ConfidencePct:  confPct,
+		HasConfidence:  pred.RainfallConfidence != nil,
+	}
+}
+
+// pbDailyToView converts a protobuf DailyPrediction into a template-friendly ForecastItemView.
+func pbDailyToView(pred *protodatabasev1.DailyPrediction) ForecastItemView {
+	if pred == nil {
+		return ForecastItemView{}
+	}
+
+	var issueTime time.Time
+	if pred.IssueTime != nil {
+		issueTime = pred.IssueTime.AsTime()
+	}
+
+	horizonLabel, subLabel := formatDailyHorizonLabel(issueTime, pred.HorizonDays)
+	var targetTimeISO string
+	if !issueTime.IsZero() {
+		targetTime := issueTime.UTC().Add(time.Duration(pred.HorizonDays) * 24 * time.Hour)
+		targetTimeISO = targetTime.Format(time.RFC3339)
+	}
+	condIcon, condLabel := classifyWeatherCondition(pred.MaxTemperatureC, nil, pred.RainfallMm)
 	confText, confPct := formatConfidence(pred.RainfallConfidence)
 
 	var minTemp, maxTemp string
@@ -286,14 +325,14 @@ func pbPredictionToView(pred *protodatabasev1.Prediction) ForecastItemView {
 	}
 
 	return ForecastItemView{
-		HorizonHours:   pred.HorizonHours,
+		HorizonHours:   pred.HorizonDays * 24,
 		HorizonLabel:   horizonLabel,
 		TimeSubLabel:   subLabel,
 		TargetTimeISO:  targetTimeISO,
-		IsDaily:        isDaily,
+		IsDaily:        true,
 		ConditionIcon:  condIcon,
 		ConditionLabel: condLabel,
-		Temperature:    formatFloat(pred.TemperatureC, "%.1f", "°C"),
+		Temperature:    formatFloat(nil, "%.1f", "°C"),
 		MinTemperature: minTemp,
 		MaxTemperature: maxTemp,
 		Rainfall:       formatFloat(pred.RainfallMm, "%.1f", "mm"),

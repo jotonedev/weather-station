@@ -7,7 +7,6 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
-	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 	"weather-station/frontend/gateway/database"
 )
 
@@ -78,26 +77,15 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 		data.LatestReading = &latest
 	}
 
-	predictions, err := c.db.GetForecast(ctx, selectedNodeID)
+	predictionResp, err := c.db.GetForecast(ctx, selectedNodeID)
 	if err != nil {
 		c.log.Warn("Failed to fetch forecast predictions", zap.String("node_id", selectedNodeID), zap.Error(err))
 		return data
 	}
 
-	if len(predictions) > 0 {
-		var hourlyPreds []*protodatabasev1.Prediction
-		var dailyPreds []*protodatabasev1.Prediction
-
-		for _, pred := range predictions {
-			if pred == nil {
-				continue
-			}
-			if pred.HorizonHours < 24 {
-				hourlyPreds = append(hourlyPreds, pred)
-			} else {
-				dailyPreds = append(dailyPreds, pred)
-			}
-		}
+	if predictionResp != nil {
+		hourlyPreds := predictionResp.GetHourlyPredictions()
+		dailyPreds := predictionResp.GetDailyPredictions()
 
 		hourly := make([]ForecastItemView, 0, len(hourlyPreds))
 		for _, pred := range hourlyPreds {
@@ -120,7 +108,7 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 					data.HourlyIssuedAtISO = isoIssue
 				}
 			}
-			hourly = append(hourly, pbPredictionToView(pred))
+			hourly = append(hourly, pbHourlyToView(pred))
 		}
 
 		daily := make([]ForecastItemView, 0, len(dailyPreds))
@@ -144,7 +132,7 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 					data.DailyIssuedAtISO = isoIssue
 				}
 			}
-			daily = append(daily, pbPredictionToView(pred))
+			daily = append(daily, pbDailyToView(pred))
 		}
 
 		forecast := make([]ForecastItemView, 0, len(hourly)+len(daily))

@@ -102,8 +102,8 @@ func (g *Gateway) GetLatestReadings(ctx context.Context, nodeID string, limit ui
 	return resp.Readings, nil
 }
 
-// GetForecast retrieves the latest forecast predictions for a given node.
-func (g *Gateway) GetForecast(ctx context.Context, nodeID string) ([]*protodatabasev1.Prediction, error) {
+// GetForecast retrieves the latest hourly and daily forecast predictions for a given node.
+func (g *Gateway) GetForecast(ctx context.Context, nodeID string) (*protodatabasev1.GetForecastResponse, error) {
 	if g.predictionClient == nil {
 		return nil, nil
 	}
@@ -113,7 +113,7 @@ func (g *Gateway) GetForecast(ctx context.Context, nodeID string) ([]*protodatab
 	if err != nil {
 		return nil, fmt.Errorf("get forecast for node %q: %w", nodeID, err)
 	}
-	return resp.GetPredictions(), nil
+	return resp, nil
 }
 
 // ListNodeCoordinates retrieves location coordinates for all registered nodes.

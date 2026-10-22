@@ -138,17 +138,33 @@ func (g *Gateway) GetClimateAggregates(ctx context.Context, nodeID string, start
 	return res.GetAggregates(), nil
 }
 
-// StorePredictions sends a batch of forecast predictions to the database.
-func (g *Gateway) StorePredictions(ctx context.Context, predictions []*protodatabasev1.Prediction) error {
+// StoreHourlyPredictions sends a batch of hourly forecast predictions to the database.
+func (g *Gateway) StoreHourlyPredictions(ctx context.Context, predictions []*protodatabasev1.HourlyPrediction) error {
 	if len(predictions) == 0 {
 		return nil
 	}
 
-	_, err := g.predictionClient.StorePredictions(ctx, &protodatabasev1.StorePredictionsRequest{
+	_, err := g.predictionClient.StoreHourlyPredictions(ctx, &protodatabasev1.StoreHourlyPredictionsRequest{
 		Predictions: predictions,
 	})
 	if err != nil {
-		return fmt.Errorf("store predictions: %w", err)
+		return fmt.Errorf("store hourly predictions: %w", err)
+	}
+
+	return nil
+}
+
+// StoreDailyPredictions sends a batch of daily forecast predictions to the database.
+func (g *Gateway) StoreDailyPredictions(ctx context.Context, predictions []*protodatabasev1.DailyPrediction) error {
+	if len(predictions) == 0 {
+		return nil
+	}
+
+	_, err := g.predictionClient.StoreDailyPredictions(ctx, &protodatabasev1.StoreDailyPredictionsRequest{
+		Predictions: predictions,
+	})
+	if err != nil {
+		return fmt.Errorf("store daily predictions: %w", err)
 	}
 
 	return nil

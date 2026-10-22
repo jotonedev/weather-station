@@ -30,17 +30,4 @@ message DailyPrediction {
   optional float rainfall_confidence = 9;
 }
 
-// Prediction is the unified record stored in the database predictions table.
-message Prediction {
-  string node_id = 1;
-  google.protobuf.Timestamp issue_time = 2;
-  int32 horizon_hours = 3;
-  optional float rainfall_mm = 4;
-  optional float temperature_c = 5;
-  optional float min_temperature_c = 6;
-  optional float max_temperature_c = 7;
-  optional float humidity_pct = 8;
-  optional float min_humidity_pct = 9;
-  optional float max_humidity_pct = 10;
-  optional float rainfall_confidence = 11;
-}
+

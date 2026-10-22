@@ -59,18 +59,20 @@ func TestGetDashboardData(t *testing.T) {
 				predictionClient.EXPECT().
 					GetForecast(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetForecastResponse{
-						Predictions: []*protodatabasev1.Prediction{
+						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{
 								NodeId:       "station-beta",
 								IssueTime:    pb.Time(issueTime),
 								HorizonHours: 1,
 								TemperatureC: &forecastTemp,
 							},
+						},
+						DailyPredictions: []*protodatabasev1.DailyPrediction{
 							{
-								NodeId:       "station-beta",
-								IssueTime:    pb.Time(issueTime),
-								HorizonHours: 24,
-								TemperatureC: &dailyForecastTemp,
+								NodeId:          "station-beta",
+								IssueTime:       pb.Time(issueTime),
+								HorizonDays:     1,
+								MaxTemperatureC: &dailyForecastTemp,
 							},
 						},
 					}, nil)
@@ -94,8 +96,8 @@ func TestGetDashboardData(t *testing.T) {
 				if len(data.HourlyForecast) != 1 || data.HourlyForecast[0].Temperature != "19.5 °C" {
 					t.Fatalf("HourlyForecast = %+v, want 1 item with 19.5 °C", data.HourlyForecast)
 				}
-				if len(data.DailyForecast) != 1 || data.DailyForecast[0].Temperature != "16.0 °C" {
-					t.Fatalf("DailyForecast = %+v, want 1 item with 16.0 °C", data.DailyForecast)
+				if len(data.DailyForecast) != 1 || data.DailyForecast[0].MaxTemperature != "16.0 °C" {
+					t.Fatalf("DailyForecast = %+v, want 1 item with 16.0 °C max", data.DailyForecast)
 				}
 				if data.HourlyIssuedAtISO != "2026-10-10T12:00:00Z" {
 					t.Fatalf("HourlyIssuedAtISO = %q, want 2026-10-10T12:00:00Z", data.HourlyIssuedAtISO)
@@ -178,7 +180,7 @@ func TestGetDashboardData(t *testing.T) {
 				predictionClient.EXPECT().
 					GetForecast(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetForecastResponse{
-						Predictions: []*protodatabasev1.Prediction{
+						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{
 								NodeId:             "station-beta",
 								IssueTime:          pb.Time(issueTime),
@@ -203,22 +205,24 @@ func TestGetDashboardData(t *testing.T) {
 								HorizonHours:       4,
 								RainfallConfidence: &c80,
 							},
+						},
+						DailyPredictions: []*protodatabasev1.DailyPrediction{
 							{
 								NodeId:             "station-beta",
 								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       24,
+								HorizonDays:        1,
 								RainfallConfidence: &c40,
 							},
 							{
 								NodeId:             "station-beta",
 								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       48,
+								HorizonDays:        2,
 								RainfallConfidence: &c05,
 							},
 							{
 								NodeId:             "station-beta",
 								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       72,
+								HorizonDays:        3,
 								RainfallConfidence: &c90,
 							},
 						},
@@ -273,17 +277,19 @@ func TestGetDashboardData(t *testing.T) {
 				predictionClient.EXPECT().
 					GetForecast(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetForecastResponse{
-						Predictions: []*protodatabasev1.Prediction{
+						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{
 								NodeId:             "station-beta",
 								IssueTime:          pb.Time(issueTime),
 								HorizonHours:       1,
 								RainfallConfidence: &c05,
 							},
+						},
+						DailyPredictions: []*protodatabasev1.DailyPrediction{
 							{
 								NodeId:             "station-beta",
 								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       24,
+								HorizonDays:        1,
 								RainfallConfidence: &c08,
 							},
 						},

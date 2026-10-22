@@ -144,21 +144,31 @@ func (c *Client) initSchema(ctx context.Context) error {
 			location_name VARCHAR
 		);`,
 
-		// 3. Forecast predictions table
-		`CREATE TABLE IF NOT EXISTS predictions (
+		// 3. Hourly forecast predictions table
+		`CREATE TABLE IF NOT EXISTS hourly_predictions (
 			node_id             VARCHAR NOT NULL,
 			ts                  TIMESTAMP NOT NULL,
 			horizon_hours       INTEGER NOT NULL,
-			rainfall_mm         FLOAT,
 			temperature_c       FLOAT,
-			min_temperature_c   FLOAT,
-			max_temperature_c   FLOAT,
 			humidity_pct        FLOAT,
-			min_humidity_pct    FLOAT,
-			max_humidity_pct    FLOAT,
+			rainfall_mm         FLOAT,
 			rainfall_confidence FLOAT
 		);`,
-		`CREATE INDEX IF NOT EXISTS idx_predictions_node_ts ON predictions (node_id, ts);`,
+		`CREATE INDEX IF NOT EXISTS idx_hourly_predictions_node_ts ON hourly_predictions (node_id, ts);`,
+
+		// 4. Daily forecast predictions table
+		`CREATE TABLE IF NOT EXISTS daily_predictions (
+			node_id             VARCHAR NOT NULL,
+			ts                  TIMESTAMP NOT NULL,
+			horizon_days        INTEGER NOT NULL,
+			min_temperature_c   FLOAT,
+			max_temperature_c   FLOAT,
+			min_humidity_pct    FLOAT,
+			max_humidity_pct    FLOAT,
+			rainfall_mm         FLOAT,
+			rainfall_confidence FLOAT
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_daily_predictions_node_ts ON daily_predictions (node_id, ts);`,
 	}
 
 	for _, q := range queries {

@@ -226,13 +226,16 @@ func TestGatewayGetForecast(t *testing.T) {
 				client.EXPECT().
 					GetForecast(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetForecastResponse{
-						Predictions: []*protodatabasev1.Prediction{
+						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{NodeId: "station-alpha", HorizonHours: 1},
 							{NodeId: "station-alpha", HorizonHours: 2},
 						},
+						DailyPredictions: []*protodatabasev1.DailyPrediction{
+							{NodeId: "station-alpha", HorizonDays: 1},
+						},
 					}, nil)
 			},
-			wantCount: 2,
+			wantCount: 3,
 		},
 		{
 			name:   "database error is wrapped",
@@ -279,8 +282,9 @@ func TestGatewayGetForecast(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetForecast() unexpected error = %v", err)
 			}
-			if len(predictions) != testCase.wantCount {
-				t.Fatalf("GetForecast() count = %d, want %d", len(predictions), testCase.wantCount)
+			count := len(predictions.GetHourlyPredictions()) + len(predictions.GetDailyPredictions())
+			if count != testCase.wantCount {
+				t.Fatalf("GetForecast() count = %d, want %d", count, testCase.wantCount)
 			}
 		})
 	}

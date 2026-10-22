@@ -21,8 +21,10 @@ service ReadingDatabaseService {
 
 
 service PredictionDatabaseService {
-  // Store a batch of forecast predictions.
-  rpc StorePredictions(StorePredictionsRequest) returns (StorePredictionsResponse);
+  // Store a batch of hourly forecast predictions.
+  rpc StoreHourlyPredictions(StoreHourlyPredictionsRequest) returns (StoreHourlyPredictionsResponse);
+  // Store a batch of daily forecast predictions.
+  rpc StoreDailyPredictions(StoreDailyPredictionsRequest) returns (StoreDailyPredictionsResponse);
   // Return the latest forecast predictions for a node.
   rpc GetForecast(GetForecastRequest) returns (GetForecastResponse);
 }
@@ -56,11 +58,19 @@ message StoreReadingsResponse {
   uint64 stored = 1;
 }
 
-message StorePredictionsRequest {
-  repeated Prediction predictions = 1;
+message StoreHourlyPredictionsRequest {
+  repeated HourlyPrediction predictions = 1;
 }
 
-message StorePredictionsResponse {
+message StoreHourlyPredictionsResponse {
+  uint64 stored = 1;
+}
+
+message StoreDailyPredictionsRequest {
+  repeated DailyPrediction predictions = 1;
+}
+
+message StoreDailyPredictionsResponse {
   uint64 stored = 1;
 }
 
@@ -100,7 +110,8 @@ message GetForecastRequest {
 }
 
 message GetForecastResponse {
-  repeated Prediction predictions = 1;
+  repeated HourlyPrediction hourly_predictions = 1;
+  repeated DailyPrediction daily_predictions = 2;
 }
 
 message GetNodeCoordinatesRequest {

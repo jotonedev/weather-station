@@ -192,13 +192,13 @@ func TestGatewayGetClimateAggregates(t *testing.T) {
 	}
 }
 
-func TestGatewayStorePredictions(t *testing.T) {
+func TestGatewayStoreHourlyPredictions(t *testing.T) {
 	logger := zap.NewNop()
 	errCall := errors.New("store failed")
 
 	tests := []struct {
 		name        string
-		predictions []*protodatabasev1.Prediction
+		predictions []*protodatabasev1.HourlyPrediction
 		setup       func(predClient *mocks.MockPredictionDatabaseServiceClient)
 		wantErr     bool
 	}{
@@ -210,25 +210,25 @@ func TestGatewayStorePredictions(t *testing.T) {
 		},
 		{
 			name: "rpc error",
-			predictions: []*protodatabasev1.Prediction{
+			predictions: []*protodatabasev1.HourlyPrediction{
 				{NodeId: "node-1", HorizonHours: 1},
 			},
 			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
 				predClient.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Any()).
+					StoreHourlyPredictions(gomock.Any(), gomock.Any()).
 					Return(nil, errCall)
 			},
 			wantErr: true,
 		},
 		{
 			name: "success",
-			predictions: []*protodatabasev1.Prediction{
+			predictions: []*protodatabasev1.HourlyPrediction{
 				{NodeId: "node-1", HorizonHours: 1},
 			},
 			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
 				predClient.EXPECT().
-					StorePredictions(gomock.Any(), gomock.Any()).
-					Return(&protodatabasev1.StorePredictionsResponse{Stored: 1}, nil)
+					StoreHourlyPredictions(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.StoreHourlyPredictionsResponse{Stored: 1}, nil)
 			},
 			wantErr: false,
 		},
@@ -250,9 +250,75 @@ func TestGatewayStorePredictions(t *testing.T) {
 				t.Fatalf("unexpected New error: %v", err)
 			}
 
-			err = gw.StorePredictions(context.Background(), tt.predictions)
+			err = gw.StoreHourlyPredictions(context.Background(), tt.predictions)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("StorePredictions() error = %v, wantErr = %v", err, tt.wantErr)
+				t.Fatalf("StoreHourlyPredictions() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGatewayStoreDailyPredictions(t *testing.T) {
+	logger := zap.NewNop()
+	errCall := errors.New("store failed")
+
+	tests := []struct {
+		name        string
+		predictions []*protodatabasev1.DailyPrediction
+		setup       func(predClient *mocks.MockPredictionDatabaseServiceClient)
+		wantErr     bool
+	}{
+		{
+			name:        "empty predictions slice succeeds without rpc call",
+			predictions: nil,
+			setup:       func(predClient *mocks.MockPredictionDatabaseServiceClient) {},
+			wantErr:     false,
+		},
+		{
+			name: "rpc error",
+			predictions: []*protodatabasev1.DailyPrediction{
+				{NodeId: "node-1", HorizonDays: 1},
+			},
+			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
+				predClient.EXPECT().
+					StoreDailyPredictions(gomock.Any(), gomock.Any()).
+					Return(nil, errCall)
+			},
+			wantErr: true,
+		},
+		{
+			name: "success",
+			predictions: []*protodatabasev1.DailyPrediction{
+				{NodeId: "node-1", HorizonDays: 1},
+			},
+			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
+				predClient.EXPECT().
+					StoreDailyPredictions(gomock.Any(), gomock.Any()).
+					Return(&protodatabasev1.StoreDailyPredictionsResponse{Stored: 1}, nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			predClient := mocks.NewMockPredictionDatabaseServiceClient(ctrl)
+			tt.setup(predClient)
+
+			gw, err := New(GatewayParams{
+				Logger:           logger,
+				AggregateClient:  mocks.NewMockReadingAggregateServiceClient(ctrl),
+				PredictionClient: predClient,
+				NodeClient:       mocks.NewMockNodeDatabaseServiceClient(ctrl),
+			})
+			if err != nil {
+				t.Fatalf("unexpected New error: %v", err)
+			}
+
+			err = gw.StoreDailyPredictions(context.Background(), tt.predictions)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("StoreDailyPredictions() error = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
 	}

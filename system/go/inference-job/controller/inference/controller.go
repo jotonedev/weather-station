@@ -29,7 +29,8 @@ var (
 type DatabaseGateway interface {
 	ListNodeCoordinates(ctx context.Context) ([]*protodatabasev1.NodeCoordinates, error)
 	GetClimateAggregates(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds uint32) ([]*protodatabasev1.ClimateAggregate, error)
-	StorePredictions(ctx context.Context, predictions []*protodatabasev1.Prediction) error
+	StoreHourlyPredictions(ctx context.Context, predictions []*protodatabasev1.HourlyPrediction) error
+	StoreDailyPredictions(ctx context.Context, predictions []*protodatabasev1.DailyPrediction) error
 }
 
 // InferenceGateway abstracts inference server operations needed by the controller.
@@ -164,9 +165,9 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 
 	hourlyPredictions := res.GetPredictions()
 	if len(hourlyPredictions) > 0 {
-		predictions := make([]*protodatabasev1.Prediction, len(hourlyPredictions))
+		predictions := make([]*protodatabasev1.HourlyPrediction, len(hourlyPredictions))
 		for i, p := range hourlyPredictions {
-			predictions[i] = &protodatabasev1.Prediction{
+			predictions[i] = &protodatabasev1.HourlyPrediction{
 				NodeId:             p.GetNodeId(),
 				IssueTime:          p.GetIssueTime(),
 				HorizonHours:       p.GetHorizonHours(),
@@ -176,7 +177,7 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 				RainfallConfidence: p.RainfallConfidence,
 			}
 		}
-		if err := c.dbGateway.StorePredictions(ctx, predictions); err != nil {
+		if err := c.dbGateway.StoreHourlyPredictions(ctx, predictions); err != nil {
 			return fmt.Errorf("store hourly predictions for node %q: %w", nodeID, err)
 		}
 	}
@@ -262,12 +263,12 @@ func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node 
 
 	dailyPredictions := res.GetPredictions()
 	if len(dailyPredictions) > 0 {
-		predictions := make([]*protodatabasev1.Prediction, len(dailyPredictions))
+		predictions := make([]*protodatabasev1.DailyPrediction, len(dailyPredictions))
 		for i, p := range dailyPredictions {
-			predictions[i] = &protodatabasev1.Prediction{
+			predictions[i] = &protodatabasev1.DailyPrediction{
 				NodeId:             p.GetNodeId(),
 				IssueTime:          p.GetIssueTime(),
-				HorizonHours:       p.GetHorizonDays() * 24,
+				HorizonDays:        p.GetHorizonDays(),
 				MinTemperatureC:    p.MinTemperatureC,
 				MaxTemperatureC:    p.MaxTemperatureC,
 				MinHumidityPct:     p.MinHumidityPct,
@@ -276,7 +277,7 @@ func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node 
 				RainfallConfidence: p.RainfallConfidence,
 			}
 		}
-		if err := c.dbGateway.StorePredictions(ctx, predictions); err != nil {
+		if err := c.dbGateway.StoreDailyPredictions(ctx, predictions); err != nil {
 			return fmt.Errorf("store daily predictions for node %q: %w", nodeID, err)
 		}
 	}

@@ -28,12 +28,17 @@ func New(params ControllerParams) (*Controller, error) {
 	}, nil
 }
 
-// StorePredictions bulk-inserts forecast predictions and returns the number stored.
-func (c *Controller) StorePredictions(ctx context.Context, predictions []prediction.Prediction) (int64, error) {
-	return c.repo.StorePredictions(ctx, predictions)
+// StoreHourlyPredictions bulk-inserts hourly forecast predictions and returns the number stored.
+func (c *Controller) StoreHourlyPredictions(ctx context.Context, predictions []prediction.HourlyPrediction) (int64, error) {
+	return c.repo.StoreHourlyPredictions(ctx, predictions)
 }
 
-// GetForecast returns the latest forecast predictions for a node.
-func (c *Controller) GetForecast(ctx context.Context, nodeID string) ([]prediction.Prediction, error) {
+// StoreDailyPredictions bulk-inserts daily forecast predictions and returns the number stored.
+func (c *Controller) StoreDailyPredictions(ctx context.Context, predictions []prediction.DailyPrediction) (int64, error) {
+	return c.repo.StoreDailyPredictions(ctx, predictions)
+}
+
+// GetForecast returns the latest hourly and daily forecast predictions for a node.
+func (c *Controller) GetForecast(ctx context.Context, nodeID string) (prediction.Forecast, error) {
 	return c.repo.GetForecast(ctx, nodeID)
 }
