@@ -193,7 +193,7 @@ header {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 560px;
 }
@@ -460,12 +460,6 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-}
-
-.metric-value.featured {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--accent);
 }
 
 .wind-arrow {

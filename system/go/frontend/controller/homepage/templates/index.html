@@ -182,7 +182,7 @@
           <div class="metrics">
             <div class="metric">
               <span class="metric-label">Temperature</span>
-              <span class="metric-value featured">{{ .LatestReading.Temperature }}</span>
+              <span class="metric-value">{{ .LatestReading.Temperature }}</span>
             </div>
             <div class="metric">
               <span class="metric-label">Humidity</span>
@@ -195,35 +195,9 @@
           </div>
         </div>
 
-        <!-- Wind Card -->
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Wind</span>
-          </div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="metric-label">Wind Speed</span>
-              <span class="metric-value featured">{{ .LatestReading.WindSpeed }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Direction</span>
-              <span class="metric-value">
-                {{ if .LatestReading.HasWindAngle }}
-                <i class="wi wi-wind towards-{{ .LatestReading.WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
-                <span>{{ .LatestReading.WindCardinal }} ({{ .LatestReading.WindAngle }})</span>
-                {{ else }}
-                <span>{{ .LatestReading.WindAngle }}</span>
-                {{ end }}
-              </span>
-            </div>
-          </div>
-        </div>
 
         <!-- Rainfall Card -->
         <div class="card">
-          <div class="card-header">
-            <span class="card-title">Rainfall</span>
-          </div>
           <div class="metrics">
             <div class="metric">
               <span class="metric-label">Rain Rate</span>
@@ -249,7 +223,7 @@
           <div class="metrics">
             <div class="metric">
               <span class="metric-label">PM2.5</span>
-              <span class="metric-value featured">{{ .LatestReading.PM2_5 }}</span>
+              <span class="metric-value">{{ .LatestReading.PM2_5 }}</span>
             </div>
             <div class="metric">
               <span class="metric-label">PM10</span>
