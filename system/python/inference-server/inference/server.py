@@ -1,7 +1,7 @@
 import logging
 import threading
 from concurrent import futures
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -17,6 +17,7 @@ from inference.features import (
     calculate_temporal_covariates,
     extract_observation_dataframe,
     filter_and_impute_columns,
+    floor_to_hour,
     generate_daily_future_timestamps,
     generate_hourly_future_timestamps,
     sort_observations,
@@ -55,8 +56,16 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         prediction_length = request.horizon_hours
         max_gap = MAX_GAP_HOURLY
 
+        issue_time_dt = floor_to_hour(request.issue_time.ToDatetime().replace(tzinfo=UTC))
+        aligned_issue_time = Timestamp()
+        aligned_issue_time.FromDatetime(issue_time_dt)
+
         sorted_observations = sort_observations(request.history)
-        observation_df = extract_observation_dataframe(sorted_observations)
+        observation_df = extract_observation_dataframe(
+            sorted_observations,
+            step=timedelta(hours=1),
+            issue_time=issue_time_dt,
+        )
 
         try:
             clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
@@ -67,7 +76,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
 
         target = clean_df[surviving_columns].to_numpy(dtype=float).T
 
-        issue_time_dt = request.issue_time.ToDatetime().replace(tzinfo=UTC)
         past_timestamps = observation_df["timestamp"].tolist()
         future_timestamps = generate_hourly_future_timestamps(issue_time_dt, request.horizon_hours)
         lat = request.latitude if request.HasField("latitude") else None
@@ -100,7 +108,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
 
         predictions = format_hourly_predictions(
             node_id=request.node_id,
-            issue_time=request.issue_time,
+            issue_time=aligned_issue_time,
             horizon_hours=request.horizon_hours,
             quantiles=quantiles,
             target_columns=surviving_columns,
@@ -131,8 +139,14 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         prediction_length = request.horizon_days
         max_gap = MAX_GAP_DAILY
 
+        issue_time_dt = request.issue_time.ToDatetime().replace(tzinfo=UTC)
+
         sorted_observations = sort_observations(request.history)
-        observation_df = extract_observation_dataframe(sorted_observations)
+        observation_df = extract_observation_dataframe(
+            sorted_observations,
+            step=timedelta(days=1),
+            issue_time=issue_time_dt,
+        )
 
         try:
             clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
@@ -143,7 +157,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
 
         target = clean_df[surviving_columns].to_numpy(dtype=float).T
 
-        issue_time_dt = request.issue_time.ToDatetime().replace(tzinfo=UTC)
         past_timestamps = observation_df["timestamp"].tolist()
         future_timestamps = generate_daily_future_timestamps(issue_time_dt, request.horizon_days)
         lat = request.latitude if request.HasField("latitude") else None

@@ -1,5 +1,5 @@
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -58,7 +58,7 @@ def test_wind_features_modeled() -> None:
 
 
 def test_column_filtering_sparse_column_dropped() -> None:
-    """Test_column_filtering_sparse_column_dropped verifies dropping columns with missing ratio over 30 percent."""
+    """Test_column_filtering_sparse_column_dropped verifies dropping columns with missing ratio over 50 percent."""
     observations = []
     for step_index in range(10):
         timestamp = Timestamp()
@@ -68,8 +68,8 @@ def test_column_filtering_sparse_column_dropped() -> None:
             temperature_c=20.0,
             humidity_pct=50.0,
         )
-        # Supply rainfall only for 6 out of 10 observations (40 percent missing)
-        if step_index < 6:
+        # Supply rainfall only for 4 out of 10 observations (60 percent missing)
+        if step_index < 4:
             observation.rainfall_mm = 1.2
 
         observations.append(observation)
@@ -83,7 +83,7 @@ def test_column_filtering_sparse_column_dropped() -> None:
 
 
 def test_column_filtering_dense_column_retained() -> None:
-    """Test_column_filtering_dense_column_retained verifies keeping columns with missing ratio under 30 percent."""
+    """Test_column_filtering_dense_column_retained verifies keeping columns with missing ratio under 50 percent."""
     observations = []
     for step_index in range(10):
         timestamp = Timestamp()
@@ -94,8 +94,8 @@ def test_column_filtering_dense_column_retained() -> None:
             humidity_pct=50.0,
             pressure_hpa=1013.0,
         )
-        # Supply rainfall for 8 out of 10 observations (20 percent missing)
-        if step_index < 8:
+        # Supply rainfall for 6 out of 10 observations (40 percent missing, passes under 50% threshold)
+        if step_index < 6:
             observation.rainfall_mm = 0.5
 
         observations.append(observation)
@@ -109,7 +109,7 @@ def test_column_filtering_dense_column_retained() -> None:
 
 
 def test_pressure_sparse_column_dropped() -> None:
-    """Test_pressure_sparse_column_dropped verifies pressure is excluded above the 30 percent missing ratio."""
+    """Test_pressure_sparse_column_dropped verifies pressure is excluded above the 50 percent missing ratio."""
     observations = []
     for step_index in range(10):
         timestamp = Timestamp()
@@ -119,7 +119,8 @@ def test_pressure_sparse_column_dropped() -> None:
             temperature_c=20.0,
             humidity_pct=50.0,
         )
-        if step_index < 6:
+        # Supply pressure only for 4 out of 10 observations (60 percent missing)
+        if step_index < 4:
             observation.pressure_hpa = 1013.0
 
         observations.append(observation)
@@ -227,3 +228,96 @@ def test_generate_future_timestamps() -> None:
     assert len(daily_steps) == 10
     assert daily_steps[0] == datetime(2026, 1, 2, 12, 0, tzinfo=UTC)
     assert daily_steps[-1] == datetime(2026, 1, 11, 12, 0, tzinfo=UTC)
+
+
+def test_extract_observation_dataframe_reindexes_interior_gaps() -> None:
+    """Test_extract_observation_dataframe_reindexes_interior_gaps ensures skipped buckets become NaN rows."""
+    # 2 observations at t=0 and t=1, outage for 2 hours, 2 observations at t=4 and t=5
+    observations = []
+    for step in [0, 1, 4, 5]:
+        ts = Timestamp()
+        ts.FromSeconds(360000 + (step * 3600))
+        observations.append(
+            TimeSeriesObservation(timestamp=ts, temperature_c=20.0 + step, humidity_pct=50.0)
+        )
+
+    df = extract_observation_dataframe(observations, step=timedelta(hours=1))
+    assert len(df) == 6
+    assert df["temperature_c"].iloc[0] == 20.0
+    assert df["temperature_c"].iloc[1] == 21.0
+    assert np.isnan(df["temperature_c"].iloc[2])
+    assert np.isnan(df["temperature_c"].iloc[3])
+    assert df["temperature_c"].iloc[4] == 24.0
+    assert df["temperature_c"].iloc[5] == 25.0
+
+
+def test_extract_observation_dataframe_trailing_downtime() -> None:
+    """Test_extract_observation_dataframe_trailing_downtime bridges gaps up to issue_time."""
+    observations = []
+    # Observations from 10h00 to 12h00
+    for step in range(3):
+        ts = Timestamp()
+        ts.FromSeconds(360000 + (step * 3600))
+        observations.append(
+            TimeSeriesObservation(timestamp=ts, temperature_c=22.0, humidity_pct=55.0)
+        )
+
+    # issue_time at 15h00 (station offline between 13h00 and 15h00)
+    issue_time = datetime.fromtimestamp(360000 + (5 * 3600), tz=UTC)
+    df = extract_observation_dataframe(
+        observations,
+        step=timedelta(hours=1),
+        issue_time=issue_time,
+    )
+    # Expected buckets: 10h, 11h, 12h, 13h, 14h (up to issue_time - 1h)
+    assert len(df) == 5
+    assert not np.isnan(df["temperature_c"].iloc[2])
+    assert np.isnan(df["temperature_c"].iloc[3])
+    assert np.isnan(df["temperature_c"].iloc[4])
+
+
+def test_rainfall_imputed_with_zero() -> None:
+    """Test_rainfall_imputed_with_zero verifies missing rainfall is filled with 0.0 instead of interpolated."""
+    observations = []
+    for step in range(10):
+        ts = Timestamp()
+        ts.FromSeconds(360000 + (step * 3600))
+        obs = TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=50.0)
+        # Supply rainfall for 6 out of 10 observations (40% missing <= 50% threshold)
+        if step in (0, 1, 6, 7, 8, 9):
+            obs.rainfall_mm = 5.0
+        observations.append(obs)
+
+    df = extract_observation_dataframe(observations)
+    clean_df, surviving_columns = filter_and_impute_columns(df)
+    assert "rainfall_mm" in surviving_columns
+    assert clean_df["rainfall_mm"].iloc[3] == 0.0
+    assert clean_df["rainfall_mm"].iloc[4] == 0.0
+
+
+def test_diurnal_profile_imputation_preserves_cycle() -> None:
+    """Test_diurnal_profile_imputation_preserves_cycle ensures long gaps reflect historical hour-of-day mean."""
+    start_dt = datetime(2026, 6, 1, 0, 0, tzinfo=UTC)
+    observations = []
+    # 96 hours of data with a 36-hour outage in the middle (hours 24..59)
+    for hour in range(96):
+        if 24 <= hour < 60:
+            continue
+        ts = Timestamp()
+        ts.FromDatetime(start_dt + timedelta(hours=hour))
+        hour_of_day = (start_dt + timedelta(hours=hour)).hour
+        # Diurnal pattern: warmer at 14h (28C), cooler at 04h (12C)
+        temp = 20.0 + (8.0 * np.sin(2 * np.pi * (hour_of_day - 8) / 24.0))
+        observations.append(
+            TimeSeriesObservation(timestamp=ts, temperature_c=temp, humidity_pct=60.0)
+        )
+
+    df = extract_observation_dataframe(observations, step=timedelta(hours=1))
+    assert len(df) == 96
+    clean_df, _ = filter_and_impute_columns(df, max_gap=MAX_GAP_HOURLY)
+    # In the middle of the gap (hour 42 = 18:00 UTC), temperature should reflect afternoon warmth (~24C)
+    afternoon_temp = clean_df["temperature_c"].iloc[42]
+    # At night (hour 28 = 04:00 UTC), temperature should be cooler (~13C)
+    night_temp = clean_df["temperature_c"].iloc[28]
+    assert afternoon_temp > night_temp
+    assert np.isfinite(clean_df["temperature_c"].to_numpy()).all()

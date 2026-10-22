@@ -38,7 +38,7 @@ func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, st
 		fmod(degrees(atan2(avg(sin(radians(wind_angle))), avg(cos(radians(wind_angle))))) + 360.0, 360.0) AS avg_wind_direction_deg,
 		count(*) AS sample_count
 	FROM weather
-	WHERE node_id = ? AND ts >= ? AND ts <= ?
+	WHERE node_id = ? AND ts >= ? AND ts < ?
 	GROUP BY bucket_start
 	ORDER BY bucket_start ASC`
 
@@ -85,7 +85,7 @@ func (r *Repository) GetAirQualityAggregates(ctx context.Context, nodeID string,
 		avg(voc) AS avg_voc,
 		count(*) AS sample_count
 	FROM weather
-	WHERE node_id = ? AND ts >= ? AND ts <= ?
+	WHERE node_id = ? AND ts >= ? AND ts < ?
 	GROUP BY bucket_start
 	ORDER BY bucket_start ASC`
 

@@ -131,9 +131,15 @@ def test_validate_request_empty_history() -> None:
 
 
 def test_validate_request_temperature_sparsity() -> None:
-    """Test_validate_request_temperature_sparsity checks failure when temperature missing exceeds 30 percent."""
+    """Test_validate_request_temperature_sparsity checks failure when temperature missing exceeds 50 percent."""
     request = create_valid_hourly_request()
+    # 4 missing out of 10 (40%) passes under 50% threshold
     for index in range(4):
+        request.history[index].ClearField("temperature_c")
+    validate_hourly_request(request)
+
+    # 6 missing out of 10 (60%) fails
+    for index in range(4, 6):
         request.history[index].ClearField("temperature_c")
 
     with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
@@ -141,13 +147,61 @@ def test_validate_request_temperature_sparsity() -> None:
 
 
 def test_validate_request_humidity_sparsity() -> None:
-    """Test_validate_request_humidity_sparsity checks failure when humidity missing exceeds 30 percent."""
+    """Test_validate_request_humidity_sparsity checks failure when humidity missing exceeds 50 percent."""
     request = create_valid_hourly_request()
+    # 4 missing out of 10 (40%) passes under 50% threshold
     for index in range(4):
+        request.history[index].ClearField("humidity_pct")
+    validate_hourly_request(request)
+
+    # 6 missing out of 10 (60%) fails
+    for index in range(4, 6):
         request.history[index].ClearField("humidity_pct")
 
     with pytest.raises(ValidationError, match="humidity_pct exceeds maximum allowed missing ratio"):
         validate_hourly_request(request)
+
+
+def test_validate_request_trailing_downtime() -> None:
+    """Test_validate_request_trailing_downtime checks missing ratio on trailing station outage."""
+    request = create_valid_hourly_request()
+    # Remove the last 6 observations (leaving 4 observations, so 6 hours of trailing downtime)
+    del request.history[4:]
+    with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
+        validate_hourly_request(request)
+
+    # But 4 hours of trailing downtime (6 observations remaining) passes (40% missing <= 50%)
+    request_pass = create_valid_hourly_request()
+    del request_pass.history[6:]
+    validate_hourly_request(request_pass)
+
+
+def test_validate_request_early_outage_trimmed() -> None:
+    """Test_validate_request_early_outage_trimmed ensures old outage is trimmed when recent suffix is healthy."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    observations = []
+    # 2 old observations from 20 days ago (20 * 86400 seconds ago)
+    for step in range(2):
+        ts = Timestamp()
+        ts.FromSeconds(1700000000 - (20 * 86400) + (step * 3600))
+        observations.append(TimeSeriesObservation(timestamp=ts, temperature_c=18.0, humidity_pct=50.0))
+
+    # Followed by 10 recent continuous observations right up to issue_time
+    for step in range(10):
+        ts = Timestamp()
+        ts.FromSeconds(1700000000 - ((10 - step) * 3600))
+        observations.append(TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=55.0))
+
+    request = PredictHourlyWeatherRequest(
+        node_id="station-node-alpha",
+        issue_time=issue_time,
+        horizon_hours=24,
+        history=observations,
+    )
+    # The full range has >90% missing because of the 20-day gap, but trimming keeps the 10 recent hours
+    validate_hourly_request(request)
 
 
 @pytest.mark.parametrize(

@@ -127,24 +127,31 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 	historyDuration := 40 * 24 * time.Hour
 	bucketSeconds := uint32(3600)
 
-	now := c.nowFunc()
-	startTime := now.Add(-historyDuration)
+	issueTime := c.nowFunc().UTC().Truncate(time.Hour)
+	startTime := issueTime.Add(-historyDuration)
 
-	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, now, bucketSeconds)
+	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, issueTime, bucketSeconds)
 	if err != nil {
 		return fmt.Errorf("query climate aggregates for node %q: %w", nodeID, err)
 	}
 
-	if len(aggregates) == 0 {
+	var completedAggregates []*protodatabasev1.ClimateAggregate
+	for _, agg := range aggregates {
+		if agg.GetBucketStart().AsTime().Before(issueTime) {
+			completedAggregates = append(completedAggregates, agg)
+		}
+	}
+
+	if len(completedAggregates) == 0 {
 		c.log.Info("no historical aggregates found for node, skipping", zap.String("node_id", nodeID))
 		return nil
 	}
 
-	observations := ToTimeSeriesObservations(aggregates)
+	observations := ToTimeSeriesObservations(completedAggregates)
 
 	req := &protoinferencev1.PredictHourlyWeatherRequest{
 		NodeId:       nodeID,
-		IssueTime:    timestamppb.New(now),
+		IssueTime:    timestamppb.New(issueTime),
 		HorizonHours: horizonHours,
 		History:      observations,
 		Latitude:     &node.Latitude,

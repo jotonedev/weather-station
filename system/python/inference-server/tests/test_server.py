@@ -86,6 +86,45 @@ def test_grpc_predict_hourly_weather_success(grpc_service: inference_pb2_grpc.In
     assert response.predictions[0].HasField("temperature_c")
     assert response.predictions[0].HasField("humidity_pct")
     assert response.predictions[0].HasField("rainfall_mm")
+    # issue_time must be floored to top of the hour (:00)
+    assert response.predictions[0].issue_time.seconds == 1699999200
+
+
+def test_grpc_predict_hourly_weather_with_downtime_holes(
+    grpc_service: inference_pb2_grpc.InferenceServiceStub,
+) -> None:
+    """Test_grpc_predict_hourly_weather_with_downtime_holes verifies forecasting succeeds across downtime gaps."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    # 32 hours total window. Gaps at steps 10..15 (6 hours missing) and 30..31 (2 hours trailing downtime)
+    observations = []
+    for step_index in range(32):
+        if 10 <= step_index <= 15 or step_index >= 30:
+            continue
+        timestamp = Timestamp()
+        timestamp.FromSeconds(1700000000 - ((32 - step_index) * 3600))
+        obs = inference_pb2.TimeSeriesObservation(
+            timestamp=timestamp,
+            temperature_c=20.0 + (step_index * 0.1),
+            humidity_pct=55.0,
+            rainfall_mm=0.2,
+        )
+        observations.append(obs)
+
+    request = inference_pb2.PredictHourlyWeatherRequest(
+        node_id="station-with-outages",
+        issue_time=issue_time,
+        horizon_hours=24,
+        history=observations,
+    )
+
+    response = grpc_service.PredictHourlyWeather(request)
+    assert len(response.predictions) == 24
+    assert response.predictions[0].node_id == "station-with-outages"
+    assert response.predictions[0].issue_time.seconds == 1699999200
+    assert response.predictions[0].HasField("temperature_c")
+    assert response.predictions[0].HasField("rainfall_mm")
 
 
 def test_grpc_predict_hourly_weather_validation_error(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:

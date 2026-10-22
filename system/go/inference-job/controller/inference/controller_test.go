@@ -75,6 +75,7 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 		name         string
 		nodeID       string
 		horizonHours int32
+		now          time.Time
 		setup        func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway)
 		wantErr      bool
 	}{
@@ -178,6 +179,40 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:         "hourly forecast with non-zero minute and CET timezone truncates to :00 and excludes in-progress bucket",
+			nodeID:       "node-1",
+			horizonHours: 24,
+			now:          time.Date(2026, 10, 10, 13, 45, 24, 0, time.FixedZone("CET", 3600)),
+			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
+				// 13:45:24 CET = 12:45:24 UTC -> truncated to 12:00:00 UTC (fixedTime)
+				mockDB.EXPECT().
+					GetClimateAggregates(gomock.Any(), "node-1", fixedTime.Add(-40*24*time.Hour), fixedTime, uint32(3600)).
+					Return([]*protodatabasev1.ClimateAggregate{
+						{BucketStart: timestamppb.New(fixedTime.Add(-time.Hour))},
+						{BucketStart: timestamppb.New(fixedTime)},
+					}, nil)
+				mockInf.EXPECT().
+					PredictHourlyWeather(gomock.Any(), gomock.AssignableToTypeOf(&protoinferencev1.PredictHourlyWeatherRequest{})).
+					DoAndReturn(func(_ context.Context, req *protoinferencev1.PredictHourlyWeatherRequest) (*protoinferencev1.PredictHourlyWeatherResponse, error) {
+						if !req.IssueTime.AsTime().Equal(fixedTime) {
+							t.Fatalf("expected IssueTime %v, got %v", fixedTime, req.IssueTime.AsTime())
+						}
+						if len(req.History) != 1 {
+							t.Fatalf("expected 1 history item (excluding in-progress bucket), got %d", len(req.History))
+						}
+						return &protoinferencev1.PredictHourlyWeatherResponse{
+							Predictions: []*protodatabasev1.HourlyPrediction{
+								{NodeId: "node-1", HorizonHours: 1},
+							},
+						}, nil
+					})
+				mockDB.EXPECT().
+					StorePredictions(gomock.Any(), gomock.Len(1)).
+					Return(nil)
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,11 +222,16 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 			mockInf := mocks.NewMockInferenceGateway(ctrl)
 			tt.setup(mockDB, mockInf)
 
+			currentNow := fixedTime
+			if !tt.now.IsZero() {
+				currentNow = tt.now
+			}
+
 			c := &Controller{
 				log:        logger,
 				dbGateway:  mockDB,
 				infGateway: mockInf,
-				nowFunc:    func() time.Time { return fixedTime },
+				nowFunc:    func() time.Time { return currentNow },
 			}
 
 			err := c.RunHourlyForecastForNode(context.Background(), tt.nodeID, tt.horizonHours)
@@ -213,6 +253,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 		name        string
 		nodeID      string
 		horizonDays int32
+		now         time.Time
 		setup       func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway)
 		wantErr     bool
 	}{
@@ -308,6 +349,40 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:        "daily forecast uses readings till now including current day bucket",
+			nodeID:      "node-1",
+			horizonDays: 10,
+			now:         time.Date(2026, 10, 10, 14, 45, 24, 0, time.FixedZone("CEST", 7200)),
+			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
+				currentNow := time.Date(2026, 10, 10, 14, 45, 24, 0, time.FixedZone("CEST", 7200))
+				mockDB.EXPECT().
+					GetClimateAggregates(gomock.Any(), "node-1", currentNow.Add(-365*24*time.Hour), currentNow, uint32(86400)).
+					Return([]*protodatabasev1.ClimateAggregate{
+						{BucketStart: timestamppb.New(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC))},
+						{BucketStart: timestamppb.New(time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))},
+					}, nil)
+				mockInf.EXPECT().
+					PredictDailyWeather(gomock.Any(), gomock.AssignableToTypeOf(&protoinferencev1.PredictDailyWeatherRequest{})).
+					DoAndReturn(func(_ context.Context, req *protoinferencev1.PredictDailyWeatherRequest) (*protoinferencev1.PredictDailyWeatherResponse, error) {
+						if !req.IssueTime.AsTime().Equal(currentNow) {
+							t.Fatalf("expected IssueTime %v, got %v", currentNow, req.IssueTime.AsTime())
+						}
+						if len(req.History) != 2 {
+							t.Fatalf("expected 2 history items including today's bucket, got %d", len(req.History))
+						}
+						return &protoinferencev1.PredictDailyWeatherResponse{
+							Predictions: []*protodatabasev1.DailyPrediction{
+								{NodeId: "node-1", HorizonDays: 1},
+							},
+						}, nil
+					})
+				mockDB.EXPECT().
+					StorePredictions(gomock.Any(), gomock.Len(1)).
+					Return(nil)
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -317,11 +392,16 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			mockInf := mocks.NewMockInferenceGateway(ctrl)
 			tt.setup(mockDB, mockInf)
 
+			currentNow := fixedTime
+			if !tt.now.IsZero() {
+				currentNow = tt.now
+			}
+
 			c := &Controller{
 				log:        logger,
 				dbGateway:  mockDB,
 				infGateway: mockInf,
-				nowFunc:    func() time.Time { return fixedTime },
+				nowFunc:    func() time.Time { return currentNow },
 			}
 
 			err := c.RunDailyForecastForNode(context.Background(), tt.nodeID, tt.horizonDays)
