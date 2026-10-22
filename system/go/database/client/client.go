@@ -80,6 +80,21 @@ func NewClient(lc fx.Lifecycle, cfg *Config, log *zap.Logger) (*Client, error) {
 	return c, nil
 }
 
+// NewTestClient creates an in-memory DuckDB client with schema initialized for testing.
+func NewTestClient(ctx context.Context) (*Client, error) {
+	db, err := sql.Open("duckdb", "")
+	if err != nil {
+		return nil, fmt.Errorf("open in-memory duckdb: %w", err)
+	}
+
+	c := &Client{db: db, log: zap.NewNop()}
+	if err := c.initSchema(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("init schema: %w", err)
+	}
+	return c, nil
+}
+
 // DB returns the underlying sql.DB instance.
 func (c *Client) DB() *sql.DB {
 	return c.db

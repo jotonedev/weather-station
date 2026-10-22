@@ -184,7 +184,7 @@ testGenerator:
   interval: "10s"
   nodeIds: "station-alpha"
   auth:
-    username: "admin"
+    username: "node"
     password: "changeme"
   nodeSelector: {}
   tolerations: []

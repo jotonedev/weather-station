@@ -29,7 +29,11 @@ const insertDailyPredictionSQL = `INSERT INTO daily_predictions (
 	min_temperature_c, max_temperature_c,
 	min_humidity_pct, max_humidity_pct,
 	rainfall_mm, rainfall_confidence
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`
+
+const deleteHourlyPredictionsSQL = `DELETE FROM hourly_predictions WHERE node_id = ? AND ts = ?;`
+
+const deleteDailyPredictionsSQL = `DELETE FROM daily_predictions WHERE node_id = ? AND ts = ?;`
 
 // StoreHourlyPredictions bulk-inserts hourly predictions and returns the number of rows written.
 func (r *Repository) StoreHourlyPredictions(ctx context.Context, predictions []HourlyPrediction) (int64, error) {
@@ -43,6 +47,25 @@ func (r *Repository) StoreHourlyPredictions(ctx context.Context, predictions []H
 		return 0, err
 	}
 	defer tx.Rollback()
+
+	deleteStmt, err := tx.PrepareContext(ctx, deleteHourlyPredictionsSQL)
+	if err != nil {
+		r.log.Error("failed to prepare delete statement for hourly predictions", zap.Error(err))
+		return 0, err
+	}
+	defer deleteStmt.Close()
+
+	distinctKeys := make(map[string]struct{})
+	for _, pred := range predictions {
+		key := pred.NodeID + pred.Ts.UTC().String()
+		if _, seen := distinctKeys[key]; !seen {
+			distinctKeys[key] = struct{}{}
+			if _, err := deleteStmt.ExecContext(ctx, pred.NodeID, pred.Ts); err != nil {
+				r.log.Error("failed to delete prior hourly predictions", zap.String("node_id", pred.NodeID), zap.Error(err))
+				return 0, err
+			}
+		}
+	}
 
 	stmt, err := tx.PrepareContext(ctx, insertHourlyPredictionSQL)
 	if err != nil {
@@ -82,6 +105,25 @@ func (r *Repository) StoreDailyPredictions(ctx context.Context, predictions []Da
 		return 0, err
 	}
 	defer tx.Rollback()
+
+	deleteStmt, err := tx.PrepareContext(ctx, deleteDailyPredictionsSQL)
+	if err != nil {
+		r.log.Error("failed to prepare delete statement for daily predictions", zap.Error(err))
+		return 0, err
+	}
+	defer deleteStmt.Close()
+
+	distinctKeys := make(map[string]struct{})
+	for _, pred := range predictions {
+		key := pred.NodeID + pred.Ts.UTC().String()
+		if _, seen := distinctKeys[key]; !seen {
+			distinctKeys[key] = struct{}{}
+			if _, err := deleteStmt.ExecContext(ctx, pred.NodeID, pred.Ts); err != nil {
+				r.log.Error("failed to delete prior daily predictions", zap.String("node_id", pred.NodeID), zap.Error(err))
+				return 0, err
+			}
+		}
+	}
 
 	stmt, err := tx.PrepareContext(ctx, insertDailyPredictionSQL)
 	if err != nil {
@@ -124,6 +166,7 @@ func (r *Repository) getLatestHourlyPredictions(ctx context.Context, nodeID stri
 		FROM hourly_predictions
 		WHERE node_id = ?
 		  AND ts = (SELECT MAX(ts) FROM hourly_predictions WHERE node_id = ?)
+		QUALIFY row_number() OVER (PARTITION BY horizon_hours ORDER BY ts DESC) = 1
 		ORDER BY horizon_hours ASC`
 
 	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID)
@@ -155,6 +198,7 @@ func (r *Repository) getLatestDailyPredictions(ctx context.Context, nodeID strin
 		FROM daily_predictions
 		WHERE node_id = ?
 		  AND ts = (SELECT MAX(ts) FROM daily_predictions WHERE node_id = ?)
+		QUALIFY row_number() OVER (PARTITION BY horizon_days ORDER BY ts DESC) = 1
 		ORDER BY horizon_days ASC`
 
 	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID)
