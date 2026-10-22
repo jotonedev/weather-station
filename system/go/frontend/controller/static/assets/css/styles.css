@@ -807,10 +807,6 @@ footer.site-footer a:hover {
     font-size: 0.7rem;
   }
 
-  .forecast-card .forecast-temp {
-    font-size: 1.15rem;
-  }
-
   .grid {
     grid-template-columns: 1fr;
     gap: 0.75rem;
