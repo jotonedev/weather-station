@@ -2,6 +2,8 @@
 
 Overly complex weather station with 3D-printed sensor enclosures and a microservice backend for storage, forecasting and visualization.
 
+> This project is still a work in progress. The MCU side is not tested yet.
+
 I wanted to design a personal weather station to collect data and estimate weather in my area for a long time, and I also wanted to experiment with microservices. So I built this to challenge myself. 
 The microservices side is built using [gRPC](https://grpc.io/) and [Uber Fx](https://uber-go.github.io/fx/). 
 The weather station was built by remixing existing open source systems, customizing them with sensors I had lying around. 
