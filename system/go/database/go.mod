@@ -6,7 +6,7 @@ require (
 	github.com/duckdb/duckdb-go/v2 v2.20000.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.28.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.85.0
 	weather-station/common v0.0.0
 	weather-station/gen/go v0.0.0-00010101000000-000000000000
 )
@@ -35,15 +35,15 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
-	golang.org/x/mod v0.37.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 // indirect
-	golang.org/x/text v0.40.0 // indirect
-	golang.org/x/tools v0.47.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
+	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
