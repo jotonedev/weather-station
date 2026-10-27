@@ -1,6 +1,6 @@
-# Weather Station
+# Another Weather Station - Oasi
 
-Overly complex weather station with 3D-printed sensor enclosures and a microservice backend for storage, forecasting and visualization.
+Weather station with 3D-printed sensor enclosures and a microservice backend for storage, forecasting and visualization.
 
 > This project is still a work in progress. The MCU side is not tested yet.
 
