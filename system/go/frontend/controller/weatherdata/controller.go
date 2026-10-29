@@ -10,7 +10,7 @@ import (
 	"weather-station/frontend/gateway/database"
 )
 
-const minForecastConfidencePct = 10
+const minForecastConfidencePct = 5
 
 // Controller retrieves weather data from the database gateway.
 type Controller struct {

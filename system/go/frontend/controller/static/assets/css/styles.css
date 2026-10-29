@@ -276,6 +276,7 @@ header {
   background: var(--card-bg-elevated);
   border: 1px solid var(--border);
   border-radius: 0.875rem;
+  max-width: 180px;
   padding: 1rem 0.875rem;
   display: flex;
   flex-direction: column;
