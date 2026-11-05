@@ -9,8 +9,7 @@
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
   </div>
   <span class="forecast-temp">{{ .Temperature }}</span>
-  {{ if .TemperatureRange }}<span class="forecast-range">{{ .TemperatureRange }}</span>{{ end }}
-  {{ if .Pressure }}<span class="forecast-meta-compact" title="Pressure">{{ .Pressure }}</span>{{ end }}
+  {{ if .TemperatureRange }}<span class="forecast-range" title="10th–90th percentile range">{{ .TemperatureRange }}</span>{{ end }}
   <span class="forecast-meta-compact" title="Chance of rain">{{ .RainProbability }}</span>
 </div>
 {{ end }}
@@ -27,20 +26,13 @@
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
   </div>
   <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
-  <span class="forecast-temp">{{ .MaxTemperature }}<br><span class="forecast-temp-min">{{ .MinTemperature }}</span></span>
-  {{ if .TemperatureRange }}<span class="forecast-range">{{ .TemperatureRange }}</span>{{ end }}
+  <span class="forecast-temp">{{ .MaxTemperature }} <span class="forecast-temp-min">{{ .MinTemperature }}</span></span>
 
   <div class="forecast-details">
     <div class="forecast-detail-row">
       <span>Rain</span>
       <strong>{{ .Rainfall }}</strong>
     </div>
-    {{ if .Pressure }}
-    <div class="forecast-detail-row">
-      <span>Pressure</span>
-      <strong>{{ .Pressure }}</strong>
-    </div>
-    {{ end }}
     <div class="prob-bar-wrap">
       <div class="forecast-detail-row">
         <span>Chance of rain</span>
@@ -148,7 +140,7 @@
         </div>
 
         {{ if .HourlyForecast }}
-        <div class="forecast-strip forecast-strip-compact">
+        <div class="forecast-strip">
           {{ range .HourlyForecast }}
           {{ template "hourly-forecast-card" . }}
           {{ end }}
@@ -167,7 +159,7 @@
         </div>
 
         {{ if .DailyForecast }}
-        <div class="forecast-strip">
+        <div class="forecast-grid-daily">
           {{ range .DailyForecast }}
           {{ template "daily-forecast-card" . }}
           {{ end }}

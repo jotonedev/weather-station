@@ -56,7 +56,7 @@ func formatRange(low, high *float32, format string, unit string) string {
 	if low == nil || high == nil {
 		return ""
 	}
-	formatted := fmt.Sprintf(format+" to "+format, *low, *high)
+	formatted := fmt.Sprintf(format+"–"+format, *low, *high)
 	if unit != "" {
 		return formatted + " " + unit
 	}
@@ -148,13 +148,6 @@ func formatDailyHorizonLabel(issueTime time.Time, horizonDays int32) (string, st
 	return targetTime.Format("Mon 02 Jan"), subLabel, targetTime.Format(time.RFC3339)
 }
 
-func formatOptionalPressure(pressureHpa *float32) string {
-	if pressureHpa == nil {
-		return ""
-	}
-	return formatFloat(pressureHpa, "%.0f", "hPa")
-}
-
 // pbReadingToView converts a protobuf Reading into a template-friendly ReadingView.
 func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 	if reading == nil {
@@ -243,7 +236,6 @@ func pbHourlyToView(pred *protodatabasev1.HourlyPrediction) ForecastItemView {
 		Rainfall:           formatFloat(pred.RainfallMm, "%.1f", "mm"),
 		RainProbability:    probText,
 		RainProbabilityPct: probPct,
-		Pressure:           formatOptionalPressure(pred.PressureHpa),
 	}
 }
 
@@ -276,12 +268,10 @@ func pbDailyToView(pred *protodatabasev1.DailyPrediction) ForecastItemView {
 		TargetTimeISO:      targetTimeISO,
 		ConditionIcon:      condIcon,
 		ConditionLabel:     condLabel,
-		TemperatureRange:   formatRange(pred.MinTemperatureCP10, pred.MaxTemperatureCP90, "%.1f", "°C"),
 		MinTemperature:     minTemp,
 		MaxTemperature:     maxTemp,
 		Rainfall:           formatFloat(pred.RainfallMm, "%.1f", "mm"),
 		RainProbability:    probText,
 		RainProbabilityPct: probPct,
-		Pressure:           formatOptionalPressure(pred.PressureHpa),
 	}
 }

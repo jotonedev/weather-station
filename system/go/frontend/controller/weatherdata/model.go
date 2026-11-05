@@ -61,7 +61,6 @@ type ForecastItemView struct {
 	Rainfall           string
 	RainProbability    string
 	RainProbabilityPct int
-	Pressure           string
 }
 
 // DashboardData represents the weather data context retrieved from the database.

@@ -15,7 +15,6 @@ func TestPbHourlyToView(t *testing.T) {
 	tempP90 := float32(19.9)
 	rain := float32(1.2)
 	rainProb := float32(0.9)
-	pressure := float32(1014.0)
 
 	testCases := []struct {
 		name       string
@@ -23,7 +22,7 @@ func TestPbHourlyToView(t *testing.T) {
 		check      func(t *testing.T, view ForecastItemView)
 	}{
 		{
-			name: "converts hourly forecast prediction with light rain, bands, pressure and probability",
+			name: "converts hourly forecast prediction with light rain, bands, and probability",
 			prediction: &protodatabasev1.HourlyPrediction{
 				NodeId:          "station-1",
 				IssueTime:       pb.Time(issueTime),
@@ -33,7 +32,6 @@ func TestPbHourlyToView(t *testing.T) {
 				TemperatureCP90: &tempP90,
 				RainfallMm:      &rain,
 				RainProbability: &rainProb,
-				PressureHpa:     &pressure,
 			},
 			check: func(t *testing.T, view ForecastItemView) {
 				if view.HorizonLabel != "15:00 UTC" {
@@ -51,14 +49,11 @@ func TestPbHourlyToView(t *testing.T) {
 				if view.Temperature != "18.4 °C" {
 					t.Fatalf("Temperature = %q, want 18.4 °C", view.Temperature)
 				}
-				if view.TemperatureRange != "17.1 to 19.9 °C" {
-					t.Fatalf("TemperatureRange = %q, want 17.1 to 19.9 °C", view.TemperatureRange)
+				if view.TemperatureRange != "17.1–19.9 °C" {
+					t.Fatalf("TemperatureRange = %q, want 17.1–19.9 °C", view.TemperatureRange)
 				}
 				if view.Rainfall != "1.2 mm" {
 					t.Fatalf("Rainfall = %q, want 1.2 mm", view.Rainfall)
-				}
-				if view.Pressure != "1014 hPa" {
-					t.Fatalf("Pressure = %q, want 1014 hPa", view.Pressure)
 				}
 				if view.RainProbability != "90%" || view.RainProbabilityPct != 90 {
 					t.Fatalf("RainProbability = %q (%d), want 90%% (90)", view.RainProbability, view.RainProbabilityPct)
