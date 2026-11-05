@@ -10,7 +10,7 @@
   </div>
   <span class="forecast-temp">{{ .Temperature }}</span>
   {{ if .TemperatureRange }}<span class="forecast-range" title="10th–90th percentile range">{{ .TemperatureRange }}</span>{{ end }}
-  <span class="forecast-meta-compact" title="Chance of rain">{{ .RainProbability }}</span>
+  <span class="forecast-meta-compact" title="Chance">{{ .RainProbability }}</span>
 </div>
 {{ end }}
 
@@ -35,7 +35,7 @@
     </div>
     <div class="prob-bar-wrap">
       <div class="forecast-detail-row">
-        <span>Chance of rain</span>
+        <span>Chance</span>
         <strong>{{ .RainProbability }}</strong>
       </div>
       <div class="prob-bar-track">
@@ -53,6 +53,8 @@
   <link rel="stylesheet" href="/static/css/weather-icons.min.css">
   <link rel="stylesheet" href="/static/css/weather-icons-wind.min.css">
   <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/tablet.css" media="screen and (max-width: 1024px)">
+  <link rel="stylesheet" href="/static/css/mobile.css" media="screen and (max-width: 480px)">
 </head>
 <body>
   <div class="container">
