@@ -1,6 +1,8 @@
 package static
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"embed"
 	"errors"
@@ -23,9 +25,10 @@ var (
 	ErrAssetNotFound = errors.New("static asset not found")
 )
 
-// Asset represents an embedded static file with cached metadata.
+// Asset represents an embedded static file with cached metadata and optional pre-compressed data.
 type Asset struct {
 	Data         []byte
+	GzipData     []byte
 	ContentType  string
 	ETag         string
 	CacheControl string
@@ -71,11 +74,20 @@ func New(params ControllerParams) (*Controller, error) {
 			return readErr
 		}
 
+		var gzipData []byte
+		if isCompressibleExt(ext) {
+			compressed, compErr := compressGzip(data)
+			if compErr == nil && len(compressed) < len(data) {
+				gzipData = compressed
+			}
+		}
+
 		hash := sha256.Sum256(data)
 		assets[p] = Asset{
 			Data:         data,
+			GzipData:     gzipData,
 			ContentType:  contentType,
-			ETag:         fmt.Sprintf("\"%x\"", hash),
+			ETag:         fmt.Sprintf("W/\"%x\"", hash),
 			CacheControl: cacheControlForExt(ext),
 		}
 		return nil
@@ -117,6 +129,30 @@ func (c *Controller) ReadAsset(rawPath string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	return asset.Data, asset.ContentType, nil
+}
+
+func compressGzip(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := writer.Write(data); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func isCompressibleExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".css", ".ttf", ".txt":
+		return true
+	default:
+		return false
+	}
 }
 
 func contentTypeForExt(ext string) (string, bool) {

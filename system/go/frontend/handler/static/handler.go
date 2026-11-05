@@ -64,20 +64,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("ETag", asset.ETag)
+	w.Header().Set("Cache-Control", asset.CacheControl)
+	w.Header().Set("Vary", "Accept-Encoding")
+
 	if matchETag(r.Header.Get("If-None-Match"), asset.ETag) {
-		w.Header().Set("ETag", asset.ETag)
-		w.Header().Set("Cache-Control", asset.CacheControl)
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
 
 	w.Header().Set("Content-Type", asset.ContentType)
-	w.Header().Set("ETag", asset.ETag)
-	w.Header().Set("Cache-Control", asset.CacheControl)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	body := asset.Data
+	if len(asset.GzipData) > 0 && acceptsGzip(r.Header.Get("Accept-Encoding")) {
+		w.Header().Set("Content-Encoding", "gzip")
+		body = asset.GzipData
+	}
+
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodGet {
-		_, _ = w.Write(asset.Data)
+		_, _ = w.Write(body)
 	}
 }
 
@@ -93,6 +100,28 @@ func matchETag(clientHeader, serverETag string) bool {
 		tag := strings.TrimSpace(rawTag)
 		tag = strings.TrimPrefix(tag, "W/")
 		if tag == serverClean {
+			return true
+		}
+	}
+	return false
+}
+
+func acceptsGzip(header string) bool {
+	if header == "" {
+		return false
+	}
+	for _, rawEnc := range strings.Split(header, ",") {
+		enc := strings.TrimSpace(rawEnc)
+		if enc == "*" || strings.HasPrefix(enc, "gzip") {
+			if strings.Contains(enc, ";") {
+				parts := strings.Split(enc, ";")
+				for _, p := range parts[1:] {
+					p = strings.TrimSpace(p)
+					if p == "q=0" || p == "q=0.0" || p == "q=0.00" || p == "q=0.000" {
+						return false
+					}
+				}
+			}
 			return true
 		}
 	}
