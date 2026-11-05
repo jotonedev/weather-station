@@ -6,7 +6,7 @@
 ARG HEALTHPROBE_IMAGE=weather-station/healthprobe:latest
 FROM ${HEALTHPROBE_IMAGE} AS healthprobe
 
-FROM ghcr.io/astral-sh/uv:0.13.3 AS uv-bin
+FROM docker.io/astral/uv:0.13.3 AS uv-bin
 
 FROM python:3.15-slim-bookworm AS build-stage
 

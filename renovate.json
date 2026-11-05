@@ -2,5 +2,20 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
+  "packageRules": [
+    {
+      "description": "Ignore local Go workspace modules",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "weather-station/**"
+      ],
+      "enabled": false
+    }
   ]
 }
