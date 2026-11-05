@@ -6,6 +6,7 @@ import numpy as np
 
 RAIN_THRESHOLD_HOURLY_MM = 0.2
 RAIN_THRESHOLD_DAILY_MM = 1.0
+_MEDIAN_DRY_DEADZONE_RATIO = 0.05
 
 
 def _validate_levels(quantiles: np.ndarray, levels: Sequence[float]) -> np.ndarray:
@@ -20,10 +21,8 @@ def _validate_levels(quantiles: np.ndarray, levels: Sequence[float]) -> np.ndarr
     return levels_arr
 
 
-def quantile_at(quantiles: np.ndarray, levels: Sequence[float], level: float) -> np.ndarray:
-    """quantile_at linearly interpolates the quantile tensor along its last axis at the requested level."""
-    levels_arr = _validate_levels(quantiles, levels)
-    monotone = np.maximum.accumulate(np.asarray(quantiles, dtype=np.float64), axis=-1)
+def _interpolate_level(monotone: np.ndarray, levels_arr: np.ndarray, level: float) -> np.ndarray:
+    """_interpolate_level linearly interpolates a monotone quantile tensor along its last axis."""
     clamped_level = float(np.clip(level, levels_arr[0], levels_arr[-1]))
 
     if levels_arr.size == 1:
@@ -45,47 +44,46 @@ def quantile_at(quantiles: np.ndarray, levels: Sequence[float], level: float) ->
     return ((1.0 - weight) * monotone[..., left_idx]) + (weight * monotone[..., right_idx])
 
 
-def quantile_mean(quantiles: np.ndarray, levels: Sequence[float], clip_min: float | None = None) -> np.ndarray:
-    """quantile_mean integrates the quantile function over [0, 1] using trapezoidal probability weights."""
+def quantile_at(quantiles: np.ndarray, levels: Sequence[float], level: float) -> np.ndarray:
+    """quantile_at linearly interpolates the quantile tensor along its last axis at the requested level."""
     levels_arr = _validate_levels(quantiles, levels)
     monotone = np.maximum.accumulate(np.asarray(quantiles, dtype=np.float64), axis=-1)
-    if clip_min is not None:
-        monotone = np.maximum(clip_min, monotone)
-
-    if levels_arr.size == 1:
-        return monotone[..., 0]
-
-    weights = np.zeros_like(levels_arr, dtype=np.float64)
-    weights[0] = levels_arr[0] + (0.5 * (levels_arr[1] - levels_arr[0]))
-    if levels_arr.size > 2:
-        weights[1:-1] = 0.5 * (levels_arr[2:] - levels_arr[:-2])
-    weights[-1] = (1.0 - levels_arr[-1]) + (0.5 * (levels_arr[-1] - levels_arr[-2]))
-
-    return np.tensordot(monotone, weights, axes=([-1], [0]))
+    return _interpolate_level(monotone, levels_arr, level)
 
 
 def _single_exceedance_probability(curve: np.ndarray, levels_arr: np.ndarray, threshold: float) -> float:
-    """_single_exceedance_probability evaluates P(X >= threshold) for one monotone quantile curve."""
-    if curve[-1] < threshold:
+    """_single_exceedance_probability evaluates calibrated P(X >= threshold) for one monotone quantile curve.
+
+    Zero-inflated time-series models retain historical upper-tail spikes even when the central
+    forecast is dry (median near zero). Scaling sub-threshold forecasts by p50 / threshold
+    suppresses the unconditional climatological tail floor while remaining continuous at p50 = threshold.
+    """
+    if threshold <= 0.0 or curve[-1] < threshold:
         return 0.0
+
+    p50 = float(max(0.0, _interpolate_level(curve, levels_arr, 0.5)))
+    if p50 <= _MEDIAN_DRY_DEADZONE_RATIO * threshold:
+        return 0.0
+
     if curve[0] >= threshold:
-        return 1.0
-
-    # Find the first knot at or above the threshold.
-    right_idx = int(np.searchsorted(curve, threshold, side="left"))
-    left_idx = right_idx - 1
-    x_left = float(curve[left_idx])
-    x_right = float(curve[right_idx])
-    q_left = float(levels_arr[left_idx])
-    q_right = float(levels_arr[right_idx])
-
-    if x_right <= x_left:
-        cdf_at_threshold = q_right
+        raw_prob = 1.0
     else:
-        fraction = (threshold - x_left) / (x_right - x_left)
-        cdf_at_threshold = q_left + (fraction * (q_right - q_left))
+        right_idx = int(np.searchsorted(curve, threshold, side="left"))
+        left_idx = right_idx - 1
+        x_left = float(curve[left_idx])
+        x_right = float(curve[right_idx])
+        q_left = float(levels_arr[left_idx])
+        q_right = float(levels_arr[right_idx])
 
-    return float(np.clip(1.0 - cdf_at_threshold, 0.0, 1.0))
+        if x_right <= x_left:
+            cdf_at_threshold = q_right
+        else:
+            fraction = (threshold - x_left) / (x_right - x_left)
+            cdf_at_threshold = q_left + (fraction * (q_right - q_left))
+        raw_prob = float(np.clip(1.0 - cdf_at_threshold, 0.0, 1.0))
+
+    central_scale = min(1.0, p50 / threshold)
+    return float(np.clip(raw_prob * central_scale, 0.0, 1.0))
 
 
 def exceedance_probability(
