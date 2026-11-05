@@ -6,11 +6,10 @@ import (
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"weather-station/frontend/gateway/database"
 )
-
-const minForecastConfidencePct = 5
 
 // Controller retrieves weather data from the database gateway.
 type Controller struct {
@@ -32,6 +31,14 @@ func New(params ControllerParams) (*Controller, error) {
 		log: params.Logger,
 		db:  params.Database,
 	}, nil
+}
+
+func formatIssueTime(ts *timestamppb.Timestamp) (string, string) {
+	if ts == nil || ts.AsTime().IsZero() {
+		return "", ""
+	}
+	utcIssue := ts.AsTime().UTC()
+	return utcIssue.Format("2006-01-02 15:04 UTC"), utcIssue.Format(time.RFC3339)
 }
 
 // GetDashboardData queries the database gateway and prepares weather data for the dashboard.
@@ -61,7 +68,6 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 	data.SelectedNodeID = selectedNodeID
 
 	if selectedNodeID == "" {
-		// No station is registered yet, so there is no data to query.
 		return data
 	}
 
@@ -83,66 +89,29 @@ func (c *Controller) GetDashboardData(ctx context.Context, requestedNodeID strin
 		return data
 	}
 
-	if predictionResp != nil {
-		hourlyPreds := predictionResp.GetHourlyPredictions()
-		dailyPreds := predictionResp.GetDailyPredictions()
-
-		hourly := make([]ForecastItemView, 0, len(hourlyPreds))
-		for _, pred := range hourlyPreds {
-			if pred.RainfallConfidence != nil {
-				_, pct := formatConfidence(pred.RainfallConfidence)
-				if pct < minForecastConfidencePct {
-					break
-				}
-			}
-			if pred.IssueTime != nil && !pred.IssueTime.AsTime().IsZero() {
-				utcIssue := pred.IssueTime.AsTime().UTC()
-				formattedIssue := utcIssue.Format("2006-01-02 15:04 UTC")
-				isoIssue := utcIssue.Format(time.RFC3339)
-				if data.ForecastIssuedAt == "" {
-					data.ForecastIssuedAt = formattedIssue
-					data.ForecastIssuedAtISO = isoIssue
-				}
-				if data.HourlyIssuedAt == "" {
-					data.HourlyIssuedAt = formattedIssue
-					data.HourlyIssuedAtISO = isoIssue
-				}
-			}
-			hourly = append(hourly, pbHourlyToView(pred))
-		}
-
-		daily := make([]ForecastItemView, 0, len(dailyPreds))
-		for _, pred := range dailyPreds {
-			if pred.RainfallConfidence != nil {
-				_, pct := formatConfidence(pred.RainfallConfidence)
-				if pct < minForecastConfidencePct {
-					break
-				}
-			}
-			if pred.IssueTime != nil && !pred.IssueTime.AsTime().IsZero() {
-				utcIssue := pred.IssueTime.AsTime().UTC()
-				formattedIssue := utcIssue.Format("2006-01-02 15:04 UTC")
-				isoIssue := utcIssue.Format(time.RFC3339)
-				if data.ForecastIssuedAt == "" {
-					data.ForecastIssuedAt = formattedIssue
-					data.ForecastIssuedAtISO = isoIssue
-				}
-				if data.DailyIssuedAt == "" {
-					data.DailyIssuedAt = formattedIssue
-					data.DailyIssuedAtISO = isoIssue
-				}
-			}
-			daily = append(daily, pbDailyToView(pred))
-		}
-
-		forecast := make([]ForecastItemView, 0, len(hourly)+len(daily))
-		forecast = append(forecast, hourly...)
-		forecast = append(forecast, daily...)
-
-		data.Forecast = forecast
-		data.HourlyForecast = hourly
-		data.DailyForecast = daily
+	if predictionResp == nil {
+		return data
 	}
 
+	hourlyPreds := predictionResp.GetHourlyPredictions()
+	hourly := make([]ForecastItemView, 0, len(hourlyPreds))
+	for _, pred := range hourlyPreds {
+		if data.HourlyIssuedAt == "" {
+			data.HourlyIssuedAt, data.HourlyIssuedAtISO = formatIssueTime(pred.GetIssueTime())
+		}
+		hourly = append(hourly, pbHourlyToView(pred))
+	}
+
+	dailyPreds := predictionResp.GetDailyPredictions()
+	daily := make([]ForecastItemView, 0, len(dailyPreds))
+	for _, pred := range dailyPreds {
+		if data.DailyIssuedAt == "" {
+			data.DailyIssuedAt, data.DailyIssuedAtISO = formatIssueTime(pred.GetIssueTime())
+		}
+		daily = append(daily, pbDailyToView(pred))
+	}
+
+	data.HourlyForecast = hourly
+	data.DailyForecast = daily
 	return data
 }

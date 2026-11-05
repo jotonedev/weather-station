@@ -11,8 +11,11 @@ import (
 func TestPbHourlyToView(t *testing.T) {
 	issueTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	temp := float32(18.4)
+	tempP10 := float32(17.1)
+	tempP90 := float32(19.9)
 	rain := float32(1.2)
-	confRain := float32(0.9)
+	rainProb := float32(0.9)
+	pressure := float32(1014.0)
 
 	testCases := []struct {
 		name       string
@@ -20,24 +23,24 @@ func TestPbHourlyToView(t *testing.T) {
 		check      func(t *testing.T, view ForecastItemView)
 	}{
 		{
-			name: "converts hourly forecast prediction with light rain and confidence",
+			name: "converts hourly forecast prediction with light rain, bands, pressure and probability",
 			prediction: &protodatabasev1.HourlyPrediction{
-				NodeId:             "station-1",
-				IssueTime:          pb.Time(issueTime),
-				HorizonHours:       3,
-				TemperatureC:       &temp,
-				RainfallMm:         &rain,
-				RainfallConfidence: &confRain,
+				NodeId:          "station-1",
+				IssueTime:       pb.Time(issueTime),
+				HorizonHours:    3,
+				TemperatureC:    &temp,
+				TemperatureCP10: &tempP10,
+				TemperatureCP90: &tempP90,
+				RainfallMm:      &rain,
+				RainProbability: &rainProb,
+				PressureHpa:     &pressure,
 			},
 			check: func(t *testing.T, view ForecastItemView) {
-				if view.HorizonLabel != "15:04 UTC" && view.HorizonLabel != "15:00 UTC" {
+				if view.HorizonLabel != "15:00 UTC" {
 					t.Fatalf("HorizonLabel = %q, want 15:00 UTC", view.HorizonLabel)
 				}
 				if view.TargetTimeISO != "2026-10-10T15:00:00Z" {
 					t.Fatalf("TargetTimeISO = %q, want 2026-10-10T15:00:00Z", view.TargetTimeISO)
-				}
-				if view.IsDaily {
-					t.Fatal("expected IsDaily to be false for an hourly prediction")
 				}
 				if view.TimeSubLabel != "+3h" {
 					t.Fatalf("TimeSubLabel = %q, want +3h", view.TimeSubLabel)
@@ -48,11 +51,17 @@ func TestPbHourlyToView(t *testing.T) {
 				if view.Temperature != "18.4 °C" {
 					t.Fatalf("Temperature = %q, want 18.4 °C", view.Temperature)
 				}
+				if view.TemperatureRange != "17.1 to 19.9 °C" {
+					t.Fatalf("TemperatureRange = %q, want 17.1 to 19.9 °C", view.TemperatureRange)
+				}
 				if view.Rainfall != "1.2 mm" {
 					t.Fatalf("Rainfall = %q, want 1.2 mm", view.Rainfall)
 				}
-				if view.Confidence != "90%" || view.ConfidencePct != 90 {
-					t.Fatalf("Confidence = %q (%d), want 90%% (90)", view.Confidence, view.ConfidencePct)
+				if view.Pressure != "1014 hPa" {
+					t.Fatalf("Pressure = %q, want 1014 hPa", view.Pressure)
+				}
+				if view.RainProbability != "90%" || view.RainProbabilityPct != 90 {
+					t.Fatalf("RainProbability = %q (%d), want 90%% (90)", view.RainProbability, view.RainProbabilityPct)
 				}
 			},
 		},
@@ -60,8 +69,8 @@ func TestPbHourlyToView(t *testing.T) {
 			name:       "handles nil prediction",
 			prediction: nil,
 			check: func(t *testing.T, view ForecastItemView) {
-				if view.HorizonHours != 0 {
-					t.Fatalf("HorizonHours = %d, want 0", view.HorizonHours)
+				if view.HorizonLabel != "" {
+					t.Fatalf("HorizonLabel = %q, want empty", view.HorizonLabel)
 				}
 			},
 		},
@@ -94,9 +103,6 @@ func TestPbDailyToView(t *testing.T) {
 	if view.TargetTimeISO != "2026-10-12T12:00:00Z" {
 		t.Fatalf("TargetTimeISO = %q, want 2026-10-12T12:00:00Z", view.TargetTimeISO)
 	}
-	if !view.IsDaily {
-		t.Fatal("expected IsDaily to be true for a daily prediction")
-	}
 	if view.TimeSubLabel != "+2d" {
 		t.Fatalf("TimeSubLabel = %q, want +2d", view.TimeSubLabel)
 	}
@@ -107,7 +113,16 @@ func TestPbDailyToView(t *testing.T) {
 		t.Fatalf("ConditionIcon = %q, want wi-day-cloudy", view.ConditionIcon)
 	}
 
-	if pbDailyToView(nil).HorizonHours != 0 {
+	todayView := pbDailyToView(&protodatabasev1.DailyPrediction{
+		NodeId:      "station-1",
+		IssueTime:   pb.Time(issueTime),
+		HorizonDays: 0,
+	})
+	if todayView.TimeSubLabel != "Today" {
+		t.Fatalf("todayView.TimeSubLabel = %q, want Today", todayView.TimeSubLabel)
+	}
+
+	if pbDailyToView(nil).HorizonLabel != "" {
 		t.Fatal("nil prediction should produce an empty view")
 	}
 }

@@ -9,7 +9,9 @@
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
   </div>
   <span class="forecast-temp">{{ .Temperature }}</span>
-  <span class="forecast-conf-compact" title="Confidence">{{ .Confidence }}</span>
+  {{ if .TemperatureRange }}<span class="forecast-range">{{ .TemperatureRange }}</span>{{ end }}
+  {{ if .Pressure }}<span class="forecast-meta-compact" title="Pressure">{{ .Pressure }}</span>{{ end }}
+  <span class="forecast-meta-compact" title="Chance of rain">{{ .RainProbability }}</span>
 </div>
 {{ end }}
 
@@ -26,19 +28,26 @@
   </div>
   <span class="forecast-cond-label">{{ .ConditionLabel }}</span>
   <span class="forecast-temp">{{ .MaxTemperature }}<br><span class="forecast-temp-min">{{ .MinTemperature }}</span></span>
+  {{ if .TemperatureRange }}<span class="forecast-range">{{ .TemperatureRange }}</span>{{ end }}
 
   <div class="forecast-details">
     <div class="forecast-detail-row">
       <span>Rain</span>
       <strong>{{ .Rainfall }}</strong>
     </div>
-    <div class="confidence-bar-wrap">
+    {{ if .Pressure }}
+    <div class="forecast-detail-row">
+      <span>Pressure</span>
+      <strong>{{ .Pressure }}</strong>
+    </div>
+    {{ end }}
+    <div class="prob-bar-wrap">
       <div class="forecast-detail-row">
-        <span>Confidence</span>
-        <strong>{{ .Confidence }}</strong>
+        <span>Chance of rain</span>
+        <strong>{{ .RainProbability }}</strong>
       </div>
-      <div class="confidence-bar-track">
-        <div class="confidence-bar-fill" style="width: {{ .ConfidencePct }}%"></div>
+      <div class="prob-bar-track">
+        <div class="prob-bar-fill" style="width: {{ .RainProbabilityPct }}%"></div>
       </div>
     </div>
   </div>
@@ -85,9 +94,8 @@
     <div class="alert-error">{{ .ErrorMessage }}</div>
     {{ end }}
 
-    {{ if or .LatestReading .Forecast }}
+    {{ if or .LatestReading .HourlyForecast .DailyForecast }}
       {{ if .LatestReading }}
-      <!-- Hero Current Conditions Banner -->
       <section class="hero-banner" aria-label="Current weather">
         <div class="hero-main">
           <div class="hero-icon-wrap">
@@ -131,7 +139,6 @@
       </section>
       {{ end }}
 
-      <!-- Hourly Weather Forecast Section -->
       <section class="section-card" aria-label="Hourly weather forecast">
         <div class="section-header">
           <h2 class="section-title">Hourly Forecast</h2>
@@ -151,7 +158,6 @@
         {{ end }}
       </section>
 
-      <!-- Daily Weather Forecast Section -->
       <section class="section-card" aria-label="Daily weather forecast">
         <div class="section-header">
           <h2 class="section-title">Daily Forecast</h2>
@@ -172,9 +178,7 @@
       </section>
 
       {{ if .LatestReading }}
-      <!-- Current Weather & Air Quality Cards -->
       <div class="grid">
-        <!-- Climate Card -->
         <div class="card">
           <div class="card-header">
             <span class="card-title">Climate</span>
@@ -195,8 +199,6 @@
           </div>
         </div>
 
-
-        <!-- Rainfall Card -->
         <div class="card">
           <div class="card-header">
             <span class="card-title">Rainfall</span>
@@ -213,7 +215,6 @@
           </div>
         </div>
 
-        <!-- Air Quality Card -->
         <div class="card">
           <div class="card-header">
             <span class="card-title">Air Quality</span>
@@ -240,7 +241,6 @@
         </div>
       </div>
 
-      <!-- Sensor Diagnostics Drawer -->
       <details class="diagnostics-panel">
         <summary>Sensor Diagnostics &amp; Raw Telemetry</summary>
         <div class="diagnostics-grid">
@@ -285,30 +285,22 @@
       var pad = function (n) { return String(n).padStart(2, "0"); };
       var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
       var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      var elements = document.querySelectorAll("time[datetime][data-time-format]");
-      for (var i = 0; i < elements.length; i++) {
-        var el = elements[i];
-        var iso = el.getAttribute("datetime");
-        if (!iso) continue;
-        var d = new Date(iso);
-        if (isNaN(d.getTime())) continue;
+      document.querySelectorAll("time[datetime][data-time-format]").forEach(function (el) {
+        var d = new Date(el.getAttribute("datetime") || "");
+        if (isNaN(d.getTime())) return;
         var fmt = el.getAttribute("data-time-format");
-        var yyyy = d.getFullYear();
-        var mm = pad(d.getMonth() + 1);
-        var dd = pad(d.getDate());
-        var hh = pad(d.getHours());
-        var min = pad(d.getMinutes());
-        var ss = pad(d.getSeconds());
+        var datePart = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+        var timePart = pad(d.getHours()) + ":" + pad(d.getMinutes());
         if (fmt === "datetime-sec") {
-          el.textContent = yyyy + "-" + mm + "-" + dd + " " + hh + ":" + min + ":" + ss;
+          el.textContent = datePart + " " + timePart + ":" + pad(d.getSeconds());
         } else if (fmt === "datetime") {
-          el.textContent = yyyy + "-" + mm + "-" + dd + " " + hh + ":" + min;
+          el.textContent = datePart + " " + timePart;
         } else if (fmt === "time") {
-          el.textContent = hh + ":" + min;
+          el.textContent = timePart;
         } else if (fmt === "date") {
-          el.textContent = days[d.getDay()] + " " + dd + " " + months[d.getMonth()];
+          el.textContent = days[d.getDay()] + " " + pad(d.getDate()) + " " + months[d.getMonth()];
         }
-      }
+      });
     })();
   </script>
 </body>

@@ -1,11 +1,7 @@
 package weatherdata
 
-import "time"
-
 // ReadingView represents a formatted weather station reading for display.
 type ReadingView struct {
-	NodeID        string
-	Timestamp     time.Time
 	TimestampISO  string
 	FormattedTime string
 
@@ -14,14 +10,12 @@ type ReadingView struct {
 	ConditionLabel string
 
 	// Climate
-	Temperature     string
-	Humidity        string
-	HumidityPercent int
-	Pressure        string
+	Temperature string
+	Humidity    string
+	Pressure    string
 
 	// Wind
 	WindSpeed       string
-	WindAngle       string
 	WindCardinal    string
 	WindRotationDeg int
 	HasWindAngle    bool
@@ -55,37 +49,33 @@ type ReadingView struct {
 
 // ForecastItemView represents a single horizon forecast prediction for display.
 type ForecastItemView struct {
-	HorizonHours   int32
-	HorizonLabel   string
-	TimeSubLabel   string
-	TargetTimeISO  string
-	IsDaily        bool
-	ConditionIcon  string
-	ConditionLabel string
-	Temperature    string
-	MinTemperature string
-	MaxTemperature string
-	Rainfall       string
-	Confidence     string
-	ConfidencePct  int
-	HasConfidence  bool
+	HorizonLabel       string
+	TimeSubLabel       string
+	TargetTimeISO      string
+	ConditionIcon      string
+	ConditionLabel     string
+	Temperature        string
+	TemperatureRange   string
+	MinTemperature     string
+	MaxTemperature     string
+	Rainfall           string
+	RainProbability    string
+	RainProbabilityPct int
+	Pressure           string
 }
 
 // DashboardData represents the weather data context retrieved from the database.
 type DashboardData struct {
-	Title                string
-	SelectedNodeID       string
-	AvailableNodes       []string
-	NoNodes              bool
-	LatestReading        *ReadingView
-	Forecast             []ForecastItemView
-	HourlyForecast       []ForecastItemView
-	DailyForecast        []ForecastItemView
-	ForecastIssuedAt     string
-	ForecastIssuedAtISO  string
-	HourlyIssuedAt       string
-	HourlyIssuedAtISO    string
-	DailyIssuedAt        string
-	DailyIssuedAtISO     string
-	ErrorMessage         string
+	Title             string
+	SelectedNodeID    string
+	AvailableNodes    []string
+	NoNodes           bool
+	LatestReading     *ReadingView
+	HourlyForecast    []ForecastItemView
+	DailyForecast     []ForecastItemView
+	HourlyIssuedAt    string
+	HourlyIssuedAtISO string
+	DailyIssuedAt     string
+	DailyIssuedAtISO  string
+	ErrorMessage      string
 }

@@ -90,9 +90,6 @@ func TestGetDashboardData(t *testing.T) {
 				if data.LatestReading.Temperature != "23.4 °C" {
 					t.Fatalf("Temperature = %q, want 23.4 °C", data.LatestReading.Temperature)
 				}
-				if len(data.Forecast) != 2 {
-					t.Fatalf("Forecast length = %d, want 2", len(data.Forecast))
-				}
 				if len(data.HourlyForecast) != 1 || data.HourlyForecast[0].Temperature != "19.5 °C" {
 					t.Fatalf("HourlyForecast = %+v, want 1 item with 19.5 °C", data.HourlyForecast)
 				}
@@ -146,7 +143,7 @@ func TestGetDashboardData(t *testing.T) {
 			},
 		},
 		{
-			name:          "cuts off hourly and daily forecasts when confidence is below 10 percent",
+			name:          "preserves all forecast horizons regardless of rain probability",
 			requestedNode: "station-beta",
 			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, predictionClient *mocks.MockPredictionDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
@@ -169,61 +166,38 @@ func TestGetDashboardData(t *testing.T) {
 						},
 					}, nil)
 
-				c50 := float32(0.50)
-				c10 := float32(0.10)
-				c08 := float32(0.08)
-				c80 := float32(0.80)
-				c40 := float32(0.40)
-				c05 := float32(0.05)
-				c90 := float32(0.90)
+				p00 := float32(0.0)
+				p80 := float32(0.80)
 
 				predictionClient.EXPECT().
 					GetForecast(gomock.Any(), gomock.Any()).
 					Return(&protodatabasev1.GetForecastResponse{
 						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       1,
-								RainfallConfidence: &c50,
+								NodeId:          "station-beta",
+								IssueTime:       pb.Time(issueTime),
+								HorizonHours:    1,
+								RainProbability: &p00,
 							},
 							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       2,
-								RainfallConfidence: &c10,
-							},
-							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       3,
-								RainfallConfidence: &c08,
-							},
-							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       4,
-								RainfallConfidence: &c80,
+								NodeId:          "station-beta",
+								IssueTime:       pb.Time(issueTime),
+								HorizonHours:    2,
+								RainProbability: &p80,
 							},
 						},
 						DailyPredictions: []*protodatabasev1.DailyPrediction{
 							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonDays:        1,
-								RainfallConfidence: &c40,
+								NodeId:          "station-beta",
+								IssueTime:       pb.Time(issueTime),
+								HorizonDays:     0,
+								RainProbability: &p00,
 							},
 							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonDays:        2,
-								RainfallConfidence: &c05,
-							},
-							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonDays:        3,
-								RainfallConfidence: &c90,
+								NodeId:          "station-beta",
+								IssueTime:       pb.Time(issueTime),
+								HorizonDays:     1,
+								RainProbability: &p80,
 							},
 						},
 					}, nil)
@@ -232,78 +206,11 @@ func TestGetDashboardData(t *testing.T) {
 				if len(data.HourlyForecast) != 2 {
 					t.Fatalf("HourlyForecast length = %d, want 2", len(data.HourlyForecast))
 				}
-				if data.HourlyForecast[0].HorizonHours != 1 || data.HourlyForecast[1].HorizonHours != 2 {
-					t.Fatalf("HourlyForecast horizons = [%d, %d], want [1, 2]",
-						data.HourlyForecast[0].HorizonHours, data.HourlyForecast[1].HorizonHours)
+				if len(data.DailyForecast) != 2 {
+					t.Fatalf("DailyForecast length = %d, want 2", len(data.DailyForecast))
 				}
-				if len(data.DailyForecast) != 1 {
-					t.Fatalf("DailyForecast length = %d, want 1", len(data.DailyForecast))
-				}
-				if data.DailyForecast[0].HorizonHours != 24 {
-					t.Fatalf("DailyForecast horizon = %d, want 24", data.DailyForecast[0].HorizonHours)
-				}
-				if len(data.Forecast) != 3 {
-					t.Fatalf("Forecast length = %d, want 3", len(data.Forecast))
-				}
-			},
-		},
-		{
-			name:          "entire forecast below 10 percent confidence produces empty lists",
-			requestedNode: "station-beta",
-			setup: func(readingClient *mocks.MockReadingDatabaseServiceClient, predictionClient *mocks.MockPredictionDatabaseServiceClient, nodeClient *mocks.MockNodeDatabaseServiceClient) {
-				nodeClient.EXPECT().
-					ListNodeCoordinates(gomock.Any(), gomock.Any()).
-					Return(&protodatabasev1.ListNodeCoordinatesResponse{
-						Nodes: []*protodatabasev1.NodeCoordinates{
-							{NodeId: "station-beta"},
-						},
-					}, nil)
-
-				temp := float32(20.0)
-				readingClient.EXPECT().
-					GetLatestReadings(gomock.Any(), gomock.Any()).
-					Return(&protodatabasev1.GetLatestReadingsResponse{
-						Readings: []*protodatabasev1.Reading{
-							{
-								NodeId:      "station-beta",
-								Temperature: &temp,
-							},
-						},
-					}, nil)
-
-				c05 := float32(0.05)
-				c08 := float32(0.08)
-
-				predictionClient.EXPECT().
-					GetForecast(gomock.Any(), gomock.Any()).
-					Return(&protodatabasev1.GetForecastResponse{
-						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
-							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonHours:       1,
-								RainfallConfidence: &c05,
-							},
-						},
-						DailyPredictions: []*protodatabasev1.DailyPrediction{
-							{
-								NodeId:             "station-beta",
-								IssueTime:          pb.Time(issueTime),
-								HorizonDays:        1,
-								RainfallConfidence: &c08,
-							},
-						},
-					}, nil)
-			},
-			check: func(t *testing.T, data DashboardData) {
-				if len(data.HourlyForecast) != 0 {
-					t.Fatalf("HourlyForecast length = %d, want 0", len(data.HourlyForecast))
-				}
-				if len(data.DailyForecast) != 0 {
-					t.Fatalf("DailyForecast length = %d, want 0", len(data.DailyForecast))
-				}
-				if len(data.Forecast) != 0 {
-					t.Fatalf("Forecast length = %d, want 0", len(data.Forecast))
+				if data.DailyForecast[0].TimeSubLabel != "Today" {
+					t.Fatalf("DailyForecast[0].TimeSubLabel = %q, want Today", data.DailyForecast[0].TimeSubLabel)
 				}
 			},
 		},
