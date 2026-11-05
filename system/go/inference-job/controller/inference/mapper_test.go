@@ -42,6 +42,10 @@ func TestToTimeSeriesObservations(t *testing.T) {
 					TotalRainfallMm:     float32Ptr(1.8),
 					AvgWindSpeedMps:     float32Ptr(4.5),
 					AvgWindDirectionDeg: float32Ptr(225.0),
+					MaxWindSpeedMps:     float32Ptr(9.0),
+					AvgWindUMps:         float32Ptr(3.2),
+					AvgWindVMps:         float32Ptr(3.2),
+					MaxRainRateMmh:      float32Ptr(4.0),
 				},
 				nil,
 			},
@@ -74,6 +78,15 @@ func TestToTimeSeriesObservations(t *testing.T) {
 				}
 				if obs.GetWindDirectionDeg() != 225.0 {
 					t.Fatalf("WindDirectionDeg = %v, want 225.0", obs.GetWindDirectionDeg())
+				}
+				if obs.GetMaxWindSpeedMps() != 9.0 {
+					t.Fatalf("MaxWindSpeedMps = %v, want 9.0", obs.GetMaxWindSpeedMps())
+				}
+				if obs.GetWindUMps() != 3.2 {
+					t.Fatalf("WindUMps = %v, want 3.2", obs.GetWindUMps())
+				}
+				if obs.GetMaxRainRateMmh() != 4.0 {
+					t.Fatalf("MaxRainRateMmh = %v, want 4.0", obs.GetMaxRainRateMmh())
 				}
 			}
 		})

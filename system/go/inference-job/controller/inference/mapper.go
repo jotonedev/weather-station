@@ -31,6 +31,10 @@ func ToTimeSeriesObservations(aggregates []*protodatabasev1.ClimateAggregate) []
 			MaxHumidityPct:   aggregate.MaxHumidityPct,
 			MinPressureHpa:   aggregate.MinPressureHpa,
 			MaxPressureHpa:   aggregate.MaxPressureHpa,
+			MaxWindSpeedMps:  aggregate.MaxWindSpeedMps,
+			WindUMps:         aggregate.AvgWindUMps,
+			WindVMps:         aggregate.AvgWindVMps,
+			MaxRainRateMmh:   aggregate.MaxRainRateMmh,
 		}
 		observations = append(observations, obs)
 	}

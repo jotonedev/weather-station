@@ -156,6 +156,8 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 		HorizonHours: horizonHours,
 		History:      observations,
 		Latitude:     &node.Latitude,
+		Longitude:    &node.Longitude,
+		ElevationM:   &node.ElevationM,
 	}
 
 	res, err := c.infGateway.PredictHourlyWeather(ctx, req)
@@ -165,19 +167,7 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 
 	hourlyPredictions := res.GetPredictions()
 	if len(hourlyPredictions) > 0 {
-		predictions := make([]*protodatabasev1.HourlyPrediction, len(hourlyPredictions))
-		for i, p := range hourlyPredictions {
-			predictions[i] = &protodatabasev1.HourlyPrediction{
-				NodeId:             p.GetNodeId(),
-				IssueTime:          p.GetIssueTime(),
-				HorizonHours:       p.GetHorizonHours(),
-				TemperatureC:       p.TemperatureC,
-				HumidityPct:        p.HumidityPct,
-				RainfallMm:         p.RainfallMm,
-				RainfallConfidence: p.RainfallConfidence,
-			}
-		}
-		if err := c.dbGateway.StoreHourlyPredictions(ctx, predictions); err != nil {
+		if err := c.dbGateway.StoreHourlyPredictions(ctx, hourlyPredictions); err != nil {
 			return fmt.Errorf("store hourly predictions for node %q: %w", nodeID, err)
 		}
 	}
@@ -233,27 +223,36 @@ func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node 
 	historyDuration := 365 * 24 * time.Hour
 	bucketSeconds := uint32(86400)
 
-	now := c.nowFunc()
-	startTime := now.Add(-historyDuration)
+	issueTime := c.nowFunc().UTC().Truncate(24 * time.Hour)
+	startTime := issueTime.Add(-historyDuration)
 
-	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, now, bucketSeconds)
+	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, issueTime, bucketSeconds)
 	if err != nil {
 		return fmt.Errorf("query climate aggregates for node %q: %w", nodeID, err)
 	}
 
-	if len(aggregates) == 0 {
+	var completedAggregates []*protodatabasev1.ClimateAggregate
+	for _, agg := range aggregates {
+		if agg.GetBucketStart().AsTime().Before(issueTime) {
+			completedAggregates = append(completedAggregates, agg)
+		}
+	}
+
+	if len(completedAggregates) == 0 {
 		c.log.Info("no historical aggregates found for node, skipping", zap.String("node_id", nodeID))
 		return nil
 	}
 
-	observations := ToTimeSeriesObservations(aggregates)
+	observations := ToTimeSeriesObservations(completedAggregates)
 
 	req := &protoinferencev1.PredictDailyWeatherRequest{
 		NodeId:      nodeID,
-		IssueTime:   timestamppb.New(now),
+		IssueTime:   timestamppb.New(issueTime),
 		HorizonDays: horizonDays,
 		History:     observations,
 		Latitude:    &node.Latitude,
+		Longitude:   &node.Longitude,
+		ElevationM:  &node.ElevationM,
 	}
 
 	res, err := c.infGateway.PredictDailyWeather(ctx, req)
@@ -263,21 +262,7 @@ func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node 
 
 	dailyPredictions := res.GetPredictions()
 	if len(dailyPredictions) > 0 {
-		predictions := make([]*protodatabasev1.DailyPrediction, len(dailyPredictions))
-		for i, p := range dailyPredictions {
-			predictions[i] = &protodatabasev1.DailyPrediction{
-				NodeId:             p.GetNodeId(),
-				IssueTime:          p.GetIssueTime(),
-				HorizonDays:        p.GetHorizonDays(),
-				MinTemperatureC:    p.MinTemperatureC,
-				MaxTemperatureC:    p.MaxTemperatureC,
-				MinHumidityPct:     p.MinHumidityPct,
-				MaxHumidityPct:     p.MaxHumidityPct,
-				RainfallMm:         p.RainfallMm,
-				RainfallConfidence: p.RainfallConfidence,
-			}
-		}
-		if err := c.dbGateway.StoreDailyPredictions(ctx, predictions); err != nil {
+		if err := c.dbGateway.StoreDailyPredictions(ctx, dailyPredictions); err != nil {
 			return fmt.Errorf("store daily predictions for node %q: %w", nodeID, err)
 		}
 	}
