@@ -3,6 +3,7 @@ import pytest
 
 pytest.importorskip("chronos")
 
+from inference.backends.base import QUANTILE_LEVELS
 from inference.backends.chronos import Chronos2Backend
 from tests.helpers import create_synthetic_chronos_pipeline
 
@@ -32,7 +33,7 @@ def test_chronos_predict_cpu_execution() -> None:
         "hour_cos": np.random.randn(prediction_length).astype(np.float32),
     }
 
-    quantiles, mean = backend.predict(
+    quantiles, levels = backend.predict(
         target=target,
         past_covariates=past_covariates,
         future_covariates=future_covariates,
@@ -40,6 +41,5 @@ def test_chronos_predict_cpu_execution() -> None:
     )
 
     assert quantiles.shape == (2, prediction_length, 3)
-    assert mean.shape == (2, prediction_length)
+    assert levels == QUANTILE_LEVELS
     assert np.isfinite(quantiles).all()
-    assert np.isfinite(mean).all()

@@ -15,8 +15,7 @@ class ValidationError(ValueError):
     """ValidationError indicates malformed or out of bounds request data."""
 
 
-# Only fields actually used by the model are validated. Fields that are
-# received but not modeled (e.g. wind speed) must not reject a forecast.
+# Only fields actually used by the model are validated.
 SENSOR_BOUNDS = (
     ("temperature_c", -90.0, 70.0),
     ("min_temperature_c", -90.0, 70.0),
@@ -30,6 +29,10 @@ SENSOR_BOUNDS = (
     ("rainfall_mm", 0.0, float("inf")),
     ("wind_speed_mps", 0.0, 150.0),
     ("wind_direction_deg", 0.0, 360.0),
+    ("max_wind_speed_mps", 0.0, 150.0),
+    ("wind_u_mps", -150.0, 150.0),
+    ("wind_v_mps", -150.0, 150.0),
+    ("max_rain_rate_mmh", 0.0, 500.0),
 )
 
 
@@ -77,7 +80,7 @@ def trim_early_outage(
 
 
 def validate_observation_bounds(observation: TimeSeriesObservation, index: int) -> None:
-    """Validate_observation_bounds checks physical sensor boundaries for finite values."""
+    """validate_observation_bounds checks physical sensor boundaries for finite values."""
     for field_name, lower_bound, upper_bound in SENSOR_BOUNDS:
         if not observation.HasField(field_name):
             continue
@@ -112,12 +115,11 @@ def _validate_common_request(
 
     is_daily = step_seconds >= DAILY_STEP_SECONDS
     if is_daily:
-        reference_sec = request.issue_time.seconds
-        completed = [obs for obs in sorted_history if obs.timestamp.seconds <= reference_sec]
+        reference_sec = (request.issue_time.seconds // DAILY_STEP_SECONDS) * DAILY_STEP_SECONDS
     else:
-        reference_sec = (request.issue_time.seconds // 3600) * 3600
-        completed = [obs for obs in sorted_history if obs.timestamp.seconds < reference_sec]
+        reference_sec = (request.issue_time.seconds // HOURLY_STEP_SECONDS) * HOURLY_STEP_SECONDS
 
+    completed = [obs for obs in sorted_history if obs.timestamp.seconds < reference_sec]
     completed_history = completed if completed else sorted_history
 
     retained_history = trim_early_outage(completed_history, reference_sec, step_seconds)

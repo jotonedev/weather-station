@@ -9,7 +9,7 @@ import time
 
 import numpy as np
 
-# Backends must return quantile forecasts at these levels in this order.
+# Default quantile levels for backends that require explicit level selection.
 QUANTILE_LEVELS: tuple[float, ...] = (0.1, 0.5, 0.9)
 
 
@@ -41,11 +41,11 @@ class ForecastBackend[PipelineT](abc.ABC):
         past_covariates: dict[str, np.ndarray],
         future_covariates: dict[str, np.ndarray],
         prediction_length: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, tuple[float, ...]]:
         """_predict_loaded runs one forecast on a loaded pipeline.
 
-        It must return quantiles shaped (variates, horizon, 3) with levels 0.1, 0.5, 0.9
-        and a mean forecast shaped (variates, horizon).
+        It must return quantiles shaped (variates, horizon, num_quantiles) and
+        the corresponding quantile levels tuple.
         """
 
     def get_pipeline(self) -> PipelineT:
@@ -85,11 +85,11 @@ class ForecastBackend[PipelineT](abc.ABC):
         past_covariates: dict[str, np.ndarray],
         future_covariates: dict[str, np.ndarray],
         prediction_length: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Predict generates quantile and mean forecasts for multivariate target time series.
+    ) -> tuple[np.ndarray, tuple[float, ...]]:
+        """Predict generates quantile forecasts for multivariate target time series.
 
-        Returns quantiles shaped (variates, horizon, 3) with levels 0.1, 0.5, 0.9 and
-        a mean forecast shaped (variates, horizon).
+        Returns quantiles shaped (variates, horizon, num_quantiles) and the
+        corresponding quantile levels tuple.
         """
         pipeline = self.get_pipeline()
         return self._predict_loaded(

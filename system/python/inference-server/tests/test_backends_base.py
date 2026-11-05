@@ -1,6 +1,6 @@
 import numpy as np
 
-from inference.backends.base import ForecastBackend
+from inference.backends.base import QUANTILE_LEVELS, ForecastBackend
 
 
 class StubPipeline:
@@ -25,12 +25,11 @@ class StubBackend(ForecastBackend[StubPipeline]):
         past_covariates: dict[str, np.ndarray],
         future_covariates: dict[str, np.ndarray],
         prediction_length: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """_predict_loaded returns fixed quantiles and mean shaped per the backend contract."""
-        variances = target.shape[0]
-        quantiles = np.zeros((variances, prediction_length, 3), dtype=np.float32)
-        mean = np.zeros((variances, prediction_length), dtype=np.float32)
-        return quantiles, mean
+    ) -> tuple[np.ndarray, tuple[float, ...]]:
+        """_predict_loaded returns fixed quantiles and levels shaped per the backend contract."""
+        variates = target.shape[0]
+        quantiles = np.zeros((variates, prediction_length, len(QUANTILE_LEVELS)), dtype=np.float32)
+        return quantiles, QUANTILE_LEVELS
 
 
 def test_backend_lazy_loading() -> None:
@@ -50,7 +49,7 @@ def test_backend_predict_contract() -> None:
     backend = StubBackend(model_name="stub")
     target = np.zeros((2, 16), dtype=np.float32)
 
-    quantiles, mean = backend.predict(
+    quantiles, levels = backend.predict(
         target=target,
         past_covariates={},
         future_covariates={},
@@ -59,7 +58,7 @@ def test_backend_predict_contract() -> None:
 
     assert backend.is_loaded()
     assert quantiles.shape == (2, 8, 3)
-    assert mean.shape == (2, 8)
+    assert levels == QUANTILE_LEVELS
 
 
 def test_backend_idle_eviction() -> None:

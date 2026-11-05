@@ -18,9 +18,6 @@ class Chronos2Backend(ForecastBackend[Chronos2Pipeline]):
 
     def max_recommended_horizon(self) -> int | None:
         """max_recommended_horizon returns the library's recommended prediction length cap."""
-        # The chronos library warns, but does not fail, when the requested prediction
-        # length exceeds the checkpoint's trained horizon. Reading the loaded pipeline
-        # keeps this truthful per checkpoint rather than hardcoding a value.
         return self.get_pipeline().model_prediction_length
 
     def _predict_loaded(
@@ -30,8 +27,8 @@ class Chronos2Backend(ForecastBackend[Chronos2Pipeline]):
         past_covariates: dict[str, np.ndarray],
         future_covariates: dict[str, np.ndarray],
         prediction_length: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """_predict_loaded runs one Chronos-2 forecast and extracts quantiles and mean."""
+    ) -> tuple[np.ndarray, tuple[float, ...]]:
+        """_predict_loaded runs one Chronos-2 forecast and extracts quantiles and levels."""
         inputs = [
             {
                 "target": target,
@@ -40,13 +37,11 @@ class Chronos2Backend(ForecastBackend[Chronos2Pipeline]):
             }
         ]
 
-        # Request 10th, 50th, and 90th percentiles for point forecast and confidence interval
-        quantiles, mean = pipeline.predict_quantiles(
+        quantiles, _ = pipeline.predict_quantiles(
             inputs,
             prediction_length=prediction_length,
             quantile_levels=list(QUANTILE_LEVELS),
         )
 
         quantiles_arr = quantiles[0].detach().cpu().numpy()
-        mean_arr = mean[0].detach().cpu().numpy()
-        return quantiles_arr, mean_arr
+        return quantiles_arr, QUANTILE_LEVELS

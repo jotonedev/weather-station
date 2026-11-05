@@ -1,40 +1,39 @@
 import numpy as np
 from timestral import TimestralForecaster
 
-from inference.backends.base import QUANTILE_LEVELS, ForecastBackend
-
-# Maximum allowed distance between a requested level and the closest model knot.
-_LEVEL_MATCH_TOLERANCE = 1e-3
+from inference.backends.base import ForecastBackend
 
 
-def _level_index(levels: tuple[float, ...], level: float) -> int:
-    """_level_index finds the closest model quantile knot to the requested level."""
-    distances = [abs(available - level) for available in levels]
-    index = int(np.argmin(distances))
-    if distances[index] > _LEVEL_MATCH_TOLERANCE:
-        raise ValueError(f"timestral checkpoint does not provide quantile level {level}: {levels}")
-    return index
-
-
-def _stack_known_covariates(
+def _split_covariates(
     past_covariates: dict[str, np.ndarray],
     future_covariates: dict[str, np.ndarray],
-) -> np.ndarray | None:
-    """_stack_known_covariates concatenates past and future covariate rows into one known-future tensor.
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """_split_covariates separates past-only covariates from known past+future covariates.
 
-    The result has shape (1, C, T + H). Returns None when no covariates are supplied.
+    Returns (past_tensor, known_tensor) with shapes (1, C_past, T) and (1, C_known, T + H),
+    or None for either tensor when its corresponding channel set is empty.
     """
-    if not past_covariates:
-        return None
+    missing_past = [key for key in future_covariates if key not in past_covariates]
+    if missing_past:
+        raise ValueError(f"past covariates are missing keys present in future covariates: {missing_past}")
 
-    past_keys = list(past_covariates.keys())
-    missing = [key for key in past_keys if key not in future_covariates]
-    if missing:
-        raise ValueError(f"future covariates are missing keys present in past covariates: {missing}")
+    known_keys = [key for key in past_covariates if key in future_covariates]
+    past_only_keys = [key for key in past_covariates if key not in future_covariates]
 
-    rows = [np.concatenate([past_covariates[key], future_covariates[key]], axis=0) for key in past_keys]
-    stacked = np.stack(rows, axis=0).astype(np.float32)
-    return stacked[None, ...]
+    past_tensor: np.ndarray | None = None
+    if past_only_keys:
+        past_rows = [np.asarray(past_covariates[key], dtype=np.float32) for key in past_only_keys]
+        past_tensor = np.stack(past_rows, axis=0)[None, ...]
+
+    known_tensor: np.ndarray | None = None
+    if known_keys:
+        known_rows = [
+            np.concatenate([past_covariates[key], future_covariates[key]], axis=0).astype(np.float32)
+            for key in known_keys
+        ]
+        known_tensor = np.stack(known_rows, axis=0)[None, ...]
+
+    return past_tensor, known_tensor
 
 
 class TimestralBackend(ForecastBackend[TimestralForecaster]):
@@ -51,23 +50,19 @@ class TimestralBackend(ForecastBackend[TimestralForecaster]):
         past_covariates: dict[str, np.ndarray],
         future_covariates: dict[str, np.ndarray],
         prediction_length: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """_predict_loaded runs one Timestral forecast and extracts quantiles and mean."""
+    ) -> tuple[np.ndarray, tuple[float, ...]]:
+        """_predict_loaded runs one Timestral forecast and returns all checkpoint quantiles and levels."""
         # (V, T) target becomes the single-series context (1, V, T)
         context = target[None, ...].astype(np.float32)
-        known_covariates = _stack_known_covariates(past_covariates, future_covariates)
+        past_tensor, known_tensor = _split_covariates(past_covariates, future_covariates)
 
         forecast = pipeline.forecast(
             context,
             prediction_length=prediction_length,
-            known_covariates=known_covariates,
+            past_covariates=past_tensor,
+            known_covariates=known_tensor,
         )
 
-        # Quantiles arrive as (1, V, H, Q); select the contract levels into (V, H, 3)
-        levels = forecast.quantile_levels
-        selected = [
-            forecast.quantiles[..., _level_index(levels, level)].detach().cpu().numpy() for level in QUANTILE_LEVELS
-        ]
-        quantiles_arr = np.stack(selected, axis=-1)[0]
-        mean_arr = forecast.median[0].detach().cpu().numpy()
-        return quantiles_arr, mean_arr
+        quantiles_arr = forecast.quantiles[0].detach().cpu().numpy()
+        levels = tuple(float(level) for level in forecast.quantile_levels)
+        return quantiles_arr, levels

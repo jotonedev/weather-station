@@ -11,18 +11,17 @@ from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 from inference.backends import create_backend
 from inference.backends.base import ForecastBackend
 from inference.config import Config
+from inference.covariates import prepare_context_and_covariates
 from inference.features import (
-    MAX_GAP_DAILY,
-    MAX_GAP_HOURLY,
-    calculate_temporal_covariates,
     extract_observation_dataframe,
-    filter_and_impute_columns,
+    floor_to_day,
     floor_to_hour,
     generate_daily_future_timestamps,
     generate_hourly_future_timestamps,
     sort_observations,
 )
 from inference.formatter import format_daily_predictions, format_hourly_predictions
+from inference.solar import daily_known_covariates, hourly_known_covariates
 from inference.validator import (
     ValidationError,
     validate_daily_request,
@@ -32,6 +31,16 @@ from inference.validator import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_location(
+    request: inference_pb2.PredictHourlyWeatherRequest | inference_pb2.PredictDailyWeatherRequest,
+) -> tuple[float | None, float | None, float | None]:
+    """_extract_location extracts optional latitude, longitude, and elevation_m from a request."""
+    lat = request.latitude if request.HasField("latitude") else None
+    lon = request.longitude if request.HasField("longitude") else None
+    elev = request.elevation_m if request.HasField("elevation_m") else None
+    return lat, lon, elev
+
+
 class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
     """InferenceServicer handles weather forecasting and model metadata gRPC requests."""
 
@@ -39,6 +48,17 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         """InferenceServicer stores the forecast backend and configuration."""
         self.backend = backend
         self.config = config
+
+    def _warn_if_horizon_exceeds_cap(self, prediction_length: int) -> None:
+        max_recommended = self.backend.max_recommended_horizon()
+        if max_recommended is not None and prediction_length > max_recommended:
+            logger.warning(
+                "prediction length %d exceeds the recommended maximum of %d for model %s; "
+                "longer forecasts may degrade in quality",
+                prediction_length,
+                max_recommended,
+                self.backend.model_name,
+            )
 
     def PredictHourlyWeather(
         self,
@@ -54,8 +74,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             return inference_pb2.PredictHourlyWeatherResponse()
 
         prediction_length = request.horizon_hours
-        max_gap = MAX_GAP_HOURLY
-
         issue_time_dt = floor_to_hour(request.issue_time.ToDatetime().replace(tzinfo=UTC))
         aligned_issue_time = Timestamp()
         aligned_issue_time.FromDatetime(issue_time_dt)
@@ -67,37 +85,31 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             issue_time=issue_time_dt,
         )
 
-        try:
-            clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
-        except ValidationError as imputation_err:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(str(imputation_err))
-            return inference_pb2.PredictHourlyWeatherResponse()
-
-        target = clean_df[surviving_columns].to_numpy(dtype=float).T
-
+        prepared = prepare_context_and_covariates(observation_df, is_daily=False)
         past_timestamps = observation_df["timestamp"].tolist()
-        future_timestamps = generate_hourly_future_timestamps(issue_time_dt, request.horizon_hours)
-        lat = request.latitude if request.HasField("latitude") else None
+        future_timestamps = generate_hourly_future_timestamps(issue_time_dt, prediction_length)
+        lat, lon, elev = _extract_location(request)
 
-        past_covariates = calculate_temporal_covariates(past_timestamps, latitude=lat)
-        future_covariates = calculate_temporal_covariates(future_timestamps, latitude=lat)
+        known_past = hourly_known_covariates(past_timestamps, latitude=lat, longitude=lon, elevation_m=elev)
+        known_future = hourly_known_covariates(future_timestamps, latitude=lat, longitude=lon, elevation_m=elev)
+        past_covariates = {**prepared.past_covariates, **known_past}
 
-        max_recommended = self.backend.max_recommended_horizon()
-        if max_recommended is not None and prediction_length > max_recommended:
-            logger.warning(
-                "prediction length %d exceeds the recommended maximum of %d for model %s; "
-                "longer forecasts may degrade in quality",
-                prediction_length,
-                max_recommended,
-                self.backend.model_name,
-            )
+        logger.info(
+            "hourly forecast node=%s context_steps=%d horizon=%d targets=%s past_covariates=%s known_covariates=%s",
+            request.node_id,
+            len(past_timestamps),
+            prediction_length,
+            prepared.target_columns,
+            list(prepared.past_covariates.keys()),
+            list(known_future.keys()),
+        )
+        self._warn_if_horizon_exceeds_cap(prediction_length)
 
         try:
-            quantiles, _ = self.backend.predict(
-                target=target,
+            quantiles, quantile_levels = self.backend.predict(
+                target=prepared.target,
                 past_covariates=past_covariates,
-                future_covariates=future_covariates,
+                future_covariates=known_future,
                 prediction_length=prediction_length,
             )
         except Exception as inference_err:
@@ -109,9 +121,10 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
         predictions = format_hourly_predictions(
             node_id=request.node_id,
             issue_time=aligned_issue_time,
-            horizon_hours=request.horizon_hours,
+            horizon_hours=prediction_length,
             quantiles=quantiles,
-            target_columns=surviving_columns,
+            target_columns=prepared.target_columns,
+            quantile_levels=quantile_levels,
         )
 
         now = datetime.now(UTC)
@@ -137,9 +150,9 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             return inference_pb2.PredictDailyWeatherResponse()
 
         prediction_length = request.horizon_days
-        max_gap = MAX_GAP_DAILY
-
-        issue_time_dt = request.issue_time.ToDatetime().replace(tzinfo=UTC)
+        issue_time_dt = floor_to_day(request.issue_time.ToDatetime().replace(tzinfo=UTC))
+        aligned_issue_time = Timestamp()
+        aligned_issue_time.FromDatetime(issue_time_dt)
 
         sorted_observations = sort_observations(request.history)
         observation_df = extract_observation_dataframe(
@@ -148,37 +161,31 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             issue_time=issue_time_dt,
         )
 
-        try:
-            clean_df, surviving_columns = filter_and_impute_columns(observation_df, max_gap=max_gap)
-        except ValidationError as imputation_err:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(str(imputation_err))
-            return inference_pb2.PredictDailyWeatherResponse()
-
-        target = clean_df[surviving_columns].to_numpy(dtype=float).T
-
+        prepared = prepare_context_and_covariates(observation_df, is_daily=True)
         past_timestamps = observation_df["timestamp"].tolist()
-        future_timestamps = generate_daily_future_timestamps(issue_time_dt, request.horizon_days)
-        lat = request.latitude if request.HasField("latitude") else None
+        future_timestamps = generate_daily_future_timestamps(issue_time_dt, prediction_length)
+        lat, _, elev = _extract_location(request)
 
-        past_covariates = calculate_temporal_covariates(past_timestamps, latitude=lat)
-        future_covariates = calculate_temporal_covariates(future_timestamps, latitude=lat)
+        known_past = daily_known_covariates(past_timestamps, latitude=lat, elevation_m=elev)
+        known_future = daily_known_covariates(future_timestamps, latitude=lat, elevation_m=elev)
+        past_covariates = {**prepared.past_covariates, **known_past}
 
-        max_recommended = self.backend.max_recommended_horizon()
-        if max_recommended is not None and prediction_length > max_recommended:
-            logger.warning(
-                "prediction length %d exceeds the recommended maximum of %d for model %s; "
-                "longer forecasts may degrade in quality",
-                prediction_length,
-                max_recommended,
-                self.backend.model_name,
-            )
+        logger.info(
+            "daily forecast node=%s context_steps=%d horizon=%d targets=%s past_covariates=%s known_covariates=%s",
+            request.node_id,
+            len(past_timestamps),
+            prediction_length,
+            prepared.target_columns,
+            list(prepared.past_covariates.keys()),
+            list(known_future.keys()),
+        )
+        self._warn_if_horizon_exceeds_cap(prediction_length)
 
         try:
-            quantiles, _ = self.backend.predict(
-                target=target,
+            quantiles, quantile_levels = self.backend.predict(
+                target=prepared.target,
                 past_covariates=past_covariates,
-                future_covariates=future_covariates,
+                future_covariates=known_future,
                 prediction_length=prediction_length,
             )
         except Exception as inference_err:
@@ -189,10 +196,11 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
 
         predictions = format_daily_predictions(
             node_id=request.node_id,
-            issue_time=request.issue_time,
-            horizon_days=request.horizon_days,
+            issue_time=aligned_issue_time,
+            horizon_days=prediction_length,
             quantiles=quantiles,
-            target_columns=surviving_columns,
+            target_columns=prepared.target_columns,
+            quantile_levels=quantile_levels,
         )
 
         now = datetime.now(UTC)

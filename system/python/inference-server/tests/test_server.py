@@ -8,9 +8,10 @@ from grpc_health.v1 import health_pb2, health_pb2_grpc
 from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 
 from inference.backends.chronos import Chronos2Backend
+from inference.backends.timestral import TimestralBackend
 from inference.config import Config
 from inference.server import InferenceServer, InferenceServicer
-from tests.helpers import create_synthetic_chronos_pipeline
+from tests.helpers import create_synthetic_chronos_pipeline, create_synthetic_timestral_forecaster
 
 
 @pytest.fixture(scope="module")
@@ -53,8 +54,6 @@ def test_grpc_predict_hourly_weather_success(grpc_service: inference_pb2_grpc.In
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
-    # Request mirrors the production shape produced by the Go inference-job
-    # mapper: temperature, humidity, pressure, rainfall, and wind direction.
     observations = []
     for step_index in range(32):
         timestamp = Timestamp()
@@ -74,6 +73,9 @@ def test_grpc_predict_hourly_weather_success(grpc_service: inference_pb2_grpc.In
         issue_time=issue_time,
         horizon_hours=24,
         history=observations,
+        latitude=45.5,
+        longitude=9.2,
+        elevation_m=120.0,
     )
 
     response = grpc_service.PredictHourlyWeather(request)
@@ -84,8 +86,12 @@ def test_grpc_predict_hourly_weather_success(grpc_service: inference_pb2_grpc.In
     assert response.predictions[0].horizon_hours == 1
     assert response.predictions[-1].horizon_hours == 24
     assert response.predictions[0].HasField("temperature_c")
+    assert response.predictions[0].HasField("temperature_c_p10")
+    assert response.predictions[0].HasField("temperature_c_p90")
     assert response.predictions[0].HasField("humidity_pct")
     assert response.predictions[0].HasField("rainfall_mm")
+    assert response.predictions[0].HasField("rain_probability")
+    assert response.predictions[0].HasField("pressure_hpa")
     # issue_time must be floored to top of the hour (:00)
     assert response.predictions[0].issue_time.seconds == 1699999200
 
@@ -158,6 +164,7 @@ def test_grpc_predict_daily_weather_success(grpc_service: inference_pb2_grpc.Inf
             max_temperature_c=22.0,
             min_humidity_pct=50.0,
             max_humidity_pct=80.0,
+            pressure_hpa=1015.0,
         )
         observations.append(obs)
 
@@ -166,12 +173,18 @@ def test_grpc_predict_daily_weather_success(grpc_service: inference_pb2_grpc.Inf
         issue_time=issue_time,
         horizon_days=10,
         history=observations,
+        latitude=45.5,
+        longitude=9.2,
+        elevation_m=120.0,
     )
 
     response = grpc_service.PredictDailyWeather(request)
     assert len(response.predictions) == 10
-    assert response.predictions[0].horizon_days == 1
-    assert response.predictions[-1].horizon_days == 10
+    assert response.predictions[0].horizon_days == 0
+    assert response.predictions[-1].horizon_days == 9
+    # issue_time floored to 00:00:00 UTC (1700000000 // 86400 * 86400 == 1699920000)
+    assert response.predictions[0].issue_time.seconds == 1699920000
+    assert response.predictions[0].HasField("pressure_hpa")
 
 
 def test_grpc_predict_weather_warns_when_horizon_exceeds_recommendation(
@@ -211,9 +224,6 @@ def test_grpc_predict_weather_no_horizon_warning_with_timestral(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test_grpc_predict_weather_no_horizon_warning_with_timestral verifies no cap warning is logged."""
-    from inference.backends.timestral import TimestralBackend
-    from tests.helpers import create_synthetic_timestral_forecaster
-
     forecaster = create_synthetic_timestral_forecaster()
     backend = TimestralBackend(model_name="test-timestral", pipeline=forecaster)
     config = Config(host="127.0.0.1", port=0, model_name="test-timestral", max_horizon_hours=240)
