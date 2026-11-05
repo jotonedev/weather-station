@@ -143,6 +143,25 @@ func TestHandler_ServeHTTP_FontNoCompression(t *testing.T) {
 	}
 }
 
+func TestHandler_ServeHTTP_FaviconSVG(t *testing.T) {
+	h := newTestHandler(t)
+	req := httptest.NewRequest(http.MethodGet, "/static/favicon/favicon.svg", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Fatalf("expected Content-Type image/svg+xml, got %q", ct)
+	}
+	if ce := rec.Header().Get("Content-Encoding"); ce != "gzip" {
+		t.Fatalf("expected Content-Encoding gzip, got %q", ce)
+	}
+}
+
 func TestHandler_ServeHTTP_ConditionalRequest_304(t *testing.T) {
 	h := newTestHandler(t)
 

@@ -148,7 +148,7 @@ func compressGzip(data []byte) ([]byte, error) {
 
 func isCompressibleExt(ext string) bool {
 	switch strings.ToLower(ext) {
-	case ".css", ".ttf", ".txt":
+	case ".css", ".ttf", ".txt", ".svg":
 		return true
 	default:
 		return false
@@ -167,6 +167,8 @@ func contentTypeForExt(ext string) (string, bool) {
 		return "font/ttf", true
 	case ".txt":
 		return "text/plain; charset=utf-8", true
+	case ".svg":
+		return "image/svg+xml", true
 	default:
 		return "", false
 	}
