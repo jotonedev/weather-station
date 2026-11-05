@@ -194,7 +194,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
             type=local,src=${{ runner.temp }}/.buildx-cache
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/inference-server:lates
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/inference-server:latest
           cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
       - name: Move cache
