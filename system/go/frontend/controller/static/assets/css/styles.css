@@ -259,12 +259,13 @@ header {
 .forecast-strip {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(148px, 1fr);
+  grid-auto-columns: minmax(148px, max-content); 
   gap: 0.875rem;
   overflow-x: auto;
   padding-bottom: 0.5rem;
   scrollbar-width: thin;
 }
+  
 
 .forecast-strip-compact {
   grid-auto-columns: minmax(88px, 100px);
