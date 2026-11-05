@@ -1,9 +1,10 @@
 package static
 
 import (
+	"crypto/sha256"
 	"embed"
 	"errors"
-	"io"
+	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -22,10 +23,18 @@ var (
 	ErrAssetNotFound = errors.New("static asset not found")
 )
 
+// Asset represents an embedded static file with cached metadata.
+type Asset struct {
+	Data         []byte
+	ContentType  string
+	ETag         string
+	CacheControl string
+}
+
 // Controller serves embedded static assets with path traversal protection.
 type Controller struct {
-	log     *zap.Logger
-	assetFS fs.FS
+	log    *zap.Logger
+	assets map[string]Asset
 }
 
 // ControllerParams defines dependencies for Controller.
@@ -41,46 +50,73 @@ func New(params ControllerParams) (*Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	assets := make(map[string]Asset)
+	err = fs.WalkDir(subFS, ".", func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		ext := path.Ext(p)
+		contentType, ok := contentTypeForExt(ext)
+		if !ok {
+			return nil
+		}
+
+		data, readErr := fs.ReadFile(subFS, p)
+		if readErr != nil {
+			return readErr
+		}
+
+		hash := sha256.Sum256(data)
+		assets[p] = Asset{
+			Data:         data,
+			ContentType:  contentType,
+			ETag:         fmt.Sprintf("\"%x\"", hash),
+			CacheControl: cacheControlForExt(ext),
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	return &Controller{
-		log:     params.Logger,
-		assetFS: subFS,
+		log:    params.Logger,
+		assets: assets,
 	}, nil
 }
 
-// ReadAsset validates the relative asset path, reads the embedded file, and returns its bytes and MIME content type.
-func (c *Controller) ReadAsset(rawPath string) ([]byte, string, error) {
+// GetAsset retrieves a static asset by relative path.
+func (c *Controller) GetAsset(rawPath string) (Asset, error) {
 	if rawPath == "" || strings.Contains(rawPath, "\\") || strings.Contains(rawPath, "..") {
-		return nil, "", ErrInvalidAssetPath
+		return Asset{}, ErrInvalidAssetPath
 	}
 
 	trimmed := strings.TrimPrefix(rawPath, "/")
 	cleaned := path.Clean(trimmed)
 	if cleaned == "." || cleaned == "/" || strings.HasPrefix(cleaned, "..") || !fs.ValidPath(cleaned) {
-		return nil, "", ErrInvalidAssetPath
+		return Asset{}, ErrInvalidAssetPath
 	}
 
-	contentType, ok := contentTypeForExt(path.Ext(cleaned))
+	asset, ok := c.assets[cleaned]
 	if !ok {
-		return nil, "", ErrAssetNotFound
+		return Asset{}, ErrAssetNotFound
 	}
 
-	file, err := c.assetFS.Open(cleaned)
-	if err != nil {
-		return nil, "", ErrAssetNotFound
-	}
-	defer file.Close()
+	return asset, nil
+}
 
-	info, err := file.Stat()
-	if err != nil || info.IsDir() {
-		return nil, "", ErrAssetNotFound
-	}
-
-	data, err := io.ReadAll(file)
+// ReadAsset validates the relative asset path, reads the embedded file, and returns its bytes and MIME content type.
+func (c *Controller) ReadAsset(rawPath string) ([]byte, string, error) {
+	asset, err := c.GetAsset(rawPath)
 	if err != nil {
 		return nil, "", err
 	}
-
-	return data, contentType, nil
+	return asset.Data, asset.ContentType, nil
 }
 
 func contentTypeForExt(ext string) (string, bool) {
@@ -97,5 +133,14 @@ func contentTypeForExt(ext string) (string, bool) {
 		return "text/plain; charset=utf-8", true
 	default:
 		return "", false
+	}
+}
+
+func cacheControlForExt(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".woff2", ".woff", ".ttf":
+		return "public, max-age=31536000, immutable"
+	default:
+		return "public, max-age=0, must-revalidate"
 	}
 }

@@ -53,7 +53,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relPath := strings.TrimPrefix(r.URL.Path, routePrefix)
-	data, contentType, err := h.staticController.ReadAsset(relPath)
+	asset, err := h.staticController.GetAsset(relPath)
 	if err != nil {
 		if errors.Is(err, staticctrl.ErrInvalidAssetPath) || errors.Is(err, staticctrl.ErrAssetNotFound) {
 			http.NotFound(w, r)
@@ -64,11 +64,37 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	if matchETag(r.Header.Get("If-None-Match"), asset.ETag) {
+		w.Header().Set("ETag", asset.ETag)
+		w.Header().Set("Cache-Control", asset.CacheControl)
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	w.Header().Set("Content-Type", asset.ContentType)
+	w.Header().Set("ETag", asset.ETag)
+	w.Header().Set("Cache-Control", asset.CacheControl)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodGet {
-		_, _ = w.Write(data)
+		_, _ = w.Write(asset.Data)
 	}
+}
+
+func matchETag(clientHeader, serverETag string) bool {
+	if clientHeader == "" {
+		return false
+	}
+	if clientHeader == "*" {
+		return true
+	}
+	serverClean := strings.TrimPrefix(serverETag, "W/")
+	for _, rawTag := range strings.Split(clientHeader, ",") {
+		tag := strings.TrimSpace(rawTag)
+		tag = strings.TrimPrefix(tag, "W/")
+		if tag == serverClean {
+			return true
+		}
+	}
+	return false
 }
