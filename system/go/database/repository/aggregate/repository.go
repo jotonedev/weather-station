@@ -36,6 +36,10 @@ func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, st
 		avg(rain_1h) * (? / 3600.0) AS total_rainfall_mm,
 		avg(wind_speed) AS avg_wind_speed_mps,
 		fmod(degrees(atan2(avg(sin(radians(wind_angle))), avg(cos(radians(wind_angle))))) + 360.0, 360.0) AS avg_wind_direction_deg,
+		max(wind_speed) AS max_wind_speed_mps,
+		avg(-wind_speed * sin(radians(wind_angle))) AS avg_wind_u_mps,
+		avg(-wind_speed * cos(radians(wind_angle))) AS avg_wind_v_mps,
+		max(rain_rate) AS max_rain_rate_mmh,
 		count(*) AS sample_count
 	FROM weather
 	WHERE node_id = ? AND ts >= ? AND ts < ?
@@ -61,6 +65,10 @@ func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, st
 			&aggregate.TotalRainfallMm,
 			&aggregate.AvgWindSpeedMps,
 			&aggregate.AvgWindDirectionDeg,
+			&aggregate.MaxWindSpeedMps,
+			&aggregate.AvgWindUMps,
+			&aggregate.AvgWindVMps,
+			&aggregate.MaxRainRateMmh,
 			&aggregate.SampleCount,
 		); err != nil {
 			r.log.Error("failed to scan climate aggregate", zap.String("node_id", nodeID), zap.Error(err))

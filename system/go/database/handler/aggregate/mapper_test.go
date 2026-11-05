@@ -14,6 +14,10 @@ func TestModelClimateToPB(t *testing.T) {
 	rainfall := float32(2.4)
 	windSpeed := float32(4.2)
 	windDir := float32(270.0)
+	maxWind := float32(8.5)
+	windU := float32(4.2)
+	windV := float32(0.0)
+	maxRainRate := float32(5.1)
 
 	aggregate := repository.ClimateAggregate{
 		NodeID:              "n1",
@@ -22,6 +26,10 @@ func TestModelClimateToPB(t *testing.T) {
 		TotalRainfallMm:     &rainfall,
 		AvgWindSpeedMps:     &windSpeed,
 		AvgWindDirectionDeg: &windDir,
+		MaxWindSpeedMps:     &maxWind,
+		AvgWindUMps:         &windU,
+		AvgWindVMps:         &windV,
+		MaxRainRateMmh:      &maxRainRate,
 		SampleCount:         3,
 	}
 
@@ -43,6 +51,18 @@ func TestModelClimateToPB(t *testing.T) {
 	}
 	if response.AvgWindDirectionDeg == nil || *response.AvgWindDirectionDeg != windDir {
 		t.Errorf("AvgWindDirectionDeg = %v, want %v", response.AvgWindDirectionDeg, windDir)
+	}
+	if response.MaxWindSpeedMps == nil || *response.MaxWindSpeedMps != maxWind {
+		t.Errorf("MaxWindSpeedMps = %v, want %v", response.MaxWindSpeedMps, maxWind)
+	}
+	if response.AvgWindUMps == nil || *response.AvgWindUMps != windU {
+		t.Errorf("AvgWindUMps = %v, want %v", response.AvgWindUMps, windU)
+	}
+	if response.AvgWindVMps == nil || *response.AvgWindVMps != windV {
+		t.Errorf("AvgWindVMps = %v, want %v", response.AvgWindVMps, windV)
+	}
+	if response.MaxRainRateMmh == nil || *response.MaxRainRateMmh != maxRainRate {
+		t.Errorf("MaxRainRateMmh = %v, want %v", response.MaxRainRateMmh, maxRainRate)
 	}
 	if response.SampleCount != 3 {
 		t.Errorf("SampleCount = %d, want 3", response.SampleCount)

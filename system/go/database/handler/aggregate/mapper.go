@@ -24,6 +24,10 @@ func modelClimateToPB(aggregate repository.ClimateAggregate) *protodatabasev1.Cl
 		TotalRainfallMm:     aggregate.TotalRainfallMm,
 		AvgWindSpeedMps:     aggregate.AvgWindSpeedMps,
 		AvgWindDirectionDeg: aggregate.AvgWindDirectionDeg,
+		MaxWindSpeedMps:     aggregate.MaxWindSpeedMps,
+		AvgWindUMps:         aggregate.AvgWindUMps,
+		AvgWindVMps:         aggregate.AvgWindVMps,
+		MaxRainRateMmh:      aggregate.MaxRainRateMmh,
 		SampleCount:         aggregate.SampleCount,
 	}
 }

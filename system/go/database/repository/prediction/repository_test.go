@@ -22,13 +22,13 @@ func TestExtractHourlyValues(t *testing.T) {
 		{
 			name:       "present metrics",
 			prediction: HourlyPrediction{NodeID: "n1", Ts: timestamp, HorizonHours: 6, RainfallMm: &rainfall},
-			wantLen:    7,
+			wantLen:    15,
 			wantNode:   "n1",
 		},
 		{
 			name:       "absent metrics are nil",
 			prediction: HourlyPrediction{NodeID: "n2", Ts: timestamp, HorizonHours: 24},
-			wantLen:    7,
+			wantLen:    15,
 			wantNode:   "n2",
 		},
 	}
@@ -55,8 +55,8 @@ func TestExtractDailyValues(t *testing.T) {
 	prediction := DailyPrediction{NodeID: "n1", Ts: timestamp, HorizonDays: 2, RainfallMm: &rainfall}
 	values := extractDailyValues(prediction)
 
-	if len(values) != 9 {
-		t.Fatalf("len(values) = %d, want 9", len(values))
+	if len(values) != 15 {
+		t.Fatalf("len(values) = %d, want 15", len(values))
 	}
 	if values[0] != "n1" {
 		t.Errorf("node_id = %v, want %q", values[0], "n1")
@@ -67,7 +67,7 @@ func TestExtractDailyValues(t *testing.T) {
 	if value, ok := values[7].(float32); !ok || value != rainfall {
 		t.Errorf("rainfall = %v, want %v", values[7], rainfall)
 	}
-	for _, columnIndex := range []int{3, 4, 5, 6, 8} {
+	for _, columnIndex := range []int{3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14} {
 		if values[columnIndex] != nil {
 			t.Errorf("index %d should be nil, got %v", columnIndex, values[columnIndex])
 		}
@@ -108,9 +108,17 @@ func TestStoreAndGetHourlyPredictions(testingT *testing.T) {
 	issueTime := time.Date(2026, 10, 22, 13, 0, 0, 0, time.UTC)
 	temperatureFirst := float32(18.5)
 	temperatureSecond := float32(19.0)
+	tempP10 := float32(17.0)
+	tempP90 := float32(21.0)
+	rainProb := float32(0.35)
+	pressure := float32(1013.2)
 
 	initialBatch := []HourlyPrediction{
-		{NodeID: "station-alpha", Ts: issueTime, HorizonHours: 1, TemperatureC: &temperatureFirst},
+		{
+			NodeID: "station-alpha", Ts: issueTime, HorizonHours: 1,
+			TemperatureC: &temperatureFirst, TemperatureCP10: &tempP10, TemperatureCP90: &tempP90,
+			RainProbability: &rainProb, PressureHpa: &pressure,
+		},
 		{NodeID: "station-alpha", Ts: issueTime, HorizonHours: 2, TemperatureC: &temperatureFirst},
 	}
 
@@ -123,7 +131,11 @@ func TestStoreAndGetHourlyPredictions(testingT *testing.T) {
 	}
 
 	retryBatch := []HourlyPrediction{
-		{NodeID: "station-alpha", Ts: issueTime, HorizonHours: 1, TemperatureC: &temperatureSecond},
+		{
+			NodeID: "station-alpha", Ts: issueTime, HorizonHours: 1,
+			TemperatureC: &temperatureSecond, TemperatureCP10: &tempP10, TemperatureCP90: &tempP90,
+			RainProbability: &rainProb, PressureHpa: &pressure,
+		},
 		{NodeID: "station-alpha", Ts: issueTime, HorizonHours: 2, TemperatureC: &temperatureSecond},
 	}
 
@@ -144,6 +156,12 @@ func TestStoreAndGetHourlyPredictions(testingT *testing.T) {
 	}
 	if *forecast.Hourly[0].TemperatureC != temperatureSecond {
 		testingT.Errorf("forecast.Hourly[0].TemperatureC = %v, want %v", *forecast.Hourly[0].TemperatureC, temperatureSecond)
+	}
+	if *forecast.Hourly[0].RainProbability != rainProb {
+		testingT.Errorf("forecast.Hourly[0].RainProbability = %v, want %v", *forecast.Hourly[0].RainProbability, rainProb)
+	}
+	if *forecast.Hourly[0].PressureHpa != pressure {
+		testingT.Errorf("forecast.Hourly[0].PressureHpa = %v, want %v", *forecast.Hourly[0].PressureHpa, pressure)
 	}
 }
 

@@ -119,6 +119,13 @@ func (c *Client) Check(ctx context.Context) error {
 }
 
 func (c *Client) initSchema(ctx context.Context) error {
+	if err := c.migratePredictionTable(ctx, "hourly_predictions", "idx_hourly_predictions_node_ts", "pressure_hpa_p90"); err != nil {
+		return err
+	}
+	if err := c.migratePredictionTable(ctx, "daily_predictions", "idx_daily_predictions_node_ts", "pressure_hpa_p90"); err != nil {
+		return err
+	}
+
 	queries := []string{
 		// 1. Weather readings table
 		`CREATE TABLE IF NOT EXISTS weather (
@@ -161,27 +168,41 @@ func (c *Client) initSchema(ctx context.Context) error {
 
 		// 3. Hourly forecast predictions table
 		`CREATE TABLE IF NOT EXISTS hourly_predictions (
-			node_id             VARCHAR NOT NULL,
-			ts                  TIMESTAMP NOT NULL,
-			horizon_hours       INTEGER NOT NULL,
-			temperature_c       FLOAT,
-			humidity_pct        FLOAT,
-			rainfall_mm         FLOAT,
-			rainfall_confidence FLOAT
+			node_id            VARCHAR NOT NULL,
+			ts                 TIMESTAMP NOT NULL,
+			horizon_hours      INTEGER NOT NULL,
+			temperature_c      FLOAT,
+			humidity_pct       FLOAT,
+			rainfall_mm        FLOAT,
+			rain_probability   FLOAT,
+			temperature_c_p10  FLOAT,
+			temperature_c_p90  FLOAT,
+			humidity_pct_p10   FLOAT,
+			humidity_pct_p90   FLOAT,
+			rainfall_mm_p90    FLOAT,
+			pressure_hpa       FLOAT,
+			pressure_hpa_p10   FLOAT,
+			pressure_hpa_p90   FLOAT
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_hourly_predictions_node_ts ON hourly_predictions (node_id, ts);`,
 
 		// 4. Daily forecast predictions table
 		`CREATE TABLE IF NOT EXISTS daily_predictions (
-			node_id             VARCHAR NOT NULL,
-			ts                  TIMESTAMP NOT NULL,
-			horizon_days        INTEGER NOT NULL,
-			min_temperature_c   FLOAT,
-			max_temperature_c   FLOAT,
-			min_humidity_pct    FLOAT,
-			max_humidity_pct    FLOAT,
-			rainfall_mm         FLOAT,
-			rainfall_confidence FLOAT
+			node_id               VARCHAR NOT NULL,
+			ts                    TIMESTAMP NOT NULL,
+			horizon_days          INTEGER NOT NULL,
+			min_temperature_c     FLOAT,
+			max_temperature_c     FLOAT,
+			min_humidity_pct      FLOAT,
+			max_humidity_pct      FLOAT,
+			rainfall_mm           FLOAT,
+			rain_probability      FLOAT,
+			min_temperature_c_p10 FLOAT,
+			max_temperature_c_p90 FLOAT,
+			rainfall_mm_p90       FLOAT,
+			pressure_hpa          FLOAT,
+			pressure_hpa_p10      FLOAT,
+			pressure_hpa_p90      FLOAT
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_daily_predictions_node_ts ON daily_predictions (node_id, ts);`,
 	}
@@ -192,5 +213,41 @@ func (c *Client) initSchema(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// migratePredictionTable drops an existing prediction table and its index if it lacks the latest schema column.
+func (c *Client) migratePredictionTable(ctx context.Context, tableName, indexName, requiredColumn string) error {
+	var tableCount int
+	if err := c.db.QueryRowContext(
+		ctx,
+		`SELECT count(*) FROM duckdb_tables() WHERE table_name = ?`,
+		tableName,
+	).Scan(&tableCount); err != nil {
+		return fmt.Errorf("check table %s: %w", tableName, err)
+	}
+	if tableCount == 0 {
+		return nil
+	}
+
+	var colCount int
+	if err := c.db.QueryRowContext(
+		ctx,
+		`SELECT count(*) FROM duckdb_columns() WHERE table_name = ? AND column_name = ?`,
+		tableName,
+		requiredColumn,
+	).Scan(&colCount); err != nil {
+		return fmt.Errorf("check column %s.%s: %w", tableName, requiredColumn, err)
+	}
+	if colCount > 0 {
+		return nil
+	}
+
+	if _, err := c.db.ExecContext(ctx, fmt.Sprintf("DROP INDEX IF EXISTS %s;", indexName)); err != nil {
+		return fmt.Errorf("drop index %s: %w", indexName, err)
+	}
+	if _, err := c.db.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName)); err != nil {
+		return fmt.Errorf("drop table %s: %w", tableName, err)
+	}
 	return nil
 }

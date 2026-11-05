@@ -21,15 +21,22 @@ func New(client *duckdb.Client, log *zap.Logger) *Repository {
 const insertHourlyPredictionSQL = `INSERT INTO hourly_predictions (
 	node_id, ts, horizon_hours,
 	temperature_c, humidity_pct,
-	rainfall_mm, rainfall_confidence
-) VALUES (?, ?, ?, ?, ?, ?, ?);`
+	rainfall_mm, rain_probability,
+	temperature_c_p10, temperature_c_p90,
+	humidity_pct_p10, humidity_pct_p90,
+	rainfall_mm_p90,
+	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 const insertDailyPredictionSQL = `INSERT INTO daily_predictions (
 	node_id, ts, horizon_days,
 	min_temperature_c, max_temperature_c,
 	min_humidity_pct, max_humidity_pct,
-	rainfall_mm, rainfall_confidence
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`
+	rainfall_mm, rain_probability,
+	min_temperature_c_p10, max_temperature_c_p90,
+	rainfall_mm_p90,
+	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 const deleteHourlyPredictionsSQL = `DELETE FROM hourly_predictions WHERE node_id = ? AND ts = ?;`
 
@@ -153,12 +160,19 @@ func (r *Repository) StoreDailyPredictions(ctx context.Context, predictions []Da
 
 const hourlySelectColumns = `node_id, ts, horizon_hours,
 	temperature_c, humidity_pct,
-	rainfall_mm, rainfall_confidence`
+	rainfall_mm, rain_probability,
+	temperature_c_p10, temperature_c_p90,
+	humidity_pct_p10, humidity_pct_p90,
+	rainfall_mm_p90,
+	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90`
 
 const dailySelectColumns = `node_id, ts, horizon_days,
 	min_temperature_c, max_temperature_c,
 	min_humidity_pct, max_humidity_pct,
-	rainfall_mm, rainfall_confidence`
+	rainfall_mm, rain_probability,
+	min_temperature_c_p10, max_temperature_c_p90,
+	rainfall_mm_p90,
+	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90`
 
 // getLatestHourlyPredictions returns the latest hourly prediction batch for a node, ordered by horizon.
 func (r *Repository) getLatestHourlyPredictions(ctx context.Context, nodeID string) ([]HourlyPrediction, error) {

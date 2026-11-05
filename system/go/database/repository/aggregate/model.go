@@ -18,6 +18,10 @@ type ClimateAggregate struct {
 	TotalRainfallMm     *float32
 	AvgWindSpeedMps     *float32
 	AvgWindDirectionDeg *float32
+	MaxWindSpeedMps     *float32
+	AvgWindUMps         *float32
+	AvgWindVMps         *float32
+	MaxRainRateMmh      *float32
 	SampleCount         uint64
 }
 

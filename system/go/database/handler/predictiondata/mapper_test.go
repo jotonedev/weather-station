@@ -13,12 +13,16 @@ import (
 func TestModelHourlyToPB(t *testing.T) {
 	issueTime := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
 	rainfall := float32(2.5)
+	rainProb := float32(0.4)
+	pressure := float32(1012.0)
 
 	model := prediction.HourlyPrediction{
-		NodeID:       "n1",
-		Ts:           issueTime,
-		HorizonHours: 6,
-		RainfallMm:   &rainfall,
+		NodeID:          "n1",
+		Ts:              issueTime,
+		HorizonHours:    6,
+		RainfallMm:      &rainfall,
+		RainProbability: &rainProb,
+		PressureHpa:     &pressure,
 	}
 
 	response := modelHourlyToPB(model)
@@ -33,6 +37,12 @@ func TestModelHourlyToPB(t *testing.T) {
 	}
 	if response.RainfallMm == nil || *response.RainfallMm != rainfall {
 		t.Errorf("RainfallMm = %v, want %v", response.RainfallMm, rainfall)
+	}
+	if response.RainProbability == nil || *response.RainProbability != rainProb {
+		t.Errorf("RainProbability = %v, want %v", response.RainProbability, rainProb)
+	}
+	if response.PressureHpa == nil || *response.PressureHpa != pressure {
+		t.Errorf("PressureHpa = %v, want %v", response.PressureHpa, pressure)
 	}
 	if response.TemperatureC != nil {
 		t.Errorf("TemperatureC = %v, want nil", response.TemperatureC)
