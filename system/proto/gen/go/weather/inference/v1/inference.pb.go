@@ -33,6 +33,8 @@ type PredictHourlyWeatherRequest struct {
 	Latitude       *float64                 `protobuf:"fixed64,5,opt,name=latitude,proto3,oneof" json:"latitude,omitempty"`
 	DataBlob       []byte                   `protobuf:"bytes,6,opt,name=data_blob,json=dataBlob,proto3,oneof" json:"data_blob,omitempty"`
 	DataBlobFormat *string                  `protobuf:"bytes,7,opt,name=data_blob_format,json=dataBlobFormat,proto3,oneof" json:"data_blob_format,omitempty"`
+	Longitude      *float64                 `protobuf:"fixed64,8,opt,name=longitude,proto3,oneof" json:"longitude,omitempty"`
+	ElevationM     *float64                 `protobuf:"fixed64,9,opt,name=elevation_m,json=elevationM,proto3,oneof" json:"elevation_m,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -116,6 +118,20 @@ func (x *PredictHourlyWeatherRequest) GetDataBlobFormat() string {
 	return ""
 }
 
+func (x *PredictHourlyWeatherRequest) GetLongitude() float64 {
+	if x != nil && x.Longitude != nil {
+		return *x.Longitude
+	}
+	return 0
+}
+
+func (x *PredictHourlyWeatherRequest) GetElevationM() float64 {
+	if x != nil && x.ElevationM != nil {
+		return *x.ElevationM
+	}
+	return 0
+}
+
 // PredictHourlyWeatherResponse contains hourly predictions.
 type PredictHourlyWeatherResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -187,6 +203,8 @@ type PredictDailyWeatherRequest struct {
 	Latitude       *float64                 `protobuf:"fixed64,5,opt,name=latitude,proto3,oneof" json:"latitude,omitempty"`
 	DataBlob       []byte                   `protobuf:"bytes,6,opt,name=data_blob,json=dataBlob,proto3,oneof" json:"data_blob,omitempty"`
 	DataBlobFormat *string                  `protobuf:"bytes,7,opt,name=data_blob_format,json=dataBlobFormat,proto3,oneof" json:"data_blob_format,omitempty"`
+	Longitude      *float64                 `protobuf:"fixed64,8,opt,name=longitude,proto3,oneof" json:"longitude,omitempty"`
+	ElevationM     *float64                 `protobuf:"fixed64,9,opt,name=elevation_m,json=elevationM,proto3,oneof" json:"elevation_m,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -268,6 +286,20 @@ func (x *PredictDailyWeatherRequest) GetDataBlobFormat() string {
 		return *x.DataBlobFormat
 	}
 	return ""
+}
+
+func (x *PredictDailyWeatherRequest) GetLongitude() float64 {
+	if x != nil && x.Longitude != nil {
+		return *x.Longitude
+	}
+	return 0
+}
+
+func (x *PredictDailyWeatherRequest) GetElevationM() float64 {
+	if x != nil && x.ElevationM != nil {
+		return *x.ElevationM
+	}
+	return 0
 }
 
 // PredictDailyWeatherResponse contains daily predictions.
@@ -360,6 +392,14 @@ type TimeSeriesObservation struct {
 	MinPressureHpa *float32 `protobuf:"fixed32,12,opt,name=min_pressure_hpa,json=minPressureHpa,proto3,oneof" json:"min_pressure_hpa,omitempty"`
 	// Maximum atmospheric pressure in hectopascals.
 	MaxPressureHpa *float32 `protobuf:"fixed32,13,opt,name=max_pressure_hpa,json=maxPressureHpa,proto3,oneof" json:"max_pressure_hpa,omitempty"`
+	// Maximum wind speed (gust) in meters per second.
+	MaxWindSpeedMps *float32 `protobuf:"fixed32,14,opt,name=max_wind_speed_mps,json=maxWindSpeedMps,proto3,oneof" json:"max_wind_speed_mps,omitempty"`
+	// Mean eastward wind component in meters per second.
+	WindUMps *float32 `protobuf:"fixed32,15,opt,name=wind_u_mps,json=windUMps,proto3,oneof" json:"wind_u_mps,omitempty"`
+	// Mean northward wind component in meters per second.
+	WindVMps *float32 `protobuf:"fixed32,16,opt,name=wind_v_mps,json=windVMps,proto3,oneof" json:"wind_v_mps,omitempty"`
+	// Maximum rain rate in millimeters per hour.
+	MaxRainRateMmh *float32 `protobuf:"fixed32,17,opt,name=max_rain_rate_mmh,json=maxRainRateMmh,proto3,oneof" json:"max_rain_rate_mmh,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -485,6 +525,34 @@ func (x *TimeSeriesObservation) GetMaxPressureHpa() float32 {
 	return 0
 }
 
+func (x *TimeSeriesObservation) GetMaxWindSpeedMps() float32 {
+	if x != nil && x.MaxWindSpeedMps != nil {
+		return *x.MaxWindSpeedMps
+	}
+	return 0
+}
+
+func (x *TimeSeriesObservation) GetWindUMps() float32 {
+	if x != nil && x.WindUMps != nil {
+		return *x.WindUMps
+	}
+	return 0
+}
+
+func (x *TimeSeriesObservation) GetWindVMps() float32 {
+	if x != nil && x.WindVMps != nil {
+		return *x.WindVMps
+	}
+	return 0
+}
+
+func (x *TimeSeriesObservation) GetMaxRainRateMmh() float32 {
+	if x != nil && x.MaxRainRateMmh != nil {
+		return *x.MaxRainRateMmh
+	}
+	return 0
+}
+
 // GetModelInfoRequest requests metadata for the inference model.
 type GetModelInfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -581,7 +649,7 @@ var File_weather_inference_v1_inference_proto protoreflect.FileDescriptor
 
 const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\n" +
-	"$weather/inference/v1/inference.proto\x12\x14weather.inference.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$weather/database/v1/prediction.proto\"\xff\x02\n" +
+	"$weather/inference/v1/inference.proto\x12\x14weather.inference.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a$weather/database/v1/prediction.proto\"\xe6\x03\n" +
 	"\x1bPredictHourlyWeatherRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
 	"\n" +
@@ -590,18 +658,24 @@ const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\ahistory\x18\x04 \x03(\v2+.weather.inference.v1.TimeSeriesObservationR\ahistory\x12\x1f\n" +
 	"\blatitude\x18\x05 \x01(\x01H\x00R\blatitude\x88\x01\x01\x12 \n" +
 	"\tdata_blob\x18\x06 \x01(\fH\x01R\bdataBlob\x88\x01\x01\x12-\n" +
-	"\x10data_blob_format\x18\a \x01(\tH\x02R\x0edataBlobFormat\x88\x01\x01B\v\n" +
+	"\x10data_blob_format\x18\a \x01(\tH\x02R\x0edataBlobFormat\x88\x01\x01\x12!\n" +
+	"\tlongitude\x18\b \x01(\x01H\x03R\tlongitude\x88\x01\x01\x12$\n" +
+	"\velevation_m\x18\t \x01(\x01H\x04R\n" +
+	"elevationM\x88\x01\x01B\v\n" +
 	"\t_latitudeB\f\n" +
 	"\n" +
 	"_data_blobB\x13\n" +
-	"\x11_data_blob_format\"\xda\x01\n" +
+	"\x11_data_blob_formatB\f\n" +
+	"\n" +
+	"_longitudeB\x0e\n" +
+	"\f_elevation_m\"\xda\x01\n" +
 	"\x1cPredictHourlyWeatherResponse\x12G\n" +
 	"\vpredictions\x18\x01 \x03(\v2%.weather.database.v1.HourlyPredictionR\vpredictions\x12;\n" +
 	"\vcomputed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"computedAt\x12$\n" +
 	"\voutput_blob\x18\x03 \x01(\fH\x00R\n" +
 	"outputBlob\x88\x01\x01B\x0e\n" +
-	"\f_output_blob\"\xfc\x02\n" +
+	"\f_output_blob\"\xe3\x03\n" +
 	"\x1aPredictDailyWeatherRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
 	"\n" +
@@ -610,18 +684,24 @@ const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\ahistory\x18\x04 \x03(\v2+.weather.inference.v1.TimeSeriesObservationR\ahistory\x12\x1f\n" +
 	"\blatitude\x18\x05 \x01(\x01H\x00R\blatitude\x88\x01\x01\x12 \n" +
 	"\tdata_blob\x18\x06 \x01(\fH\x01R\bdataBlob\x88\x01\x01\x12-\n" +
-	"\x10data_blob_format\x18\a \x01(\tH\x02R\x0edataBlobFormat\x88\x01\x01B\v\n" +
+	"\x10data_blob_format\x18\a \x01(\tH\x02R\x0edataBlobFormat\x88\x01\x01\x12!\n" +
+	"\tlongitude\x18\b \x01(\x01H\x03R\tlongitude\x88\x01\x01\x12$\n" +
+	"\velevation_m\x18\t \x01(\x01H\x04R\n" +
+	"elevationM\x88\x01\x01B\v\n" +
 	"\t_latitudeB\f\n" +
 	"\n" +
 	"_data_blobB\x13\n" +
-	"\x11_data_blob_format\"\xd8\x01\n" +
+	"\x11_data_blob_formatB\f\n" +
+	"\n" +
+	"_longitudeB\x0e\n" +
+	"\f_elevation_m\"\xd8\x01\n" +
 	"\x1bPredictDailyWeatherResponse\x12F\n" +
 	"\vpredictions\x18\x01 \x03(\v2$.weather.database.v1.DailyPredictionR\vpredictions\x12;\n" +
 	"\vcomputed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"computedAt\x12$\n" +
 	"\voutput_blob\x18\x03 \x01(\fH\x00R\n" +
 	"outputBlob\x88\x01\x01B\x0e\n" +
-	"\f_output_blob\"\xdb\x06\n" +
+	"\f_output_blob\"\xce\b\n" +
 	"\x15TimeSeriesObservation\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12(\n" +
 	"\rtemperature_c\x18\x02 \x01(\x02H\x00R\ftemperatureC\x88\x01\x01\x12&\n" +
@@ -638,7 +718,13 @@ const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\x10max_humidity_pct\x18\v \x01(\x02H\tR\x0emaxHumidityPct\x88\x01\x01\x12-\n" +
 	"\x10min_pressure_hpa\x18\f \x01(\x02H\n" +
 	"R\x0eminPressureHpa\x88\x01\x01\x12-\n" +
-	"\x10max_pressure_hpa\x18\r \x01(\x02H\vR\x0emaxPressureHpa\x88\x01\x01B\x10\n" +
+	"\x10max_pressure_hpa\x18\r \x01(\x02H\vR\x0emaxPressureHpa\x88\x01\x01\x120\n" +
+	"\x12max_wind_speed_mps\x18\x0e \x01(\x02H\fR\x0fmaxWindSpeedMps\x88\x01\x01\x12!\n" +
+	"\n" +
+	"wind_u_mps\x18\x0f \x01(\x02H\rR\bwindUMps\x88\x01\x01\x12!\n" +
+	"\n" +
+	"wind_v_mps\x18\x10 \x01(\x02H\x0eR\bwindVMps\x88\x01\x01\x12.\n" +
+	"\x11max_rain_rate_mmh\x18\x11 \x01(\x02H\x0fR\x0emaxRainRateMmh\x88\x01\x01B\x10\n" +
 	"\x0e_temperature_cB\x0f\n" +
 	"\r_humidity_pctB\x0f\n" +
 	"\r_pressure_hpaB\x11\n" +
@@ -650,7 +736,11 @@ const file_weather_inference_v1_inference_proto_rawDesc = "" +
 	"\x11_min_humidity_pctB\x13\n" +
 	"\x11_max_humidity_pctB\x13\n" +
 	"\x11_min_pressure_hpaB\x13\n" +
-	"\x11_max_pressure_hpa\"\x15\n" +
+	"\x11_max_pressure_hpaB\x15\n" +
+	"\x13_max_wind_speed_mpsB\r\n" +
+	"\v_wind_u_mpsB\r\n" +
+	"\v_wind_v_mpsB\x14\n" +
+	"\x12_max_rain_rate_mmh\"\x15\n" +
 	"\x13GetModelInfoRequest\"a\n" +
 	"\x14GetModelInfoResponse\x12\x1d\n" +
 	"\n" +

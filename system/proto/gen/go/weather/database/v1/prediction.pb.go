@@ -24,16 +24,24 @@ const (
 
 // HourlyPrediction is a forecast for an hourly horizon.
 type HourlyPrediction struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	NodeId             string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	IssueTime          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
-	HorizonHours       int32                  `protobuf:"varint,3,opt,name=horizon_hours,json=horizonHours,proto3" json:"horizon_hours,omitempty"`
-	TemperatureC       *float32               `protobuf:"fixed32,4,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
-	HumidityPct        *float32               `protobuf:"fixed32,5,opt,name=humidity_pct,json=humidityPct,proto3,oneof" json:"humidity_pct,omitempty"`
-	RainfallMm         *float32               `protobuf:"fixed32,6,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
-	RainfallConfidence *float32               `protobuf:"fixed32,7,opt,name=rainfall_confidence,json=rainfallConfidence,proto3,oneof" json:"rainfall_confidence,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	NodeId          string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	IssueTime       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=issue_time,json=issueTime,proto3" json:"issue_time,omitempty"`
+	HorizonHours    int32                  `protobuf:"varint,3,opt,name=horizon_hours,json=horizonHours,proto3" json:"horizon_hours,omitempty"`
+	TemperatureC    *float32               `protobuf:"fixed32,4,opt,name=temperature_c,json=temperatureC,proto3,oneof" json:"temperature_c,omitempty"`
+	HumidityPct     *float32               `protobuf:"fixed32,5,opt,name=humidity_pct,json=humidityPct,proto3,oneof" json:"humidity_pct,omitempty"`
+	RainfallMm      *float32               `protobuf:"fixed32,6,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
+	RainProbability *float32               `protobuf:"fixed32,8,opt,name=rain_probability,json=rainProbability,proto3,oneof" json:"rain_probability,omitempty"`
+	TemperatureCP10 *float32               `protobuf:"fixed32,9,opt,name=temperature_c_p10,json=temperatureCP10,proto3,oneof" json:"temperature_c_p10,omitempty"`
+	TemperatureCP90 *float32               `protobuf:"fixed32,10,opt,name=temperature_c_p90,json=temperatureCP90,proto3,oneof" json:"temperature_c_p90,omitempty"`
+	HumidityPctP10  *float32               `protobuf:"fixed32,11,opt,name=humidity_pct_p10,json=humidityPctP10,proto3,oneof" json:"humidity_pct_p10,omitempty"`
+	HumidityPctP90  *float32               `protobuf:"fixed32,12,opt,name=humidity_pct_p90,json=humidityPctP90,proto3,oneof" json:"humidity_pct_p90,omitempty"`
+	RainfallMmP90   *float32               `protobuf:"fixed32,13,opt,name=rainfall_mm_p90,json=rainfallMmP90,proto3,oneof" json:"rainfall_mm_p90,omitempty"`
+	PressureHpa     *float32               `protobuf:"fixed32,14,opt,name=pressure_hpa,json=pressureHpa,proto3,oneof" json:"pressure_hpa,omitempty"`
+	PressureHpaP10  *float32               `protobuf:"fixed32,15,opt,name=pressure_hpa_p10,json=pressureHpaP10,proto3,oneof" json:"pressure_hpa_p10,omitempty"`
+	PressureHpaP90  *float32               `protobuf:"fixed32,16,opt,name=pressure_hpa_p90,json=pressureHpaP90,proto3,oneof" json:"pressure_hpa_p90,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *HourlyPrediction) Reset() {
@@ -108,9 +116,65 @@ func (x *HourlyPrediction) GetRainfallMm() float32 {
 	return 0
 }
 
-func (x *HourlyPrediction) GetRainfallConfidence() float32 {
-	if x != nil && x.RainfallConfidence != nil {
-		return *x.RainfallConfidence
+func (x *HourlyPrediction) GetRainProbability() float32 {
+	if x != nil && x.RainProbability != nil {
+		return *x.RainProbability
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetTemperatureCP10() float32 {
+	if x != nil && x.TemperatureCP10 != nil {
+		return *x.TemperatureCP10
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetTemperatureCP90() float32 {
+	if x != nil && x.TemperatureCP90 != nil {
+		return *x.TemperatureCP90
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetHumidityPctP10() float32 {
+	if x != nil && x.HumidityPctP10 != nil {
+		return *x.HumidityPctP10
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetHumidityPctP90() float32 {
+	if x != nil && x.HumidityPctP90 != nil {
+		return *x.HumidityPctP90
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetRainfallMmP90() float32 {
+	if x != nil && x.RainfallMmP90 != nil {
+		return *x.RainfallMmP90
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetPressureHpa() float32 {
+	if x != nil && x.PressureHpa != nil {
+		return *x.PressureHpa
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetPressureHpaP10() float32 {
+	if x != nil && x.PressureHpaP10 != nil {
+		return *x.PressureHpaP10
+	}
+	return 0
+}
+
+func (x *HourlyPrediction) GetPressureHpaP90() float32 {
+	if x != nil && x.PressureHpaP90 != nil {
+		return *x.PressureHpaP90
 	}
 	return 0
 }
@@ -126,7 +190,13 @@ type DailyPrediction struct {
 	MinHumidityPct     *float32               `protobuf:"fixed32,6,opt,name=min_humidity_pct,json=minHumidityPct,proto3,oneof" json:"min_humidity_pct,omitempty"`
 	MaxHumidityPct     *float32               `protobuf:"fixed32,7,opt,name=max_humidity_pct,json=maxHumidityPct,proto3,oneof" json:"max_humidity_pct,omitempty"`
 	RainfallMm         *float32               `protobuf:"fixed32,8,opt,name=rainfall_mm,json=rainfallMm,proto3,oneof" json:"rainfall_mm,omitempty"`
-	RainfallConfidence *float32               `protobuf:"fixed32,9,opt,name=rainfall_confidence,json=rainfallConfidence,proto3,oneof" json:"rainfall_confidence,omitempty"`
+	RainProbability    *float32               `protobuf:"fixed32,10,opt,name=rain_probability,json=rainProbability,proto3,oneof" json:"rain_probability,omitempty"`
+	MinTemperatureCP10 *float32               `protobuf:"fixed32,11,opt,name=min_temperature_c_p10,json=minTemperatureCP10,proto3,oneof" json:"min_temperature_c_p10,omitempty"`
+	MaxTemperatureCP90 *float32               `protobuf:"fixed32,12,opt,name=max_temperature_c_p90,json=maxTemperatureCP90,proto3,oneof" json:"max_temperature_c_p90,omitempty"`
+	RainfallMmP90      *float32               `protobuf:"fixed32,13,opt,name=rainfall_mm_p90,json=rainfallMmP90,proto3,oneof" json:"rainfall_mm_p90,omitempty"`
+	PressureHpa        *float32               `protobuf:"fixed32,14,opt,name=pressure_hpa,json=pressureHpa,proto3,oneof" json:"pressure_hpa,omitempty"`
+	PressureHpaP10     *float32               `protobuf:"fixed32,15,opt,name=pressure_hpa_p10,json=pressureHpaP10,proto3,oneof" json:"pressure_hpa_p10,omitempty"`
+	PressureHpaP90     *float32               `protobuf:"fixed32,16,opt,name=pressure_hpa_p90,json=pressureHpaP90,proto3,oneof" json:"pressure_hpa_p90,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -217,9 +287,51 @@ func (x *DailyPrediction) GetRainfallMm() float32 {
 	return 0
 }
 
-func (x *DailyPrediction) GetRainfallConfidence() float32 {
-	if x != nil && x.RainfallConfidence != nil {
-		return *x.RainfallConfidence
+func (x *DailyPrediction) GetRainProbability() float32 {
+	if x != nil && x.RainProbability != nil {
+		return *x.RainProbability
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetMinTemperatureCP10() float32 {
+	if x != nil && x.MinTemperatureCP10 != nil {
+		return *x.MinTemperatureCP10
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetMaxTemperatureCP90() float32 {
+	if x != nil && x.MaxTemperatureCP90 != nil {
+		return *x.MaxTemperatureCP90
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetRainfallMmP90() float32 {
+	if x != nil && x.RainfallMmP90 != nil {
+		return *x.RainfallMmP90
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetPressureHpa() float32 {
+	if x != nil && x.PressureHpa != nil {
+		return *x.PressureHpa
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetPressureHpaP10() float32 {
+	if x != nil && x.PressureHpaP10 != nil {
+		return *x.PressureHpaP10
+	}
+	return 0
+}
+
+func (x *DailyPrediction) GetPressureHpaP90() float32 {
+	if x != nil && x.PressureHpaP90 != nil {
+		return *x.PressureHpaP90
 	}
 	return 0
 }
@@ -228,7 +340,7 @@ var File_weather_database_v1_prediction_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_prediction_proto_rawDesc = "" +
 	"\n" +
-	"$weather/database/v1/prediction.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x84\x03\n" +
+	"$weather/database/v1/prediction.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xae\a\n" +
 	"\x10HourlyPrediction\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
 	"\n" +
@@ -237,12 +349,30 @@ const file_weather_database_v1_prediction_proto_rawDesc = "" +
 	"\rtemperature_c\x18\x04 \x01(\x02H\x00R\ftemperatureC\x88\x01\x01\x12&\n" +
 	"\fhumidity_pct\x18\x05 \x01(\x02H\x01R\vhumidityPct\x88\x01\x01\x12$\n" +
 	"\vrainfall_mm\x18\x06 \x01(\x02H\x02R\n" +
-	"rainfallMm\x88\x01\x01\x124\n" +
-	"\x13rainfall_confidence\x18\a \x01(\x02H\x03R\x12rainfallConfidence\x88\x01\x01B\x10\n" +
+	"rainfallMm\x88\x01\x01\x12.\n" +
+	"\x10rain_probability\x18\b \x01(\x02H\x03R\x0frainProbability\x88\x01\x01\x12/\n" +
+	"\x11temperature_c_p10\x18\t \x01(\x02H\x04R\x0ftemperatureCP10\x88\x01\x01\x12/\n" +
+	"\x11temperature_c_p90\x18\n" +
+	" \x01(\x02H\x05R\x0ftemperatureCP90\x88\x01\x01\x12-\n" +
+	"\x10humidity_pct_p10\x18\v \x01(\x02H\x06R\x0ehumidityPctP10\x88\x01\x01\x12-\n" +
+	"\x10humidity_pct_p90\x18\f \x01(\x02H\aR\x0ehumidityPctP90\x88\x01\x01\x12+\n" +
+	"\x0frainfall_mm_p90\x18\r \x01(\x02H\bR\rrainfallMmP90\x88\x01\x01\x12&\n" +
+	"\fpressure_hpa\x18\x0e \x01(\x02H\tR\vpressureHpa\x88\x01\x01\x12-\n" +
+	"\x10pressure_hpa_p10\x18\x0f \x01(\x02H\n" +
+	"R\x0epressureHpaP10\x88\x01\x01\x12-\n" +
+	"\x10pressure_hpa_p90\x18\x10 \x01(\x02H\vR\x0epressureHpaP90\x88\x01\x01B\x10\n" +
 	"\x0e_temperature_cB\x0f\n" +
 	"\r_humidity_pctB\x0e\n" +
-	"\f_rainfall_mmB\x16\n" +
-	"\x14_rainfall_confidence\"\xa2\x04\n" +
+	"\f_rainfall_mmB\x13\n" +
+	"\x11_rain_probabilityB\x14\n" +
+	"\x12_temperature_c_p10B\x14\n" +
+	"\x12_temperature_c_p90B\x13\n" +
+	"\x11_humidity_pct_p10B\x13\n" +
+	"\x11_humidity_pct_p90B\x12\n" +
+	"\x10_rainfall_mm_p90B\x0f\n" +
+	"\r_pressure_hpaB\x13\n" +
+	"\x11_pressure_hpa_p10B\x13\n" +
+	"\x11_pressure_hpa_p90J\x04\b\a\x10\bR\x13rainfall_confidence\"\xda\a\n" +
 	"\x0fDailyPrediction\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x129\n" +
 	"\n" +
@@ -253,14 +383,29 @@ const file_weather_database_v1_prediction_proto_rawDesc = "" +
 	"\x10min_humidity_pct\x18\x06 \x01(\x02H\x02R\x0eminHumidityPct\x88\x01\x01\x12-\n" +
 	"\x10max_humidity_pct\x18\a \x01(\x02H\x03R\x0emaxHumidityPct\x88\x01\x01\x12$\n" +
 	"\vrainfall_mm\x18\b \x01(\x02H\x04R\n" +
-	"rainfallMm\x88\x01\x01\x124\n" +
-	"\x13rainfall_confidence\x18\t \x01(\x02H\x05R\x12rainfallConfidence\x88\x01\x01B\x14\n" +
+	"rainfallMm\x88\x01\x01\x12.\n" +
+	"\x10rain_probability\x18\n" +
+	" \x01(\x02H\x05R\x0frainProbability\x88\x01\x01\x126\n" +
+	"\x15min_temperature_c_p10\x18\v \x01(\x02H\x06R\x12minTemperatureCP10\x88\x01\x01\x126\n" +
+	"\x15max_temperature_c_p90\x18\f \x01(\x02H\aR\x12maxTemperatureCP90\x88\x01\x01\x12+\n" +
+	"\x0frainfall_mm_p90\x18\r \x01(\x02H\bR\rrainfallMmP90\x88\x01\x01\x12&\n" +
+	"\fpressure_hpa\x18\x0e \x01(\x02H\tR\vpressureHpa\x88\x01\x01\x12-\n" +
+	"\x10pressure_hpa_p10\x18\x0f \x01(\x02H\n" +
+	"R\x0epressureHpaP10\x88\x01\x01\x12-\n" +
+	"\x10pressure_hpa_p90\x18\x10 \x01(\x02H\vR\x0epressureHpaP90\x88\x01\x01B\x14\n" +
 	"\x12_min_temperature_cB\x14\n" +
 	"\x12_max_temperature_cB\x13\n" +
 	"\x11_min_humidity_pctB\x13\n" +
 	"\x11_max_humidity_pctB\x0e\n" +
-	"\f_rainfall_mmB\x16\n" +
-	"\x14_rainfall_confidenceB7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
+	"\f_rainfall_mmB\x13\n" +
+	"\x11_rain_probabilityB\x18\n" +
+	"\x16_min_temperature_c_p10B\x18\n" +
+	"\x16_max_temperature_c_p90B\x12\n" +
+	"\x10_rainfall_mm_p90B\x0f\n" +
+	"\r_pressure_hpaB\x13\n" +
+	"\x11_pressure_hpa_p10B\x13\n" +
+	"\x11_pressure_hpa_p90J\x04\b\t\x10\n" +
+	"R\x13rainfall_confidenceB7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
 
 var (
 	file_weather_database_v1_prediction_proto_rawDescOnce sync.Once

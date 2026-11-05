@@ -9,25 +9,41 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class HourlyPrediction(_message.Message):
-    __slots__ = ("node_id", "issue_time", "horizon_hours", "temperature_c", "humidity_pct", "rainfall_mm", "rainfall_confidence")
+    __slots__ = ("node_id", "issue_time", "horizon_hours", "temperature_c", "humidity_pct", "rainfall_mm", "rain_probability", "temperature_c_p10", "temperature_c_p90", "humidity_pct_p10", "humidity_pct_p90", "rainfall_mm_p90", "pressure_hpa", "pressure_hpa_p10", "pressure_hpa_p90")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     ISSUE_TIME_FIELD_NUMBER: _ClassVar[int]
     HORIZON_HOURS_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_C_FIELD_NUMBER: _ClassVar[int]
     HUMIDITY_PCT_FIELD_NUMBER: _ClassVar[int]
     RAINFALL_MM_FIELD_NUMBER: _ClassVar[int]
-    RAINFALL_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    RAIN_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
+    TEMPERATURE_C_P10_FIELD_NUMBER: _ClassVar[int]
+    TEMPERATURE_C_P90_FIELD_NUMBER: _ClassVar[int]
+    HUMIDITY_PCT_P10_FIELD_NUMBER: _ClassVar[int]
+    HUMIDITY_PCT_P90_FIELD_NUMBER: _ClassVar[int]
+    RAINFALL_MM_P90_FIELD_NUMBER: _ClassVar[int]
+    PRESSURE_HPA_FIELD_NUMBER: _ClassVar[int]
+    PRESSURE_HPA_P10_FIELD_NUMBER: _ClassVar[int]
+    PRESSURE_HPA_P90_FIELD_NUMBER: _ClassVar[int]
     node_id: str
     issue_time: _timestamp_pb2.Timestamp
     horizon_hours: int
     temperature_c: float
     humidity_pct: float
     rainfall_mm: float
-    rainfall_confidence: float
-    def __init__(self, node_id: _Optional[str] = ..., issue_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., horizon_hours: _Optional[int] = ..., temperature_c: _Optional[float] = ..., humidity_pct: _Optional[float] = ..., rainfall_mm: _Optional[float] = ..., rainfall_confidence: _Optional[float] = ...) -> None: ...
+    rain_probability: float
+    temperature_c_p10: float
+    temperature_c_p90: float
+    humidity_pct_p10: float
+    humidity_pct_p90: float
+    rainfall_mm_p90: float
+    pressure_hpa: float
+    pressure_hpa_p10: float
+    pressure_hpa_p90: float
+    def __init__(self, node_id: _Optional[str] = ..., issue_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., horizon_hours: _Optional[int] = ..., temperature_c: _Optional[float] = ..., humidity_pct: _Optional[float] = ..., rainfall_mm: _Optional[float] = ..., rain_probability: _Optional[float] = ..., temperature_c_p10: _Optional[float] = ..., temperature_c_p90: _Optional[float] = ..., humidity_pct_p10: _Optional[float] = ..., humidity_pct_p90: _Optional[float] = ..., rainfall_mm_p90: _Optional[float] = ..., pressure_hpa: _Optional[float] = ..., pressure_hpa_p10: _Optional[float] = ..., pressure_hpa_p90: _Optional[float] = ...) -> None: ...
 
 class DailyPrediction(_message.Message):
-    __slots__ = ("node_id", "issue_time", "horizon_days", "min_temperature_c", "max_temperature_c", "min_humidity_pct", "max_humidity_pct", "rainfall_mm", "rainfall_confidence")
+    __slots__ = ("node_id", "issue_time", "horizon_days", "min_temperature_c", "max_temperature_c", "min_humidity_pct", "max_humidity_pct", "rainfall_mm", "rain_probability", "min_temperature_c_p10", "max_temperature_c_p90", "rainfall_mm_p90", "pressure_hpa", "pressure_hpa_p10", "pressure_hpa_p90")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     ISSUE_TIME_FIELD_NUMBER: _ClassVar[int]
     HORIZON_DAYS_FIELD_NUMBER: _ClassVar[int]
@@ -36,7 +52,13 @@ class DailyPrediction(_message.Message):
     MIN_HUMIDITY_PCT_FIELD_NUMBER: _ClassVar[int]
     MAX_HUMIDITY_PCT_FIELD_NUMBER: _ClassVar[int]
     RAINFALL_MM_FIELD_NUMBER: _ClassVar[int]
-    RAINFALL_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    RAIN_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
+    MIN_TEMPERATURE_C_P10_FIELD_NUMBER: _ClassVar[int]
+    MAX_TEMPERATURE_C_P90_FIELD_NUMBER: _ClassVar[int]
+    RAINFALL_MM_P90_FIELD_NUMBER: _ClassVar[int]
+    PRESSURE_HPA_FIELD_NUMBER: _ClassVar[int]
+    PRESSURE_HPA_P10_FIELD_NUMBER: _ClassVar[int]
+    PRESSURE_HPA_P90_FIELD_NUMBER: _ClassVar[int]
     node_id: str
     issue_time: _timestamp_pb2.Timestamp
     horizon_days: int
@@ -45,5 +67,11 @@ class DailyPrediction(_message.Message):
     min_humidity_pct: float
     max_humidity_pct: float
     rainfall_mm: float
-    rainfall_confidence: float
-    def __init__(self, node_id: _Optional[str] = ..., issue_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., horizon_days: _Optional[int] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., rainfall_mm: _Optional[float] = ..., rainfall_confidence: _Optional[float] = ...) -> None: ...
+    rain_probability: float
+    min_temperature_c_p10: float
+    max_temperature_c_p90: float
+    rainfall_mm_p90: float
+    pressure_hpa: float
+    pressure_hpa_p10: float
+    pressure_hpa_p90: float
+    def __init__(self, node_id: _Optional[str] = ..., issue_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., horizon_days: _Optional[int] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., rainfall_mm: _Optional[float] = ..., rain_probability: _Optional[float] = ..., min_temperature_c_p10: _Optional[float] = ..., max_temperature_c_p90: _Optional[float] = ..., rainfall_mm_p90: _Optional[float] = ..., pressure_hpa: _Optional[float] = ..., pressure_hpa_p10: _Optional[float] = ..., pressure_hpa_p90: _Optional[float] = ...) -> None: ...

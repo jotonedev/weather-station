@@ -9,7 +9,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ClimateAggregate(_message.Message):
-    __slots__ = ("node_id", "bucket_start", "avg_temperature_c", "min_temperature_c", "max_temperature_c", "avg_humidity_pct", "min_humidity_pct", "max_humidity_pct", "avg_pressure_hpa", "sample_count", "total_rainfall_mm", "avg_wind_speed_mps", "avg_wind_direction_deg", "min_pressure_hpa", "max_pressure_hpa")
+    __slots__ = ("node_id", "bucket_start", "avg_temperature_c", "min_temperature_c", "max_temperature_c", "avg_humidity_pct", "min_humidity_pct", "max_humidity_pct", "avg_pressure_hpa", "sample_count", "total_rainfall_mm", "avg_wind_speed_mps", "avg_wind_direction_deg", "min_pressure_hpa", "max_pressure_hpa", "max_wind_speed_mps", "avg_wind_u_mps", "avg_wind_v_mps", "max_rain_rate_mmh")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     BUCKET_START_FIELD_NUMBER: _ClassVar[int]
     AVG_TEMPERATURE_C_FIELD_NUMBER: _ClassVar[int]
@@ -25,6 +25,10 @@ class ClimateAggregate(_message.Message):
     AVG_WIND_DIRECTION_DEG_FIELD_NUMBER: _ClassVar[int]
     MIN_PRESSURE_HPA_FIELD_NUMBER: _ClassVar[int]
     MAX_PRESSURE_HPA_FIELD_NUMBER: _ClassVar[int]
+    MAX_WIND_SPEED_MPS_FIELD_NUMBER: _ClassVar[int]
+    AVG_WIND_U_MPS_FIELD_NUMBER: _ClassVar[int]
+    AVG_WIND_V_MPS_FIELD_NUMBER: _ClassVar[int]
+    MAX_RAIN_RATE_MMH_FIELD_NUMBER: _ClassVar[int]
     node_id: str
     bucket_start: _timestamp_pb2.Timestamp
     avg_temperature_c: float
@@ -40,7 +44,11 @@ class ClimateAggregate(_message.Message):
     avg_wind_direction_deg: float
     min_pressure_hpa: float
     max_pressure_hpa: float
-    def __init__(self, node_id: _Optional[str] = ..., bucket_start: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., avg_temperature_c: _Optional[float] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., avg_humidity_pct: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., avg_pressure_hpa: _Optional[float] = ..., sample_count: _Optional[int] = ..., total_rainfall_mm: _Optional[float] = ..., avg_wind_speed_mps: _Optional[float] = ..., avg_wind_direction_deg: _Optional[float] = ..., min_pressure_hpa: _Optional[float] = ..., max_pressure_hpa: _Optional[float] = ...) -> None: ...
+    max_wind_speed_mps: float
+    avg_wind_u_mps: float
+    avg_wind_v_mps: float
+    max_rain_rate_mmh: float
+    def __init__(self, node_id: _Optional[str] = ..., bucket_start: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., avg_temperature_c: _Optional[float] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., avg_humidity_pct: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., avg_pressure_hpa: _Optional[float] = ..., sample_count: _Optional[int] = ..., total_rainfall_mm: _Optional[float] = ..., avg_wind_speed_mps: _Optional[float] = ..., avg_wind_direction_deg: _Optional[float] = ..., min_pressure_hpa: _Optional[float] = ..., max_pressure_hpa: _Optional[float] = ..., max_wind_speed_mps: _Optional[float] = ..., avg_wind_u_mps: _Optional[float] = ..., avg_wind_v_mps: _Optional[float] = ..., max_rain_rate_mmh: _Optional[float] = ...) -> None: ...
 
 class AirQualityAggregate(_message.Message):
     __slots__ = ("node_id", "bucket_start", "avg_pm1", "avg_pm25", "avg_pm10", "avg_voc", "sample_count")

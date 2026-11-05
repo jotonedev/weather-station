@@ -28,6 +28,8 @@ message PredictHourlyWeatherRequest {
   optional double latitude = 5;
   optional bytes data_blob = 6;
   optional string data_blob_format = 7;
+  optional double longitude = 8;
+  optional double elevation_m = 9;
 }
 
 // PredictHourlyWeatherResponse contains hourly predictions.
@@ -46,6 +48,8 @@ message PredictDailyWeatherRequest {
   optional double latitude = 5;
   optional bytes data_blob = 6;
   optional string data_blob_format = 7;
+  optional double longitude = 8;
+  optional double elevation_m = 9;
 }
 
 // PredictDailyWeatherResponse contains daily predictions.
@@ -95,6 +99,18 @@ message TimeSeriesObservation {
 
   // Maximum atmospheric pressure in hectopascals.
   optional float max_pressure_hpa = 13;
+
+  // Maximum wind speed (gust) in meters per second.
+  optional float max_wind_speed_mps = 14;
+
+  // Mean eastward wind component in meters per second.
+  optional float wind_u_mps = 15;
+
+  // Mean northward wind component in meters per second.
+  optional float wind_v_mps = 16;
+
+  // Maximum rain rate in millimeters per hour.
+  optional float max_rain_rate_mmh = 17;
 }
 
 // GetModelInfoRequest requests metadata for the inference model.

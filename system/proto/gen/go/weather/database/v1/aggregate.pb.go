@@ -42,6 +42,10 @@ type ClimateAggregate struct {
 	AvgWindDirectionDeg *float32               `protobuf:"fixed32,13,opt,name=avg_wind_direction_deg,json=avgWindDirectionDeg,proto3,oneof" json:"avg_wind_direction_deg,omitempty"`
 	MinPressureHpa      *float32               `protobuf:"fixed32,14,opt,name=min_pressure_hpa,json=minPressureHpa,proto3,oneof" json:"min_pressure_hpa,omitempty"`
 	MaxPressureHpa      *float32               `protobuf:"fixed32,15,opt,name=max_pressure_hpa,json=maxPressureHpa,proto3,oneof" json:"max_pressure_hpa,omitempty"`
+	MaxWindSpeedMps     *float32               `protobuf:"fixed32,16,opt,name=max_wind_speed_mps,json=maxWindSpeedMps,proto3,oneof" json:"max_wind_speed_mps,omitempty"`
+	AvgWindUMps         *float32               `protobuf:"fixed32,17,opt,name=avg_wind_u_mps,json=avgWindUMps,proto3,oneof" json:"avg_wind_u_mps,omitempty"`
+	AvgWindVMps         *float32               `protobuf:"fixed32,18,opt,name=avg_wind_v_mps,json=avgWindVMps,proto3,oneof" json:"avg_wind_v_mps,omitempty"`
+	MaxRainRateMmh      *float32               `protobuf:"fixed32,19,opt,name=max_rain_rate_mmh,json=maxRainRateMmh,proto3,oneof" json:"max_rain_rate_mmh,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -181,6 +185,34 @@ func (x *ClimateAggregate) GetMaxPressureHpa() float32 {
 	return 0
 }
 
+func (x *ClimateAggregate) GetMaxWindSpeedMps() float32 {
+	if x != nil && x.MaxWindSpeedMps != nil {
+		return *x.MaxWindSpeedMps
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetAvgWindUMps() float32 {
+	if x != nil && x.AvgWindUMps != nil {
+		return *x.AvgWindUMps
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetAvgWindVMps() float32 {
+	if x != nil && x.AvgWindVMps != nil {
+		return *x.AvgWindVMps
+	}
+	return 0
+}
+
+func (x *ClimateAggregate) GetMaxRainRateMmh() float32 {
+	if x != nil && x.MaxRainRateMmh != nil {
+		return *x.MaxRainRateMmh
+	}
+	return 0
+}
+
 // AirQualityAggregate is a bucket of aggregated air quality metrics for a node.
 // Metric fields are optional: a bucket with no samples for a metric reports it
 // as not present, matching the nullable source columns.
@@ -283,7 +315,7 @@ var File_weather_database_v1_aggregate_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\n" +
-	"#weather/database/v1/aggregate.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdf\a\n" +
+	"#weather/database/v1/aggregate.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe8\t\n" +
 	"\x10ClimateAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12/\n" +
@@ -301,7 +333,11 @@ const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\x16avg_wind_direction_deg\x18\r \x01(\x02H\tR\x13avgWindDirectionDeg\x88\x01\x01\x12-\n" +
 	"\x10min_pressure_hpa\x18\x0e \x01(\x02H\n" +
 	"R\x0eminPressureHpa\x88\x01\x01\x12-\n" +
-	"\x10max_pressure_hpa\x18\x0f \x01(\x02H\vR\x0emaxPressureHpa\x88\x01\x01B\x14\n" +
+	"\x10max_pressure_hpa\x18\x0f \x01(\x02H\vR\x0emaxPressureHpa\x88\x01\x01\x120\n" +
+	"\x12max_wind_speed_mps\x18\x10 \x01(\x02H\fR\x0fmaxWindSpeedMps\x88\x01\x01\x12(\n" +
+	"\x0eavg_wind_u_mps\x18\x11 \x01(\x02H\rR\vavgWindUMps\x88\x01\x01\x12(\n" +
+	"\x0eavg_wind_v_mps\x18\x12 \x01(\x02H\x0eR\vavgWindVMps\x88\x01\x01\x12.\n" +
+	"\x11max_rain_rate_mmh\x18\x13 \x01(\x02H\x0fR\x0emaxRainRateMmh\x88\x01\x01B\x14\n" +
 	"\x12_avg_temperature_cB\x14\n" +
 	"\x12_min_temperature_cB\x14\n" +
 	"\x12_max_temperature_cB\x13\n" +
@@ -313,7 +349,11 @@ const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\x13_avg_wind_speed_mpsB\x19\n" +
 	"\x17_avg_wind_direction_degB\x13\n" +
 	"\x11_min_pressure_hpaB\x13\n" +
-	"\x11_max_pressure_hpa\"\xbe\x02\n" +
+	"\x11_max_pressure_hpaB\x15\n" +
+	"\x13_max_wind_speed_mpsB\x11\n" +
+	"\x0f_avg_wind_u_mpsB\x11\n" +
+	"\x0f_avg_wind_v_mpsB\x14\n" +
+	"\x12_max_rain_rate_mmh\"\xbe\x02\n" +
 	"\x13AirQualityAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12\x1c\n" +
