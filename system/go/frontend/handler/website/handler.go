@@ -33,7 +33,7 @@ func New(params HandlerParams) (*Handler, error) {
 
 // Pattern returns the routing pattern for the website.
 func (*Handler) Pattern() string {
-	return "/"
+	return "/{$}"
 }
 
 // ServeHTTP handles requests for the weather dashboard homepage.

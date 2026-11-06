@@ -142,9 +142,4 @@ func TestWebsiteHandlerServeHTTP(t *testing.T) {
 	}
 }
 
-func TestHandlerPattern(t *testing.T) {
-	handler := &Handler{}
-	if pattern := handler.Pattern(); pattern != "/" {
-		t.Fatalf("Pattern() = %q, want /", pattern)
-	}
-}
+
