@@ -19,6 +19,8 @@ void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
     // Disable fast filter so noise spikes don't bypass slow filter
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
+    // 100 ms internal polling (LPM3) is 10x faster than the 1 Hz sampling task
+    as5600.setPowerMode(AS5600_POWERMODE_LOW3);
 
     uint32_t nowMs = millis();
     portENTER_CRITICAL(&spinlock);

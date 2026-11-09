@@ -47,6 +47,8 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
     // Disable fast filter so noise spikes do not bypass slow filter
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
+    // 20 ms internal polling (LPM2) to provide fresh samples for the 30 ms task
+    as5600.setPowerMode(AS5600_POWERMODE_LOW2);
 
     loadNvsCalibration();
 

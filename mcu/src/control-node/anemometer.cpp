@@ -26,6 +26,9 @@ void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
     // Disable fast filter so noise spikes don't bypass slow filter
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
+    // 5 ms internal polling (LPM1) to match the 10 ms task and watchdog to drop to LPM3 at rest
+    as5600.setPowerMode(AS5600_POWERMODE_LOW1);
+    as5600.setWatchDog(AS5600_WATCHDOG_ON);
     if (busMutex != nullptr) {
         xSemaphoreGive(busMutex);
     }
