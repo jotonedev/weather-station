@@ -2,6 +2,7 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <Wire.h>
+#include <esp_pm.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -90,6 +91,20 @@ static WeatherData pendingReading = {};
 static uint32_t lastReadingMs = 0;
 static uint32_t lastDiagMs = 0;
 
+void setupPowerManagement() {
+    esp_pm_config_t pmConfig = {
+        .max_freq_mhz = 80,
+        .min_freq_mhz = 80,
+        .light_sleep_enable = true,
+    };
+    esp_err_t pmErr = esp_pm_configure(&pmConfig);
+    if (pmErr == ESP_OK) {
+        Serial.println("[OK] Automatic light sleep configured");
+    } else if (pmErr != ESP_ERR_NOT_SUPPORTED) {
+        Serial.printf("[WARN] Power management config returned %d\n", pmErr);
+    }
+}
+
 void setupWatchdog() {
     esp_task_wdt_config_t config = {};
     config.timeout_ms = WATCHDOG_TIMEOUT_MS;
@@ -176,6 +191,7 @@ void setup() {
     WiFi.mode(WIFI_OFF);
     btStop();
 
+    setupPowerManagement();
     setupWatchdog();
     loadBootCounter();
 
