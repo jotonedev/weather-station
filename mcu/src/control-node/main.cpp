@@ -462,9 +462,7 @@ void loop() {
     if (nowMs - lastReadingMs >= 1000uL) {
         lastReadingMs = nowMs;
         Serial.printf("[CALIB] Vane raw=%.1f deg, cal=%.1f deg | Anemo RPM=%.1f, speed=%.2f m/s\n",
-                      windVane.getRawAngle(),
-                      windVane.getAngle(),
-                      anemometer.getRPM(),
+                      windVane.getRawAngle(), windVane.getAngle(), anemometer.getRPM(),
                       anemometer.getWindSpeed());
     }
 #else
