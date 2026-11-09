@@ -27,6 +27,8 @@ jobs:
         id: linter
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEA_API_URL: ${{ github.api_url || format('{0}/api/v1', github.server_url) }}
         with:
           style: file
           version: '18'
