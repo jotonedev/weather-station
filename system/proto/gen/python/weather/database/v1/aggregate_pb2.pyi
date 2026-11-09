@@ -51,19 +51,17 @@ class ClimateAggregate(_message.Message):
     def __init__(self, node_id: _Optional[str] = ..., bucket_start: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., avg_temperature_c: _Optional[float] = ..., min_temperature_c: _Optional[float] = ..., max_temperature_c: _Optional[float] = ..., avg_humidity_pct: _Optional[float] = ..., min_humidity_pct: _Optional[float] = ..., max_humidity_pct: _Optional[float] = ..., avg_pressure_hpa: _Optional[float] = ..., sample_count: _Optional[int] = ..., total_rainfall_mm: _Optional[float] = ..., avg_wind_speed_mps: _Optional[float] = ..., avg_wind_direction_deg: _Optional[float] = ..., min_pressure_hpa: _Optional[float] = ..., max_pressure_hpa: _Optional[float] = ..., max_wind_speed_mps: _Optional[float] = ..., avg_wind_u_mps: _Optional[float] = ..., avg_wind_v_mps: _Optional[float] = ..., max_rain_rate_mmh: _Optional[float] = ...) -> None: ...
 
 class AirQualityAggregate(_message.Message):
-    __slots__ = ("node_id", "bucket_start", "avg_pm1", "avg_pm25", "avg_pm10", "avg_voc", "sample_count")
+    __slots__ = ("node_id", "bucket_start", "avg_pm1", "avg_pm25", "avg_pm10", "sample_count")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     BUCKET_START_FIELD_NUMBER: _ClassVar[int]
     AVG_PM1_FIELD_NUMBER: _ClassVar[int]
     AVG_PM25_FIELD_NUMBER: _ClassVar[int]
     AVG_PM10_FIELD_NUMBER: _ClassVar[int]
-    AVG_VOC_FIELD_NUMBER: _ClassVar[int]
     SAMPLE_COUNT_FIELD_NUMBER: _ClassVar[int]
     node_id: str
     bucket_start: _timestamp_pb2.Timestamp
     avg_pm1: float
     avg_pm25: float
     avg_pm10: float
-    avg_voc: float
     sample_count: int
-    def __init__(self, node_id: _Optional[str] = ..., bucket_start: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., avg_pm1: _Optional[float] = ..., avg_pm25: _Optional[float] = ..., avg_pm10: _Optional[float] = ..., avg_voc: _Optional[float] = ..., sample_count: _Optional[int] = ...) -> None: ...
+    def __init__(self, node_id: _Optional[str] = ..., bucket_start: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., avg_pm1: _Optional[float] = ..., avg_pm25: _Optional[float] = ..., avg_pm10: _Optional[float] = ..., sample_count: _Optional[int] = ...) -> None: ...

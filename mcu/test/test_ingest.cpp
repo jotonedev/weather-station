@@ -23,7 +23,6 @@ WeatherData sentinelReading() {
     data.airQualityData.pm1_0 = weather::kInvalidUint16;
     data.airQualityData.pm2_5 = weather::kInvalidUint16;
     data.airQualityData.pm10_0 = weather::kInvalidUint16;
-    data.airQualityData.voc = weather::kInvalidUint16;
     return data;
 }
 
@@ -97,7 +96,6 @@ TEST(Ingest, SinglePayloadFullFields) {
     data.airQualityData.pm1_0 = 8;
     data.airQualityData.pm2_5 = 14;
     data.airQualityData.pm10_0 = 22;
-    data.airQualityData.voc = 120;
 
     IngestReading const reading = {data, 1700000000u};
 
@@ -109,8 +107,7 @@ TEST(Ingest, SinglePayloadFullFields) {
                           "\"anemo_agc\":128,\"anemo_agc_variance\":2,\"temperature\":21.5,"
                           "\"humidity\":55.2,\"pressure\":1013.5,\"rain_1h\":0.25,"
                           "\"rain_24h\":3.21,\"rain_rate\":12,\"rain_status\":32,\"rain_agc\":130,"
-                          "\"rain_agc_variance\":0,\"pm1_0\":8,\"pm2_5\":14,\"pm10_0\":22,"
-                          "\"voc\":120}");
+                          "\"rain_agc_variance\":0,\"pm1_0\":8,\"pm2_5\":14,\"pm10_0\":22}");
 }
 
 TEST(Ingest, SinglePayloadOmitsAbsentFieldsAndTimestampWhenNoEpoch) {

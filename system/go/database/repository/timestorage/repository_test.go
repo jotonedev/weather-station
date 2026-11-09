@@ -23,14 +23,14 @@ func TestExtractValues(t *testing.T) {
 		{
 			name:       "full reading",
 			reading:    Reading{NodeID: "n1", Timestamp: timestamp, Temperature: &temperature, PM2_5: &pm2_5},
-			wantLen:    25,
+			wantLen:    24,
 			wantFirst:  "n1",
 			wantSecond: timestamp,
 		},
 		{
 			name:    "node id and timestamp present",
 			reading: Reading{NodeID: "n1", Timestamp: timestamp},
-			wantLen: 25,
+			wantLen: 24,
 		},
 	}
 
@@ -61,7 +61,7 @@ func TestExtractValuesNullAndPresentColumns(t *testing.T) {
 	if value, ok := values[6].(float32); !ok || value != temperature {
 		t.Errorf("temperature = %v, want %v", values[6], temperature)
 	}
-	for _, columnIndex := range []int{2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15} {
+	for _, columnIndex := range []int{2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14} {
 		if values[columnIndex] != nil {
 			t.Errorf("index %d should be nil (absent field), got %v", columnIndex, values[columnIndex])
 		}

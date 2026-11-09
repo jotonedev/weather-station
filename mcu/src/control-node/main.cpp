@@ -2,7 +2,6 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <Wire.h>
-#include <cmath>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -12,7 +11,6 @@
 #include <AS5600.h>
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP085.h>
-#include <Adafruit_SGP30.h>
 #include <PMS.h>
 #include <RadioAdapter.h>
 #include <Weather.h>
@@ -33,7 +31,6 @@ ARQ::ARQ arq(radioAdapter, CONTROL_NODE_ADDR);
 
 Adafruit_AHTX0 aht;
 Adafruit_BMP085 bmp180;
-Adafruit_SGP30 sgp;
 PMS pms(Serial2);
 
 Anemometer anemometer(Wire);
@@ -47,13 +44,6 @@ static SemaphoreHandle_t wireMutex = nullptr;
 // Sensor initialization states, allowing hot-plug recovery on transient failures.
 static bool ahtOk = false;
 static bool bmpOk = false;
-static bool sgpOk = false;
-
-// Cached SGP30 TVOC from the required 1 Hz IAQmeasure loop.
-static uint16_t latestTvoc = weather::kInvalidUint16;
-static bool sgpHasData = false;
-static uint32_t lastSgpMeasureMs = 0;
-static uint32_t lastSgpBaselineSaveMs = 0;
 
 // PMS7003 15-minute duty cycle state machine to preserve fan and laser lifespan.
 enum class PmsState : uint8_t {
@@ -139,79 +129,6 @@ void storeLastError(const char* tag) {
     }
 }
 
-// Compute absolute humidity in mg/m^3 for SGP30 on-chip compensation.
-uint32_t computeAbsoluteHumidityMgM3(float temperatureC, float relativeHumidityPct) {
-    if (std::isnan(temperatureC) || std::isnan(relativeHumidityPct) ||
-        relativeHumidityPct <= 0.0f) {
-        return 0;
-    }
-    const float absHumidityGramsM3 =
-        216.7f *
-        ((relativeHumidityPct / 100.0f) * 6.112f *
-         std::exp((17.62f * temperatureC) / (243.12f + temperatureC)) / (273.15f + temperatureC));
-    return static_cast<uint32_t>(1000.0f * absHumidityGramsM3);
-}
-
-void initSgp30WithBaseline() {
-    if (!sgp.begin(&Wire, true) || !sgp.IAQinit()) {
-        sgpOk = false;
-        return;
-    }
-    sgpOk = true;
-    if (prefs.begin(NVS_NAMESPACE, true)) {
-        uint16_t eco2Base = prefs.getUShort(NVS_KEY_SGP_ECO2, 0);
-        uint16_t tvocBase = prefs.getUShort(NVS_KEY_SGP_TVOC, 0);
-        prefs.end();
-        if (eco2Base != 0 && tvocBase != 0) {
-            sgp.setIAQBaseline(eco2Base, tvocBase);
-        }
-    }
-}
-
-void saveSgpBaselineIfDue(uint32_t nowMs) {
-    if (!sgpOk || nowMs < SGP_WARMUP_BEFORE_SAVE_MS ||
-        (nowMs - lastSgpBaselineSaveMs) < SGP_BASELINE_SAVE_INTERVAL_MS) {
-        return;
-    }
-    lastSgpBaselineSaveMs = nowMs;
-
-    uint16_t eco2Base = 0;
-    uint16_t tvocBase = 0;
-    bool ok = false;
-    if (xSemaphoreTake(wireMutex, portMAX_DELAY) == pdTRUE) {
-        ok = sgp.getIAQBaseline(&eco2Base, &tvocBase);
-        xSemaphoreGive(wireMutex);
-    }
-    if (ok && eco2Base != 0 && tvocBase != 0 && prefs.begin(NVS_NAMESPACE, false)) {
-        prefs.putUShort(NVS_KEY_SGP_ECO2, eco2Base);
-        prefs.putUShort(NVS_KEY_SGP_TVOC, tvocBase);
-        prefs.end();
-    }
-}
-
-void updateSgp30(uint32_t nowMs) {
-    if (nowMs - lastSgpMeasureMs < SGP_MEASURE_INTERVAL_MS) {
-        return;
-    }
-    lastSgpMeasureMs = nowMs;
-    if (!sgpOk) {
-        return;
-    }
-
-    if (xSemaphoreTake(wireMutex, portMAX_DELAY) == pdTRUE) {
-        if (sgp.IAQmeasure()) {
-            latestTvoc = sgp.TVOC;
-            sgpHasData = true;
-        } else {
-            sgpOk = false;
-            sgpHasData = false;
-        }
-        xSemaphoreGive(wireMutex);
-    }
-
-    saveSgpBaselineIfDue(nowMs);
-}
-
 void updatePms(uint32_t nowMs) {
     switch (pmsState) {
     case PmsState::Sleeping:
@@ -279,7 +196,6 @@ void setup() {
 
     ahtOk = aht.begin(&Wire);
     bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
-    initSgp30WithBaseline();
 
     anemometer.setBusMutex(wireMutex);
     anemometer.initialize();
@@ -318,7 +234,6 @@ WeatherData sampleSensors() {
     reading.airQualityData.pm1_0 = weather::kInvalidUint16;
     reading.airQualityData.pm2_5 = weather::kInvalidUint16;
     reading.airQualityData.pm10_0 = weather::kInvalidUint16;
-    reading.airQualityData.voc = weather::kInvalidUint16;
 
     if (anemometer.ready()) {
         reading.windData.windSpeed = weather::encodeWindSpeed(anemometer.getWindSpeed());
@@ -347,13 +262,6 @@ WeatherData sampleSensors() {
                 reading.airData.temperature =
                     weather::encodeTemperature(temperatureEvent.temperature);
                 reading.airData.humidity = weather::encodeHumidity(humidityEvent.relative_humidity);
-                if (sgpOk) {
-                    uint32_t absHum = computeAbsoluteHumidityMgM3(temperatureEvent.temperature,
-                                                                  humidityEvent.relative_humidity);
-                    if (absHum > 0) {
-                        sgp.setHumidity(absHum);
-                    }
-                }
             } else {
                 ahtOk = false;
             }
@@ -371,15 +279,7 @@ WeatherData sampleSensors() {
                 bmpOk = false;
             }
         }
-
-        if (!sgpOk) {
-            initSgp30WithBaseline();
-        }
         xSemaphoreGive(wireMutex);
-    }
-
-    if (sgpHasData) {
-        reading.airQualityData.voc = latestTvoc;
     }
 
     if (rainMeter.ready()) {
@@ -509,9 +409,9 @@ void printDiagnostics(uint32_t nowMs) {
     Serial.printf("[Diag] up=%lu boots=%lu txok=%lu txdrop=%lu resyncs=%lu state=%d rssi=%d\n",
                   nowMs / 1000uL, bootCount, linkState.sentOk, linkState.sentDropped,
                   linkState.radioResyncs, static_cast<int>(arq.getState()), arq.getLastRSSI());
-    Serial.printf("[Diag] anemo=%d vane=%d rain=%d aht=%d bmp=%d sgp=%d pmsState=%d\n",
+    Serial.printf("[Diag] anemo=%d vane=%d rain=%d aht=%d bmp=%d pmsState=%d\n",
                   anemometer.ready() ? 1 : 0, windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0,
-                  ahtOk ? 1 : 0, bmpOk ? 1 : 0, sgpOk ? 1 : 0, static_cast<int>(pmsState));
+                  ahtOk ? 1 : 0, bmpOk ? 1 : 0, static_cast<int>(pmsState));
 }
 
 bool tasksHealthy(uint32_t nowMs) {
@@ -541,7 +441,6 @@ void loop() {
     }
 
     updatePms(nowMs);
-    updateSgp30(nowMs);
 
 #if CALIBRATION_MODE
     if (nowMs - lastReadingMs >= 1000uL) {

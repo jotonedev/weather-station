@@ -40,7 +40,6 @@ func modelAirQualityToPB(aggregate repository.AirQualityAggregate) *protodatabas
 		AvgPm1:      aggregate.AvgPm1,
 		AvgPm25:     aggregate.AvgPm25,
 		AvgPm10:     aggregate.AvgPm10,
-		AvgVoc:      aggregate.AvgVoc,
 		SampleCount: aggregate.SampleCount,
 	}
 }

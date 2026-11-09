@@ -30,14 +30,13 @@ message Reading {
   optional int32 pm25 = 14;
   // PM10 particle concentration below 10 micrometres.
   optional int32 pm10 = 15;
-  optional int32 voc = 16;
-  optional int32 anemo_status = 17;
-  optional int32 anemo_agc = 18;
-  optional int32 anemo_agc_variance = 19;
-  optional int32 vane_status = 20;
-  optional int32 vane_agc = 21;
-  optional int32 vane_agc_variance = 22;
-  optional int32 rain_status = 23;
-  optional int32 rain_agc = 24;
-  optional int32 rain_agc_variance = 25;
+  optional int32 anemo_status = 16;
+  optional int32 anemo_agc = 17;
+  optional int32 anemo_agc_variance = 18;
+  optional int32 vane_status = 19;
+  optional int32 vane_agc = 20;
+  optional int32 vane_agc_variance = 21;
+  optional int32 rain_status = 22;
+  optional int32 rain_agc = 23;
+  optional int32 rain_agc_variance = 24;
 }

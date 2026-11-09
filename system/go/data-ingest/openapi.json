@@ -402,12 +402,6 @@
             "description": "PM10 alias (mirrors protobuf field name)",
             "example": 22
           },
-          "voc": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Volatile Organic Compounds (VOC) raw index / ppm",
-            "example": 120
-          },
           "anemo_status": {
             "type": "integer",
             "format": "int32",

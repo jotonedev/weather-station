@@ -19,8 +19,7 @@
 #define RADIO_GDO0_PIN 14
 
 // --- I2C Bus 1 (Hardware Wire) ---
-// Shared: Anemometer AS5600 (@ 0x36) + Environmental: AHT20 (@ 0x38), SGP30 (@ 0x58), BMP180 (@
-// 0x77)
+// Shared: Anemometer AS5600 (@ 0x36) + Environmental: AHT20 (@ 0x38), BMP180 (@ 0x77)
 #define I2C_1_SDA_PIN 4
 #define I2C_1_SCL_PIN 5
 
@@ -88,17 +87,10 @@
 #define PMS_WARMUP_MS 30000uL
 #define PMS_READ_TIMEOUT_MS 10000uL
 
-// SGP30 requires a 1 Hz IAQmeasure tick and periodic baseline persistence to NVS.
-#define SGP_MEASURE_INTERVAL_MS 1000uL
-#define SGP_WARMUP_BEFORE_SAVE_MS 3600000uL
-#define SGP_BASELINE_SAVE_INTERVAL_MS 21600000uL
-
-// NVS keys for the boot counter, last failure tag, and SGP30 IAQ baseline.
+// NVS keys for the boot counter and last failure tag.
 #define NVS_NAMESPACE "control"
 #define NVS_KEY_BOOTS "boots"
 #define NVS_KEY_LAST_ERR "lasterr"
-#define NVS_KEY_SGP_ECO2 "sgp_eco2"
-#define NVS_KEY_SGP_TVOC "sgp_tvoc"
 // Boots in a row without a successful send flag a crash loop.
 #define BOOT_CRASH_THRESHOLD 4
 

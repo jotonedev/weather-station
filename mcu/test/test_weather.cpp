@@ -5,7 +5,7 @@
 #include "Weather.h"
 
 TEST(Weather, WireSizeFitsArqBudget) {
-    EXPECT_EQ(sizeof(WeatherData), 36);
+    EXPECT_EQ(sizeof(WeatherData), 34);
     EXPECT_LE(sizeof(WeatherData), weather::kMaxWirePayload);
 }
 

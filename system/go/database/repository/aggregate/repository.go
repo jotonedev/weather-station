@@ -83,14 +83,13 @@ func (r *Repository) GetClimateAggregates(ctx context.Context, nodeID string, st
 	return aggregates, nil
 }
 
-// GetAirQualityAggregates returns pm and voc aggregates per time bucket for a node.
+// GetAirQualityAggregates returns pm aggregates per time bucket for a node.
 func (r *Repository) GetAirQualityAggregates(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds uint32) ([]AirQualityAggregate, error) {
 	bucket := fmt.Sprintf("time_bucket(INTERVAL '%d seconds', ts)", bucketSeconds)
 	query := "SELECT " + bucket + ` AS bucket_start,
 		avg(pm1_0) AS avg_pm1,
 		avg(pm2_5) AS avg_pm25,
 		avg(pm10_0) AS avg_pm10,
-		avg(voc) AS avg_voc,
 		count(*) AS sample_count
 	FROM weather
 	WHERE node_id = ? AND ts >= ? AND ts < ?
@@ -110,7 +109,7 @@ func (r *Repository) GetAirQualityAggregates(ctx context.Context, nodeID string,
 		aggregate.NodeID = nodeID
 		if err := rows.Scan(
 			&aggregate.BucketStart,
-			&aggregate.AvgPm1, &aggregate.AvgPm25, &aggregate.AvgPm10, &aggregate.AvgVoc,
+			&aggregate.AvgPm1, &aggregate.AvgPm25, &aggregate.AvgPm10,
 			&aggregate.SampleCount,
 		); err != nil {
 			r.log.Error("failed to scan air quality aggregate", zap.String("node_id", nodeID), zap.Error(err))

@@ -26,7 +26,6 @@ type nodeState struct {
 	cloud    float64
 	wet      float64
 	pm25Base float64
-	vocBase  float64
 
 	// Slow time-scaled noise.
 	pressureDrift float64
@@ -36,7 +35,6 @@ type nodeState struct {
 	windDirNoise  float64
 	rainNoise     float64
 	pmNoise       float64
-	vocNoise      float64
 }
 
 // Simulator produces smooth, mostly deterministic telemetry per station node.
@@ -125,14 +123,12 @@ func (s *Simulator) NextReading(nodeID string, now time.Time) ingest.ReadingPayl
 	rawWindSpeed := clamp(windSpeed*(1.0+0.08*rng.NormFloat64()), 0.0, 35.0)
 	rawWindAngle := wrapAngle(windAngle + 3.0*rng.NormFloat64())
 
-	// 6. Particulate matter and VOC with traffic peaks, winter increase and rain washout.
+	// 6. Particulate matter with traffic peaks, winter increase and rain washout.
 	winter := (math.Cos(2.0*math.Pi*(dayOfYear-15.0)/daysPerYear) + 1.0) / 2.0
 	traffic := 1.0 + 0.35*hourBump(hourUTC, 8.0, 1.5) + 0.3*hourBump(hourUTC, 19.0, 2.0)
 	pmTarget := 10.0 * state.pmScale * (1.0 + 0.25*winter) * traffic * (1.0 - 0.5*state.wet)
-	vocTarget := 110.0 * traffic * (1.0 - 0.1*state.wet)
 	if !exists {
 		state.pm25Base = pmTarget
-		state.vocBase = vocTarget
 	}
 	state.pm25Base = ease(state.pm25Base, pmTarget, dt, time.Hour)
 	state.pmNoise = ou(rng, state.pmNoise, dt, 2*time.Hour, 1.5)
@@ -141,10 +137,6 @@ func (s *Simulator) NextReading(nodeID string, now time.Time) ingest.ReadingPayl
 	pm1 := int32(math.Round(clamp(pm25Value*(0.62+0.05*ratioWave), 1.0, pm25Value)))
 	pm25 := int32(math.Round(pm25Value))
 	pm10 := int32(math.Round(clamp(pm25Value*(1.55-0.15*ratioWave), float64(pm25), 180.0)))
-
-	state.vocBase = ease(state.vocBase, vocTarget, dt, time.Hour)
-	state.vocNoise = ou(rng, state.vocNoise, dt, 30*time.Minute, 4.0)
-	voc := int32(math.Round(clamp(state.vocBase+state.vocNoise, 40.0, 350.0)))
 
 	return ingest.ReadingPayload{
 		NodeID:           nodeID,
@@ -162,7 +154,6 @@ func (s *Simulator) NextReading(nodeID string, now time.Time) ingest.ReadingPayl
 		PM1_0:            pm1,
 		PM2_5:            pm25,
 		PM10_0:           pm10,
-		VOC:              voc,
 		AnemoStatus:      32,
 		AnemoAGC:         int32(126 + rng.IntN(6)),
 		AnemoAGCVariance: int32(rng.IntN(3)),
@@ -208,7 +199,6 @@ func newNodeState(nodeID string, now time.Time) *nodeState {
 		windDirNoise:  rng.NormFloat64() * 12.0,
 		rainNoise:     rng.NormFloat64(),
 		pmNoise:       rng.NormFloat64() * 1.5,
-		vocNoise:      rng.NormFloat64() * 4.0,
 	}
 }
 

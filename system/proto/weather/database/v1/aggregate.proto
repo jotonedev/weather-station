@@ -43,6 +43,5 @@ message AirQualityAggregate {
   optional float avg_pm25 = 4;
   // PM10 particle concentration.
   optional float avg_pm10 = 5;
-  optional float avg_voc = 6;
-  uint64 sample_count = 7;
+  uint64 sample_count = 6;
 }

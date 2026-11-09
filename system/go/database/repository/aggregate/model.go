@@ -32,6 +32,5 @@ type AirQualityAggregate struct {
 	AvgPm1      *float32
 	AvgPm25     *float32
 	AvgPm10     *float32
-	AvgVoc      *float32
 	SampleCount uint64
 }

@@ -32,7 +32,7 @@ service PredictionDatabaseService {
 service ReadingAggregateService {
   // Return climate aggregates (temperature, humidity, pressure) per time bucket.
   rpc GetClimateAggregates(GetClimateAggregatesRequest) returns (GetClimateAggregatesResponse);
-  // Return air quality aggregates (pm and voc) per time bucket.
+  // Return air quality aggregates (pm) per time bucket.
   rpc GetAirQualityAggregates(GetAirQualityAggregatesRequest) returns (GetAirQualityAggregatesResponse);
 }
 

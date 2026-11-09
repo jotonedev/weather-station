@@ -22,7 +22,6 @@ type Reading struct {
 	PM1_0            *int32    `json:"pm1_0,omitempty" yaml:"pm1_0,omitempty"`
 	PM2_5            *int32    `json:"pm2_5,omitempty" yaml:"pm2_5,omitempty"`
 	PM10_0           *int32    `json:"pm10_0,omitempty" yaml:"pm10_0,omitempty"`
-	VOC              *int32    `json:"voc,omitempty" yaml:"voc,omitempty"`
 	AnemoStatus      *int32    `json:"anemo_status,omitempty" yaml:"anemo_status,omitempty"`
 	AnemoAGC         *int32    `json:"anemo_agc,omitempty" yaml:"anemo_agc,omitempty"`
 	AnemoAGCVariance *int32    `json:"anemo_agc_variance,omitempty" yaml:"anemo_agc_variance,omitempty"`

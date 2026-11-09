@@ -137,7 +137,6 @@ func (c *Client) initSchema(ctx context.Context) error {
 			pm1_0              INTEGER,
 			pm2_5              INTEGER,
 			pm10_0             INTEGER,
-			voc                INTEGER,
 			anemo_status       INTEGER,
 			anemo_agc          INTEGER,
 			anemo_agc_variance INTEGER,

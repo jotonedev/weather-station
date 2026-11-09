@@ -359,7 +359,7 @@ class ReadingAggregateServiceServicer:
         raise NotImplementedError('Method not implemented!')
 
     def GetAirQualityAggregates(self, request, context):
-        """Return air quality aggregates (pm and voc) per time bucket.
+        """Return air quality aggregates (pm) per time bucket.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

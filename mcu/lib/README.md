@@ -35,8 +35,3 @@
 - Particle concentration sensor
 - UART communication
 - Requires 5v power but uses 3.3v UART
-
-## SGP30
-
-- Air quality sensor
-- I2C

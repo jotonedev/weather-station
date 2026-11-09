@@ -34,7 +34,6 @@ struct __attribute__((packed)) AirQualityData {
     uint16_t pm1_0;
     uint16_t pm2_5;
     uint16_t pm10_0;
-    uint16_t voc;
 };
 
 struct __attribute__((packed)) WeatherData {

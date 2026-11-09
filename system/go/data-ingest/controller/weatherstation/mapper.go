@@ -24,7 +24,6 @@ func readingToPB(reading Reading) *protodatabasev1.Reading {
 		Pm1:              reading.PM1_0,
 		Pm25:             reading.PM2_5,
 		Pm10:             reading.PM10_0,
-		Voc:              reading.VOC,
 		AnemoStatus:      reading.AnemoStatus,
 		AnemoAgc:         reading.AnemoAGC,
 		AnemoAgcVariance: reading.AnemoAGCVariance,

@@ -26,7 +26,6 @@ type ReadingView struct {
 	PM1_0           string
 	PM2_5           string
 	PM10_0          string
-	VOC             string
 	AirQualityLabel string
 	AirQualityLevel string
 

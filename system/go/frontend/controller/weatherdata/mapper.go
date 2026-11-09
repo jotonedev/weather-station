@@ -190,7 +190,6 @@ func pbReadingToView(reading *protodatabasev1.Reading) ReadingView {
 		PM1_0:           formatInt(reading.Pm1, "µg/m³"),
 		PM2_5:           formatInt(reading.Pm25, "µg/m³"),
 		PM10_0:          formatInt(reading.Pm10, "µg/m³"),
-		VOC:             formatInt(reading.Voc, "ppb"),
 		AirQualityLabel: aqLabel,
 		AirQualityLevel: aqLevel,
 

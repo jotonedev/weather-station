@@ -143,9 +143,6 @@ bool appendJsonReading(BufferWriter& writer, const IngestReading& reading, const
     if (airQuality.pm10_0 != weather::kInvalidUint16) {
         appendInt(writer, first, "pm10_0", airQuality.pm10_0);
     }
-    if (airQuality.voc != weather::kInvalidUint16) {
-        appendInt(writer, first, "voc", airQuality.voc);
-    }
 
     return writer.append("}");
 }

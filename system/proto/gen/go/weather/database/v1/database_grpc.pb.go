@@ -403,7 +403,7 @@ const (
 type ReadingAggregateServiceClient interface {
 	// Return climate aggregates (temperature, humidity, pressure) per time bucket.
 	GetClimateAggregates(ctx context.Context, in *GetClimateAggregatesRequest, opts ...grpc.CallOption) (*GetClimateAggregatesResponse, error)
-	// Return air quality aggregates (pm and voc) per time bucket.
+	// Return air quality aggregates (pm) per time bucket.
 	GetAirQualityAggregates(ctx context.Context, in *GetAirQualityAggregatesRequest, opts ...grpc.CallOption) (*GetAirQualityAggregatesResponse, error)
 }
 
@@ -441,7 +441,7 @@ func (c *readingAggregateServiceClient) GetAirQualityAggregates(ctx context.Cont
 type ReadingAggregateServiceServer interface {
 	// Return climate aggregates (temperature, humidity, pressure) per time bucket.
 	GetClimateAggregates(context.Context, *GetClimateAggregatesRequest) (*GetClimateAggregatesResponse, error)
-	// Return air quality aggregates (pm and voc) per time bucket.
+	// Return air quality aggregates (pm) per time bucket.
 	GetAirQualityAggregates(context.Context, *GetAirQualityAggregatesRequest) (*GetAirQualityAggregatesResponse, error)
 	mustEmbedUnimplementedReadingAggregateServiceServer()
 }

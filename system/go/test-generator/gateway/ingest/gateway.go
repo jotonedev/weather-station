@@ -38,7 +38,6 @@ type ReadingPayload struct {
 	PM1_0            int32     `json:"pm1_0" yaml:"pm1_0"`
 	PM2_5            int32     `json:"pm2_5" yaml:"pm2_5"`
 	PM10_0           int32     `json:"pm10_0" yaml:"pm10_0"`
-	VOC              int32     `json:"voc" yaml:"voc"`
 	AnemoStatus      int32     `json:"anemo_status" yaml:"anemo_status"`
 	AnemoAGC         int32     `json:"anemo_agc" yaml:"anemo_agc"`
 	AnemoAGCVariance int32     `json:"anemo_agc_variance" yaml:"anemo_agc_variance"`

@@ -17,13 +17,12 @@ Assembly mostly follows the upstream guides linked in each subfolder README. Eve
 
 ### [`air-sensor-box/`](air-sensor-box/)
 
-Stevenson screen enclosure that shields the air sensors (AHT20, BMP180, SGP30 and PMS7003) from sunlight and rain while keeping airflow open.
+Stevenson screen enclosure that shields the air sensors (AHT20, BMP180 and PMS7003) from sunlight and rain while keeping airflow open.
 
 | Item | Quantity | Notes |
 | --- | --- | --- |
 | AHT20 breakout | 1 | Temperature and humidity |
 | BMP180 breakout | 1 | Barometric pressure |
-| SGP30 breakout | 1 | TVOC and eCO2 |
 | PMS7003 | 1 | Particulate matter |
 | M6 threaded rod | 1 | Support mount |
 | M6 nut | 6 | Secures the M6 threaded rod |

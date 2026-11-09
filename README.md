@@ -20,7 +20,7 @@ My weather station is powered directly with 220 V, so no solar panel is used in 
 ```mermaid
 flowchart LR
     subgraph Enclosures["3dmodels/"]
-        AirBox["Air Sensor Box (AHT20, BMP180, SGP30, PMS7003)"]
+        AirBox["Air Sensor Box (AHT20, BMP180, PMS7003)"]
         Wind["Anemometer and Wind Vane (2x AS5600)"]
         Rain["Rain Gauge (AS5600)"]
     end

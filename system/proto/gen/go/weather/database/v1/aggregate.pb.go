@@ -226,8 +226,7 @@ type AirQualityAggregate struct {
 	AvgPm25 *float32 `protobuf:"fixed32,4,opt,name=avg_pm25,json=avgPm25,proto3,oneof" json:"avg_pm25,omitempty"`
 	// PM10 particle concentration.
 	AvgPm10       *float32 `protobuf:"fixed32,5,opt,name=avg_pm10,json=avgPm10,proto3,oneof" json:"avg_pm10,omitempty"`
-	AvgVoc        *float32 `protobuf:"fixed32,6,opt,name=avg_voc,json=avgVoc,proto3,oneof" json:"avg_voc,omitempty"`
-	SampleCount   uint64   `protobuf:"varint,7,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
+	SampleCount   uint64   `protobuf:"varint,6,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -297,13 +296,6 @@ func (x *AirQualityAggregate) GetAvgPm10() float32 {
 	return 0
 }
 
-func (x *AirQualityAggregate) GetAvgVoc() float32 {
-	if x != nil && x.AvgVoc != nil {
-		return *x.AvgVoc
-	}
-	return 0
-}
-
 func (x *AirQualityAggregate) GetSampleCount() uint64 {
 	if x != nil {
 		return x.SampleCount
@@ -353,21 +345,18 @@ const file_weather_database_v1_aggregate_proto_rawDesc = "" +
 	"\x13_max_wind_speed_mpsB\x11\n" +
 	"\x0f_avg_wind_u_mpsB\x11\n" +
 	"\x0f_avg_wind_v_mpsB\x14\n" +
-	"\x12_max_rain_rate_mmh\"\xbe\x02\n" +
+	"\x12_max_rain_rate_mmh\"\x94\x02\n" +
 	"\x13AirQualityAggregate\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12=\n" +
 	"\fbucket_start\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vbucketStart\x12\x1c\n" +
 	"\aavg_pm1\x18\x03 \x01(\x02H\x00R\x06avgPm1\x88\x01\x01\x12\x1e\n" +
 	"\bavg_pm25\x18\x04 \x01(\x02H\x01R\aavgPm25\x88\x01\x01\x12\x1e\n" +
-	"\bavg_pm10\x18\x05 \x01(\x02H\x02R\aavgPm10\x88\x01\x01\x12\x1c\n" +
-	"\aavg_voc\x18\x06 \x01(\x02H\x03R\x06avgVoc\x88\x01\x01\x12!\n" +
-	"\fsample_count\x18\a \x01(\x04R\vsampleCountB\n" +
+	"\bavg_pm10\x18\x05 \x01(\x02H\x02R\aavgPm10\x88\x01\x01\x12!\n" +
+	"\fsample_count\x18\x06 \x01(\x04R\vsampleCountB\n" +
 	"\n" +
 	"\b_avg_pm1B\v\n" +
 	"\t_avg_pm25B\v\n" +
-	"\t_avg_pm10B\n" +
-	"\n" +
-	"\b_avg_vocB7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
+	"\t_avg_pm10B7Z5weather-station/gen/go/weather/database/v1;databasev1b\x06proto3"
 
 var (
 	file_weather_database_v1_aggregate_proto_rawDescOnce sync.Once

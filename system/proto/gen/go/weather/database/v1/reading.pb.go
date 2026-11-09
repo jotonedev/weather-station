@@ -46,16 +46,15 @@ type Reading struct {
 	Pm25 *int32 `protobuf:"varint,14,opt,name=pm25,proto3,oneof" json:"pm25,omitempty"`
 	// PM10 particle concentration below 10 micrometres.
 	Pm10             *int32 `protobuf:"varint,15,opt,name=pm10,proto3,oneof" json:"pm10,omitempty"`
-	Voc              *int32 `protobuf:"varint,16,opt,name=voc,proto3,oneof" json:"voc,omitempty"`
-	AnemoStatus      *int32 `protobuf:"varint,17,opt,name=anemo_status,json=anemoStatus,proto3,oneof" json:"anemo_status,omitempty"`
-	AnemoAgc         *int32 `protobuf:"varint,18,opt,name=anemo_agc,json=anemoAgc,proto3,oneof" json:"anemo_agc,omitempty"`
-	AnemoAgcVariance *int32 `protobuf:"varint,19,opt,name=anemo_agc_variance,json=anemoAgcVariance,proto3,oneof" json:"anemo_agc_variance,omitempty"`
-	VaneStatus       *int32 `protobuf:"varint,20,opt,name=vane_status,json=vaneStatus,proto3,oneof" json:"vane_status,omitempty"`
-	VaneAgc          *int32 `protobuf:"varint,21,opt,name=vane_agc,json=vaneAgc,proto3,oneof" json:"vane_agc,omitempty"`
-	VaneAgcVariance  *int32 `protobuf:"varint,22,opt,name=vane_agc_variance,json=vaneAgcVariance,proto3,oneof" json:"vane_agc_variance,omitempty"`
-	RainStatus       *int32 `protobuf:"varint,23,opt,name=rain_status,json=rainStatus,proto3,oneof" json:"rain_status,omitempty"`
-	RainAgc          *int32 `protobuf:"varint,24,opt,name=rain_agc,json=rainAgc,proto3,oneof" json:"rain_agc,omitempty"`
-	RainAgcVariance  *int32 `protobuf:"varint,25,opt,name=rain_agc_variance,json=rainAgcVariance,proto3,oneof" json:"rain_agc_variance,omitempty"`
+	AnemoStatus      *int32 `protobuf:"varint,16,opt,name=anemo_status,json=anemoStatus,proto3,oneof" json:"anemo_status,omitempty"`
+	AnemoAgc         *int32 `protobuf:"varint,17,opt,name=anemo_agc,json=anemoAgc,proto3,oneof" json:"anemo_agc,omitempty"`
+	AnemoAgcVariance *int32 `protobuf:"varint,18,opt,name=anemo_agc_variance,json=anemoAgcVariance,proto3,oneof" json:"anemo_agc_variance,omitempty"`
+	VaneStatus       *int32 `protobuf:"varint,19,opt,name=vane_status,json=vaneStatus,proto3,oneof" json:"vane_status,omitempty"`
+	VaneAgc          *int32 `protobuf:"varint,20,opt,name=vane_agc,json=vaneAgc,proto3,oneof" json:"vane_agc,omitempty"`
+	VaneAgcVariance  *int32 `protobuf:"varint,21,opt,name=vane_agc_variance,json=vaneAgcVariance,proto3,oneof" json:"vane_agc_variance,omitempty"`
+	RainStatus       *int32 `protobuf:"varint,22,opt,name=rain_status,json=rainStatus,proto3,oneof" json:"rain_status,omitempty"`
+	RainAgc          *int32 `protobuf:"varint,23,opt,name=rain_agc,json=rainAgc,proto3,oneof" json:"rain_agc,omitempty"`
+	RainAgcVariance  *int32 `protobuf:"varint,24,opt,name=rain_agc_variance,json=rainAgcVariance,proto3,oneof" json:"rain_agc_variance,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -195,13 +194,6 @@ func (x *Reading) GetPm10() int32 {
 	return 0
 }
 
-func (x *Reading) GetVoc() int32 {
-	if x != nil && x.Voc != nil {
-		return *x.Voc
-	}
-	return 0
-}
-
 func (x *Reading) GetAnemoStatus() int32 {
 	if x != nil && x.AnemoStatus != nil {
 		return *x.AnemoStatus
@@ -269,7 +261,7 @@ var File_weather_database_v1_reading_proto protoreflect.FileDescriptor
 
 const file_weather_database_v1_reading_proto_rawDesc = "" +
 	"\n" +
-	"!weather/database/v1/reading.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdd\t\n" +
+	"!weather/database/v1/reading.proto\x12\x13weather.database.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbe\t\n" +
 	"\aReading\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\"\n" +
@@ -289,19 +281,18 @@ const file_weather_database_v1_reading_proto_rawDesc = "" +
 	"\x03pm1\x18\r \x01(\x05H\n" +
 	"R\x03pm1\x88\x01\x01\x12\x17\n" +
 	"\x04pm25\x18\x0e \x01(\x05H\vR\x04pm25\x88\x01\x01\x12\x17\n" +
-	"\x04pm10\x18\x0f \x01(\x05H\fR\x04pm10\x88\x01\x01\x12\x15\n" +
-	"\x03voc\x18\x10 \x01(\x05H\rR\x03voc\x88\x01\x01\x12&\n" +
-	"\fanemo_status\x18\x11 \x01(\x05H\x0eR\vanemoStatus\x88\x01\x01\x12 \n" +
-	"\tanemo_agc\x18\x12 \x01(\x05H\x0fR\banemoAgc\x88\x01\x01\x121\n" +
-	"\x12anemo_agc_variance\x18\x13 \x01(\x05H\x10R\x10anemoAgcVariance\x88\x01\x01\x12$\n" +
-	"\vvane_status\x18\x14 \x01(\x05H\x11R\n" +
+	"\x04pm10\x18\x0f \x01(\x05H\fR\x04pm10\x88\x01\x01\x12&\n" +
+	"\fanemo_status\x18\x10 \x01(\x05H\rR\vanemoStatus\x88\x01\x01\x12 \n" +
+	"\tanemo_agc\x18\x11 \x01(\x05H\x0eR\banemoAgc\x88\x01\x01\x121\n" +
+	"\x12anemo_agc_variance\x18\x12 \x01(\x05H\x0fR\x10anemoAgcVariance\x88\x01\x01\x12$\n" +
+	"\vvane_status\x18\x13 \x01(\x05H\x10R\n" +
 	"vaneStatus\x88\x01\x01\x12\x1e\n" +
-	"\bvane_agc\x18\x15 \x01(\x05H\x12R\avaneAgc\x88\x01\x01\x12/\n" +
-	"\x11vane_agc_variance\x18\x16 \x01(\x05H\x13R\x0fvaneAgcVariance\x88\x01\x01\x12$\n" +
-	"\vrain_status\x18\x17 \x01(\x05H\x14R\n" +
+	"\bvane_agc\x18\x14 \x01(\x05H\x11R\avaneAgc\x88\x01\x01\x12/\n" +
+	"\x11vane_agc_variance\x18\x15 \x01(\x05H\x12R\x0fvaneAgcVariance\x88\x01\x01\x12$\n" +
+	"\vrain_status\x18\x16 \x01(\x05H\x13R\n" +
 	"rainStatus\x88\x01\x01\x12\x1e\n" +
-	"\brain_agc\x18\x18 \x01(\x05H\x15R\arainAgc\x88\x01\x01\x12/\n" +
-	"\x11rain_agc_variance\x18\x19 \x01(\x05H\x16R\x0frainAgcVariance\x88\x01\x01B\r\n" +
+	"\brain_agc\x18\x17 \x01(\x05H\x14R\arainAgc\x88\x01\x01\x12/\n" +
+	"\x11rain_agc_variance\x18\x18 \x01(\x05H\x15R\x0frainAgcVariance\x88\x01\x01B\r\n" +
 	"\v_wind_speedB\r\n" +
 	"\v_wind_angleB\x11\n" +
 	"\x0f_raw_wind_speedB\x11\n" +
@@ -316,8 +307,7 @@ const file_weather_database_v1_reading_proto_rawDesc = "" +
 	"_rain_rateB\x06\n" +
 	"\x04_pm1B\a\n" +
 	"\x05_pm25B\a\n" +
-	"\x05_pm10B\x06\n" +
-	"\x04_vocB\x0f\n" +
+	"\x05_pm10B\x0f\n" +
 	"\r_anemo_statusB\f\n" +
 	"\n" +
 	"_anemo_agcB\x15\n" +
