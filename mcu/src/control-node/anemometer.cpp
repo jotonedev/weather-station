@@ -46,6 +46,7 @@ void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
     filteredRpm = 0.0f;
     consecutiveGlitches = 0;
     glitchCount = 0;
+    lastDiagMs = 0;
     agcCount = 0;
     agcMean = 0.0;
     agcM2 = 0.0;
@@ -154,47 +155,46 @@ void Anemometer::update() {
     if (busMutex != nullptr) {
         xSemaphoreTake(busMutex, portMAX_DELAY);
     }
-    if (!as5600.isConnected()) {
-        if (busMutex != nullptr) {
-            xSemaphoreGive(busMutex);
-        }
-        portENTER_CRITICAL(&spinlock);
-        lastHeartbeatMs = nowMs;
-        sensorReady = false;
-        portEXIT_CRITICAL(&spinlock);
-        return;
-    }
-
     uint32_t nowUs = micros();
     uint16_t raw = as5600.readAngle();
     bool i2cOk = (as5600.lastError() == AS5600_OK);
-    uint8_t status = as5600.readStatus();
-    uint8_t agc = as5600.readAGC();
+
+    bool shouldReadDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL) || (!i2cOk);
+    uint8_t status = 0;
+    uint8_t agc = 0;
+    if (shouldReadDiag) {
+        lastDiagMs = nowMs;
+        status = as5600.readStatus();
+        agc = as5600.readAGC();
+    }
     if (busMutex != nullptr) {
         xSemaphoreGive(busMutex);
     }
 
-    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10),
-    // bit 3 = Magnet High/Strong (0x08)
-    bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
-    bool fullReady = hwMagnetOk && !(status & 0x08);
+    if (shouldReadDiag) {
+        bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
+        bool fullReady = hwMagnetOk && !(status & 0x08);
+
+        portENTER_CRITICAL(&spinlock);
+        lastStatus = status;
+        lastAgc = agc;
+        sensorReady = fullReady;
+        if (i2cOk && (status & 0x20)) {
+            agcCount++;
+            double deltaAgc = static_cast<double>(agc) - agcMean;
+            agcMean += deltaAgc / agcCount;
+            double deltaAgc2 = static_cast<double>(agc) - agcMean;
+            agcM2 += deltaAgc * deltaAgc2;
+        }
+        portEXIT_CRITICAL(&spinlock);
+    }
 
     portENTER_CRITICAL(&spinlock);
     lastHeartbeatMs = nowMs;
-    sensorReady = fullReady;
-    lastStatus = status;
-    lastAgc = agc;
+    bool readySnapshot = sensorReady;
+    portEXIT_CRITICAL(&spinlock);
 
-    // Accumulate AGC stats on detected magnet
-    if (i2cOk && (status & 0x20)) {
-        agcCount++;
-        double deltaAgc = static_cast<double>(agc) - agcMean;
-        agcMean += deltaAgc / agcCount;
-        double deltaAgc2 = static_cast<double>(agc) - agcMean;
-        agcM2 += deltaAgc * deltaAgc2;
-    }
-
-    bool isGlitch = !hwMagnetOk;
+    bool isGlitch = !i2cOk || !readySnapshot;
     int32_t delta = 0;
 
     // Kinematic outlier rejection: even if status didn't flag ML, reject impossible jumps

@@ -21,6 +21,7 @@ void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
     // 100 ms internal polling (LPM3) is 10x faster than the 1 Hz sampling task
     as5600.setPowerMode(AS5600_POWERMODE_LOW3);
+    as5600.setWatchDog(AS5600_WATCHDOG_ON);
 
     uint32_t nowMs = millis();
     portENTER_CRITICAL(&spinlock);
@@ -33,6 +34,7 @@ void WindVane::initialize(uint8_t directionPin, uint8_t direction) {
     vecY = 0.0f;
     hasFirstSample = false;
     glitchCount = 0;
+    lastDiagMs = 0;
     agcCount = 0;
     agcMean = 0.0;
     agcM2 = 0.0;
@@ -103,40 +105,48 @@ void WindVane::taskLoop(uint32_t samplePeriodMs) {
 
 void WindVane::update() {
     uint32_t nowMs = millis();
-    if (!as5600.isConnected()) {
+    uint16_t raw = as5600.readAngle();
+    bool i2cOk = (as5600.lastError() == AS5600_OK);
+
+    if (!i2cOk) {
         portENTER_CRITICAL(&spinlock);
         lastHeartbeatMs = nowMs;
         sensorReady = false;
+        glitchCount++;
         portEXIT_CRITICAL(&spinlock);
         return;
     }
 
-    uint16_t raw = as5600.readAngle();
-    bool i2cOk = (as5600.lastError() == AS5600_OK);
-    uint8_t status = as5600.readStatus();
-    uint8_t agc = as5600.readAGC();
+    // Periodic diagnostic query every 5000 ms or initial run
+    bool shouldReadDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
+    if (shouldReadDiag) {
+        lastDiagMs = nowMs;
+        uint8_t status = as5600.readStatus();
+        uint8_t agc = as5600.readAGC();
+        bool hwMagnetOk = (status & 0x20) && !(status & 0x10);
+        bool fullReady = hwMagnetOk && !(status & 0x08);
 
-    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10),
-    // bit 3 = Magnet High/Strong (0x08)
-    bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
-    bool fullReady = hwMagnetOk && !(status & 0x08);
+        portENTER_CRITICAL(&spinlock);
+        lastStatus = status;
+        lastAgc = agc;
+        sensorReady = fullReady;
+        if (status & 0x20) {
+            agcCount++;
+            double deltaAgc = static_cast<double>(agc) - agcMean;
+            agcMean += deltaAgc / agcCount;
+            double deltaAgc2 = static_cast<double>(agc) - agcMean;
+            agcM2 += deltaAgc * deltaAgc2;
+        }
+        portEXIT_CRITICAL(&spinlock);
+    }
 
     portENTER_CRITICAL(&spinlock);
     lastHeartbeatMs = nowMs;
-    sensorReady = fullReady;
-    lastStatus = status;
-    lastAgc = agc;
+    bool readySnapshot = sensorReady;
+    portEXIT_CRITICAL(&spinlock);
 
-    // Accumulate AGC stats on detected magnet
-    if (i2cOk && (status & 0x20)) {
-        agcCount++;
-        double deltaAgc = static_cast<double>(agc) - agcMean;
-        agcMean += deltaAgc / agcCount;
-        double deltaAgc2 = static_cast<double>(agc) - agcMean;
-        agcM2 += deltaAgc * deltaAgc2;
-    }
-
-    if (!hwMagnetOk) {
+    if (!readySnapshot) {
+        portENTER_CRITICAL(&spinlock);
         glitchCount++;
         portEXIT_CRITICAL(&spinlock);
         return;

@@ -141,6 +141,7 @@ class RainMeter {
     uint8_t lastAgc = 0;
     uint32_t glitchCount = 0;
     uint32_t consecutiveGlitches = 0;
+    uint32_t lastDiagMs = 0;
 
     // Welford's algorithm for AGC variance
     uint32_t agcCount = 0;

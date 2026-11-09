@@ -49,6 +49,7 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
     // 20 ms internal polling (LPM2) to provide fresh samples for the 30 ms task
     as5600.setPowerMode(AS5600_POWERMODE_LOW2);
+    as5600.setWatchDog(AS5600_WATCHDOG_ON);
 
     loadNvsCalibration();
 
@@ -69,6 +70,7 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
     lastHourTickMs = nowMs;
     glitchCount = 0;
     consecutiveGlitches = 0;
+    lastDiagMs = 0;
     agcCount = 0;
     agcMean = 0.0;
     agcM2 = 0.0;
@@ -130,53 +132,70 @@ void RainMeter::stopTask() {
 }
 
 void RainMeter::taskLoop(uint32_t samplePeriodMs) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(samplePeriodMs);
+    constexpr uint32_t kRestPeriodMs = 100;
+    const uint32_t activePeriodMs = (samplePeriodMs > 0) ? samplePeriodMs : 30;
     while (true) {
         update();
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        bool resting = false;
+        portENTER_CRITICAL(&spinlock);
+        resting = (currentState == RainMeterState::REST_LEFT ||
+                   currentState == RainMeterState::REST_RIGHT) &&
+                  (stillCount >= 4);
+        portEXIT_CRITICAL(&spinlock);
+        uint32_t delayMs = resting ? kRestPeriodMs : activePeriodMs;
+        vTaskDelay(pdMS_TO_TICKS(delayMs));
     }
 }
 
 void RainMeter::update() {
     uint32_t nowMs = millis();
-    if (!as5600.isConnected()) {
+    uint16_t raw = as5600.readAngle();
+    bool i2cOk = (as5600.lastError() == AS5600_OK);
+
+    if (!i2cOk) {
         portENTER_CRITICAL(&spinlock);
         lastHeartbeatMs = nowMs;
         sensorReady = false;
+        glitchCount++;
+        consecutiveGlitches++;
         updateRollingWindows(nowMs);
         portEXIT_CRITICAL(&spinlock);
         return;
     }
 
-    uint16_t raw = as5600.readAngle();
-    bool i2cOk = (as5600.lastError() == AS5600_OK);
-    uint8_t status = as5600.readStatus();
-    uint8_t agc = as5600.readAGC();
+    // Periodic diagnostic query every 5000 ms or initial run
+    bool shouldReadDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
+    if (shouldReadDiag) {
+        lastDiagMs = nowMs;
+        uint8_t status = as5600.readStatus();
+        uint8_t agc = as5600.readAGC();
+        bool hwMagnetOk = (status & 0x20) && !(status & 0x10);
+        bool fullReady = hwMagnetOk && !(status & 0x08);
 
-    // Check hardware status: bit 5 = Magnet Detected (0x20), bit 4 = Magnet Low/Weak (0x10),
-    // bit 3 = Magnet High/Strong (0x08)
-    bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
-    bool fullReady = hwMagnetOk && !(status & 0x08);
+        portENTER_CRITICAL(&spinlock);
+        lastStatus = status;
+        lastAgc = agc;
+        sensorReady = fullReady;
+        if (status & 0x20) {
+            agcCount++;
+            double deltaAgc = static_cast<double>(agc) - agcMean;
+            agcMean += deltaAgc / agcCount;
+            double deltaAgc2 = static_cast<double>(agc) - agcMean;
+            agcM2 += deltaAgc * deltaAgc2;
+        }
+        portEXIT_CRITICAL(&spinlock);
+    }
 
     portENTER_CRITICAL(&spinlock);
     lastHeartbeatMs = nowMs;
-    sensorReady = fullReady;
-    lastStatus = status;
-    lastAgc = agc;
+    bool readySnapshot = sensorReady;
+    portEXIT_CRITICAL(&spinlock);
 
-    // Accumulate AGC statistics on detected magnet (Welford's algorithm)
-    if (i2cOk && (status & 0x20)) {
-        agcCount++;
-        double deltaAgc = static_cast<double>(agc) - agcMean;
-        agcMean += deltaAgc / agcCount;
-        double deltaAgc2 = static_cast<double>(agc) - agcMean;
-        agcM2 += deltaAgc * deltaAgc2;
-    }
-
-    if (!hwMagnetOk) {
+    if (!readySnapshot) {
+        portENTER_CRITICAL(&spinlock);
         glitchCount++;
         consecutiveGlitches++;
+        updateRollingWindows(nowMs);
         portEXIT_CRITICAL(&spinlock);
         return;
     }

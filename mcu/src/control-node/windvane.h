@@ -77,6 +77,7 @@ class WindVane {
     uint8_t lastStatus = 0;
     uint8_t lastAgc = 0;
     uint32_t glitchCount = 0;
+    uint32_t lastDiagMs = 0;
 
     // Running statistics for AGC variance (Welford's algorithm)
     uint32_t agcCount = 0;

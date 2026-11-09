@@ -221,7 +221,7 @@ void setup() {
 
     // Background sampling tasks keep bursty sensors fresh without blocking.
     anemometer.startTask(10, 1, 0);
-    windVane.startTask(1000, 1, 0);
+    windVane.startTask(3000, 1, 0);
     rainMeter.startTask(30, 1, 0);
 
     ARQ::Status radioStatus = arq.initializeCC1101();
