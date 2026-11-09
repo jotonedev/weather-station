@@ -18,26 +18,22 @@ jobs:
   format:
     name: clang-format check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcu
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Install clang-format
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang-format-18
+
       - name: Check formatting
-        uses: cpp-linter/cpp-linter-action@v2
-        id: linter
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITEA_API_URL: ${{ github.api_url || format('{0}/api/v1', github.server_url) }}
-          GITEA_REPOSITORY: ${{ github.repository }}
-        with:
-          style: file
-          version: '18'
-          files-changed-only: false
-          ignore: '.pio|lib/CC1101'
-          tidy-checks: '-*'
-          step-summary: true
-          format-fail-on-error: true
+        run: |
+          CF=$(command -v clang-format-18 || command -v clang-format)
+          find src lib test -type f \( -name '*.cpp' -o -name '*.h' \) \
+            ! -path 'lib/CC1101/*' \
+            -exec "$CF" --dry-run --Werror {} +
 
   unit-tests:
     name: Native tests and clang-tidy
