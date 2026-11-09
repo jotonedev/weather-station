@@ -22,8 +22,8 @@ void Anemometer::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setDirection(direction);
     // Enable 3 LSB hysteresis to suppress standstill noise at silicon level
     as5600.setHysteresis(AS5600_HYST_LSB3);
-    // Slow filter 16x for maximum noise rejection
-    as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
+    // Slow filter 8x to suppress noise spikes and jitter at low speeds
+    as5600.setSlowFilter(AS5600_SLOW_FILT_8X);
     // Disable fast filter so noise spikes don't bypass slow filter
     as5600.setFastFilter(AS5600_FAST_FILT_NONE);
     // 5 ms internal polling (LPM1) to match the 10 ms task and watchdog to drop to LPM3 at rest
