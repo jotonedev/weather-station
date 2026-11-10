@@ -29,13 +29,9 @@
   <span class="forecast-temp">{{ .MaxTemperature }} <span class="forecast-temp-min">{{ .MinTemperature }}</span></span>
 
   <div class="forecast-details">
-    <div class="forecast-detail-row">
-      <span>Rain</span>
-      <strong>{{ .Rainfall }}</strong>
-    </div>
     <div class="prob-bar-wrap">
       <div class="forecast-detail-row">
-        <span>Chance</span>
+        <span>Rain chance</span>
         <strong>{{ .RainProbability }}</strong>
       </div>
       <div class="prob-bar-track">
@@ -54,8 +50,8 @@
   <link rel="stylesheet" href="/static/css/weather-icons.min.css">
   <link rel="stylesheet" href="/static/css/weather-icons-wind.min.css">
   <link rel="stylesheet" href="/static/css/styles.css">
-  <link rel="stylesheet" href="/static/css/tablet.css" media="screen and (max-width: 1024px)">
-  <link rel="stylesheet" href="/static/css/mobile.css" media="screen and (max-width: 480px)">
+  <link rel="stylesheet" href="/static/css/700px.css" media="screen and (max-width: 700px)">
+  <link rel="stylesheet" href="/static/css/480px.css" media="screen and (max-width: 480px)">
 </head>
 <body>
   <div class="container">
