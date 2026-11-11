@@ -27,21 +27,31 @@
     color-scheme: light dark;
 
     --bg-light: #f8fafc;
-    --bg-dark: #0b1120;
+    --bg-dark: #0d0f12;
     --card-bg-light: #ffffff;
-    --card-bg-dark: #131d31;
+    --card-bg-dark: #181a20;
     --card-bg-elevated-light: #f1f5f9;
-    --card-bg-elevated-dark: #1e293b;
+    --card-bg-elevated-dark: #22252c;
     --border-light: #e2e8f0;
-    --border-dark: #2d3b55;
+    --border-dark: #2c303a;
     --text-light: #0f172a;
-    --text-dark: #f8fafc;
+    --text-dark: #f3f4f6;
     --text-muted-light: #64748b;
-    --text-muted-dark: #94a3b8;
+    --text-muted-dark: #9ca3af;
     --accent-light: #0284c7;
     --accent-dark: #38bdf8;
     --accent-dim-light: #f0f9ff;
-    --accent-dim-dark: #082f49;
+    --accent-dim-dark: #1c202a;
+    --pill-bg-light: var(--accent-dim-light);
+    --pill-bg-dark: var(--card-bg-elevated-dark);
+    --icon-light: var(--accent-light);
+    --icon-dark: #f3f4f6;
+    --title-color-light: var(--accent-light);
+    --title-color-dark: #f3f4f6;
+    --badge-bg-light: var(--accent-dim-light);
+    --badge-bg-dark: #22252c;
+    --badge-text-light: var(--accent-light);
+    --badge-text-dark: #9ca3af;
     --green-light: #16a34a;
     --green-dark: #4ade80;
     --amber-light: #ca8a04;
@@ -51,11 +61,11 @@
     --red-light: #dc2626;
     --red-dark: #f87171;
     --shadow-light: 0 4px 12px rgba(15, 23, 42, 0.05);
-    --shadow-dark: 0 4px 14px rgba(0, 0, 0, 0.4);
+    --shadow-dark: 0 4px 14px rgba(0, 0, 0, 0.45);
     --scrollbar-thumb-light: #94a3b8;
-    --scrollbar-thumb-dark: #475569;
+    --scrollbar-thumb-dark: #3f4451;
     --scrollbar-track-light: #f1f5f9;
-    --scrollbar-track-dark: #0f172a;
+    --scrollbar-track-dark: #111318;
 
     --bg: var(--bg-light);
     --card-bg: var(--card-bg-light);
@@ -65,6 +75,11 @@
     --text-muted: var(--text-muted-light);
     --accent: var(--accent-light);
     --accent-dim: var(--accent-dim-light);
+    --pill-bg: var(--pill-bg-light);
+    --icon-color: var(--icon-light);
+    --title-color: var(--title-color-light);
+    --badge-bg: var(--badge-bg-light);
+    --badge-text: var(--badge-text-light);
     --green: var(--green-light);
     --amber: var(--amber-light);
     --orange: var(--orange-light);
@@ -82,6 +97,11 @@
       --text-muted: var(--text-muted-dark);
       --accent: var(--accent-dark);
       --accent-dim: var(--accent-dim-dark);
+      --pill-bg: var(--pill-bg-dark);
+      --icon-color: var(--icon-dark);
+      --title-color: var(--title-color-dark);
+      --badge-bg: var(--badge-bg-dark);
+      --badge-text: var(--badge-text-dark);
       --green: var(--green-dark);
       --amber: var(--amber-dark);
       --orange: var(--orange-dark);
@@ -100,6 +120,11 @@
       --text-muted: light-dark(var(--text-muted-light), var(--text-muted-dark));
       --accent: light-dark(var(--accent-light), var(--accent-dark));
       --accent-dim: light-dark(var(--accent-dim-light), var(--accent-dim-dark));
+      --pill-bg: light-dark(var(--pill-bg-light), var(--pill-bg-dark));
+      --icon-color: light-dark(var(--icon-light), var(--icon-dark));
+      --title-color: light-dark(var(--title-color-light), var(--title-color-dark));
+      --badge-bg: light-dark(var(--badge-bg-light), var(--badge-bg-dark));
+      --badge-text: light-dark(var(--badge-text-light), var(--badge-text-dark));
       --green: light-dark(var(--green-light), var(--green-dark));
       --amber: light-dark(var(--amber-light), var(--amber-dark));
       --orange: light-dark(var(--orange-light), var(--orange-dark));
@@ -162,6 +187,12 @@
   .container {
     max-inline-size: 1200px;
     margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  main {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
@@ -319,7 +350,7 @@
 
   .hero-icon-wrap .wx-icon {
     font-size: clamp(2.75rem, 5vw, 3.75rem);
-    color: var(--accent);
+    color: var(--icon-color);
     line-height: 1;
   }
 
@@ -357,7 +388,7 @@
   }
 
   .hero-pill {
-    background: var(--accent-dim);
+    background: var(--pill-bg);
     border: 1px solid var(--border);
     border-radius: 0.75rem;
     padding: 0.75rem 0.875rem;
@@ -405,7 +436,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--accent);
+    color: var(--title-color);
   }
 
   .section-subtitle {
@@ -476,15 +507,16 @@
   .forecast-horizon-badge {
     font-size: 0.7rem;
     font-weight: 600;
-    color: var(--accent);
-    background: var(--accent-dim);
+    color: var(--badge-text);
+    background: var(--badge-bg);
+    border: 1px solid var(--border);
     padding: 0.125rem 0.5rem;
     border-radius: 999px;
   }
 
   .forecast-icon-wrap .wx-icon {
     font-size: 2rem;
-    color: var(--accent);
+    color: var(--icon-color);
     margin-block: 0.3rem;
     line-height: 1;
     display: inline-block;
@@ -595,7 +627,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--accent);
+    color: var(--title-color);
   }
 
   .aq-badge {
@@ -637,7 +669,7 @@
   }
 
   .aq-unknown {
-    background: var(--accent-dim);
+    background: var(--card-bg-elevated);
     color: var(--text-muted);
   }
 
@@ -670,7 +702,7 @@
   .wind-arrow {
     font-size: 1.25rem;
     display: inline-block;
-    color: var(--accent);
+    color: var(--icon-color);
     line-height: 1;
   }
 
