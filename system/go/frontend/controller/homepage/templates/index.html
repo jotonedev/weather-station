@@ -7,10 +7,11 @@
   {{ end }}
   <div class="forecast-icon-wrap">
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
+    <span class="visually-hidden">{{ .ConditionLabel }}</span>
   </div>
   <span class="forecast-temp">{{ .Temperature }}</span>
-  {{ if .TemperatureRange }}<span class="forecast-range" title="10th–90th percentile range">{{ .TemperatureRange }}</span>{{ end }}
-  <span class="forecast-meta-compact" title="Chance">{{ .RainProbability }}</span>
+  {{ if .TemperatureRange }}<span class="forecast-range" title="10th–90th percentile range"><span class="visually-hidden">Range: </span>{{ .TemperatureRange }}</span>{{ end }}
+  <span class="forecast-meta-compact" title="Chance"><span class="visually-hidden">Rain chance: </span>{{ .RainProbability }}</span>
 </div>
 {{ end }}
 
@@ -21,7 +22,7 @@
   {{ else }}
   <span class="forecast-time">{{ .HorizonLabel }}</span>
   {{ end }}
-  <span class="forecast-horizon-badge">{{ .TimeSubLabel }}</span>
+  <span class="forecast-horizon-badge"><span class="visually-hidden">Horizon: </span>{{ .TimeSubLabel }}</span>
   <div class="forecast-icon-wrap">
     <i class="wi {{ .ConditionIcon }} wx-icon" aria-hidden="true"></i>
   </div>
@@ -81,14 +82,15 @@
       </div>
     </header>
 
-    <main id="main-content">
+    <main id="main-content" tabindex="-1">
       {{ if .ErrorMessage }}
       <div class="alert-error" role="alert">{{ .ErrorMessage }}</div>
       {{ end }}
 
       {{ if or .LatestReading .HourlyForecast .DailyForecast }}
         {{ if .LatestReading }}
-        <section class="hero-banner" aria-label="Current weather">
+        <section class="hero-banner">
+          <h2 class="visually-hidden">Current Conditions</h2>
           <div class="hero-main">
             <div class="hero-icon-wrap">
               <i class="wi {{ .LatestReading.ConditionIcon }} wx-icon" aria-hidden="true"></i>
@@ -118,6 +120,7 @@
                 {{ if .LatestReading.HasWindAngle }}
                 <i class="wi wi-wind towards-{{ .LatestReading.WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
                 <span>{{ .LatestReading.WindCardinal }}</span>
+                <span class="visually-hidden">({{ .LatestReading.WindRotationDeg }} degrees)</span>
                 {{ end }}
               </span>
             </div>
@@ -131,7 +134,7 @@
         </section>
         {{ end }}
 
-        <section class="section-card" aria-label="Hourly weather forecast">
+        <section class="section-card">
           <div class="section-header">
             <h2 class="section-title">Hourly Forecast</h2>
             {{ if .HourlyIssuedAt }}
@@ -150,7 +153,7 @@
           {{ end }}
         </section>
 
-        <section class="section-card" aria-label="Daily weather forecast">
+        <section class="section-card">
           <div class="section-header">
             <h2 class="section-title">Daily Forecast</h2>
             {{ if .DailyIssuedAt }}
@@ -173,7 +176,7 @@
         <div class="grid">
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Climate</span>
+              <h3 class="card-title">Climate</h3>
             </div>
             <div class="metrics">
               <div class="metric">
@@ -193,7 +196,7 @@
 
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Rainfall</span>
+              <h3 class="card-title">Rainfall</h3>
             </div>
             <div class="metrics">
               <div class="metric">
@@ -209,7 +212,7 @@
 
           <div class="card">
             <div class="card-header">
-              <span class="card-title">Air Quality</span>
+              <h3 class="card-title">Air Quality</h3>
               <span class="aq-badge aq-{{ .LatestReading.AirQualityLevel }}">{{ .LatestReading.AirQualityLabel }}</span>
             </div>
             <div class="metrics">

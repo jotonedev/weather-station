@@ -25,7 +25,7 @@
       </div>
     </header>
 
-    <main id="main-content">
+    <main id="main-content" tabindex="-1">
       {{ if .ErrorMessage }}
       <div class="alert-error" role="alert">{{ .ErrorMessage }}</div>
       {{ end }}
@@ -34,7 +34,7 @@
       <div class="alert-success" role="status">{{ .StatusMessage }}</div>
       {{ end }}
 
-      <section class="section-card" aria-label="Add or update station node">
+      <section class="section-card">
         <div class="section-header">
           <h2 class="section-title">Register or Update Station Node</h2>
         </div>
@@ -68,14 +68,14 @@
         </form>
       </section>
 
-      <section class="section-card" aria-label="Registered nodes">
+      <section class="section-card">
         <div class="section-header">
           <h2 class="section-title">Registered Nodes</h2>
           <span class="section-subtitle">{{ len .Nodes }} total</span>
         </div>
 
         {{ if .Nodes }}
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Registered nodes table">
           <table class="nodes-table">
             <caption class="visually-hidden">Registered weather station nodes list</caption>
             <thead>

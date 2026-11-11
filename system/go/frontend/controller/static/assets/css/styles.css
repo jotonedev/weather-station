@@ -36,9 +36,9 @@
     --border-dark: #2c303a;
     --text-light: #0f172a;
     --text-dark: #f3f4f6;
-    --text-muted-light: #64748b;
+    --text-muted-light: #475569;
     --text-muted-dark: #9ca3af;
-    --accent-light: #0284c7;
+    --accent-light: #0369a1;
     --accent-dark: #38bdf8;
     --accent-dim-light: #f0f9ff;
     --accent-dim-dark: #1c202a;
@@ -52,14 +52,16 @@
     --badge-bg-dark: #22252c;
     --badge-text-light: var(--accent-light);
     --badge-text-dark: #9ca3af;
-    --green-light: #16a34a;
+    --green-light: #15803d;
     --green-dark: #4ade80;
-    --amber-light: #ca8a04;
+    --amber-light: #a16207;
     --amber-dark: #facc15;
-    --orange-light: #ea580c;
+    --orange-light: #c2410c;
     --orange-dark: #fb923c;
-    --red-light: #dc2626;
+    --red-light: #b91c1c;
     --red-dark: #f87171;
+    --purple-light: #7e22ce;
+    --purple-dark: #c084fc;
     --shadow-light: 0 4px 12px rgba(15, 23, 42, 0.05);
     --shadow-dark: 0 4px 14px rgba(0, 0, 0, 0.45);
     --scrollbar-thumb-light: #94a3b8;
@@ -84,6 +86,7 @@
     --amber: var(--amber-light);
     --orange: var(--orange-light);
     --red: var(--red-light);
+    --purple: var(--purple-light);
     --shadow: var(--shadow-light);
     --scrollbar-thumb: var(--scrollbar-thumb-light);
     --scrollbar-track: var(--scrollbar-track-light);
@@ -106,6 +109,7 @@
       --amber: var(--amber-dark);
       --orange: var(--orange-dark);
       --red: var(--red-dark);
+      --purple: var(--purple-dark);
       --shadow: var(--shadow-dark);
       --scrollbar-thumb: var(--scrollbar-thumb-dark);
       --scrollbar-track: var(--scrollbar-track-dark);
@@ -129,6 +133,7 @@
       --amber: light-dark(var(--amber-light), var(--amber-dark));
       --orange: light-dark(var(--orange-light), var(--orange-dark));
       --red: light-dark(var(--red-light), var(--red-dark));
+      --purple: light-dark(var(--purple-light), var(--purple-dark));
       --shadow: light-dark(var(--shadow-light), var(--shadow-dark));
       --scrollbar-thumb: light-dark(var(--scrollbar-thumb-light), var(--scrollbar-thumb-dark));
       --scrollbar-track: light-dark(var(--scrollbar-track-light), var(--scrollbar-track-dark));
@@ -175,6 +180,16 @@
 
   p, .empty-state p, .site-footer {
     text-wrap: pretty;
+  }
+
+  main:focus {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   :focus-visible {
@@ -457,6 +472,17 @@
     justify-content: safe center;
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    .forecast-strip {
+      scroll-behavior: smooth;
+    }
+  }
+
+  .forecast-strip:focus-visible,
+  .table-wrap:focus-visible {
+    border-radius: 0.5rem;
+  }
+
   .forecast-grid-daily {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr));
@@ -644,8 +670,8 @@
   }
 
   .aq-fair {
-    background: color-mix(in srgb, #38bdf8 18%, transparent);
-    color: #38bdf8;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
   }
 
   .aq-moderate {
@@ -664,8 +690,8 @@
   }
 
   .aq-extremely-poor {
-    background: color-mix(in srgb, #c084fc 18%, transparent);
-    color: #c084fc;
+    background: color-mix(in srgb, var(--purple) 18%, transparent);
+    color: var(--purple);
   }
 
   .aq-unknown {
@@ -860,6 +886,7 @@
   .table-wrap {
     overflow-x: auto;
     scrollbar-width: thin;
+    overscroll-behavior-inline: contain;
   }
 
   .nodes-table {
@@ -1001,6 +1028,54 @@
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (pointer: coarse) {
+  .station-selector button,
+  .btn-danger {
+    min-block-size: 44px;
+    padding-inline: 1rem;
+  }
+
+  .nav-button {
+    min-block-size: 44px;
+  }
+
+  .station-selector select {
+    min-block-size: 44px;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .btn-primary,
+  .btn-danger,
+  .station-selector button,
+  .nav-button {
+    border: 1px solid ButtonText;
+  }
+
+  .aq-badge,
+  .forecast-horizon-badge {
+    border: 1px solid CanvasText;
+  }
+
+  .alert-error,
+  .alert-success {
+    border: 2px solid CanvasText;
+  }
+
+  progress.prob-progress {
+    border: 1px solid CanvasText;
+  }
+
+  .empty-state {
+    border-style: solid;
   }
 }
 
