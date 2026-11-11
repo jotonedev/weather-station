@@ -34,9 +34,7 @@
         <span>Rain chance</span>
         <strong>{{ .RainProbability }}</strong>
       </div>
-      <div class="prob-bar-track">
-        <div class="prob-bar-fill" style="width: {{ .RainProbabilityPct }}%"></div>
-      </div>
+      <progress class="prob-progress" value="{{ .RainProbabilityPct }}" max="100" aria-label="Rain chance {{ .RainProbability }}"></progress>
     </div>
   </div>
 </div>
@@ -45,15 +43,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>{{ .Title }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg">
   <link rel="stylesheet" href="/static/css/weather-icons.min.css">
   <link rel="stylesheet" href="/static/css/weather-icons-wind.min.css">
   <link rel="stylesheet" href="/static/css/styles.css">
-  <link rel="stylesheet" href="/static/css/700px.css" media="screen and (max-width: 700px)">
-  <link rel="stylesheet" href="/static/css/490px.css" media="screen and (max-width: 490px)">
 </head>
 <body>
+  <a href="#main-content" class="skip-link visually-hidden">Skip to main content</a>
   <div class="container">
     <header>
       <div class="title-group">
@@ -67,201 +65,205 @@
       </div>
       <div class="station-selector">
         {{ if .AvailableNodes }}
-        <form method="GET" action="/">
-          <label for="node_id">Station</label>
-          <select id="node_id" name="node_id" onchange="this.form.submit()">
-            {{ range .AvailableNodes }}
-            <option value="{{ . }}" {{ if eq . $.SelectedNodeID }}selected{{ end }}>{{ . }}</option>
-            {{ end }}
-          </select>
-          <button type="submit">View</button>
-        </form>
+        <search aria-label="Station selector">
+          <form method="get" action="/">
+            <label for="node_id">Station</label>
+            <select id="node_id" name="node_id">
+              {{ range .AvailableNodes }}
+              <option value="{{ . }}" {{ if eq . $.SelectedNodeID }}selected{{ end }}>{{ . }}</option>
+              {{ end }}
+            </select>
+            <button type="submit">View</button>
+          </form>
+        </search>
         {{ end }}
         <a href="/nodes" class="nav-button">Manage Nodes</a>
       </div>
     </header>
 
-    {{ if .ErrorMessage }}
-    <div class="alert-error">{{ .ErrorMessage }}</div>
-    {{ end }}
+    <main id="main-content">
+      {{ if .ErrorMessage }}
+      <div class="alert-error" role="alert">{{ .ErrorMessage }}</div>
+      {{ end }}
 
-    {{ if or .LatestReading .HourlyForecast .DailyForecast }}
-      {{ if .LatestReading }}
-      <section class="hero-banner" aria-label="Current weather">
-        <div class="hero-main">
-          <div class="hero-icon-wrap">
-            <i class="wi {{ .LatestReading.ConditionIcon }} wx-icon" aria-hidden="true"></i>
-          </div>
-          <div>
-            <div class="hero-temp">{{ .LatestReading.Temperature }}</div>
-            <div class="hero-condition">{{ .LatestReading.ConditionLabel }}</div>
-            <div class="hero-meta">
-              Latest sample taken at <strong>{{ if .LatestReading.TimestampISO }}<time datetime="{{ .LatestReading.TimestampISO }}" data-time-format="datetime-sec">{{ .LatestReading.FormattedTime }}</time>{{ else }}{{ .LatestReading.FormattedTime }}{{ end }}</strong>
+      {{ if or .LatestReading .HourlyForecast .DailyForecast }}
+        {{ if .LatestReading }}
+        <section class="hero-banner" aria-label="Current weather">
+          <div class="hero-main">
+            <div class="hero-icon-wrap">
+              <i class="wi {{ .LatestReading.ConditionIcon }} wx-icon" aria-hidden="true"></i>
+            </div>
+            <div>
+              <div class="hero-temp">{{ .LatestReading.Temperature }}</div>
+              <div class="hero-condition">{{ .LatestReading.ConditionLabel }}</div>
+              <div class="hero-meta">
+                Latest sample taken at <strong>{{ if .LatestReading.TimestampISO }}<time datetime="{{ .LatestReading.TimestampISO }}" data-time-format="datetime-sec">{{ .LatestReading.FormattedTime }}</time>{{ else }}{{ .LatestReading.FormattedTime }}{{ end }}</strong>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="hero-pills">
-          <div class="hero-pill">
-            <span class="hero-pill-label">Humidity</span>
-            <span class="hero-pill-value">{{ .LatestReading.Humidity }}</span>
+          <div class="hero-pills">
+            <div class="hero-pill">
+              <span class="hero-pill-label">Humidity</span>
+              <span class="hero-pill-value">{{ .LatestReading.Humidity }}</span>
+            </div>
+            <div class="hero-pill">
+              <span class="hero-pill-label">Rain Rate</span>
+              <span class="hero-pill-value">{{ .LatestReading.RainRate }}</span>
+            </div>
+            <div class="hero-pill">
+              <span class="hero-pill-label">Wind</span>
+              <span class="hero-pill-value">
+                {{ .LatestReading.WindSpeed }}
+                {{ if .LatestReading.HasWindAngle }}
+                <i class="wi wi-wind towards-{{ .LatestReading.WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
+                <span>{{ .LatestReading.WindCardinal }}</span>
+                {{ end }}
+              </span>
+            </div>
+            <div class="hero-pill">
+              <span class="hero-pill-label">Air Quality</span>
+              <span class="hero-pill-value">
+                <span class="aq-badge aq-{{ .LatestReading.AirQualityLevel }}">{{ .LatestReading.AirQualityLabel }}</span>
+              </span>
+            </div>
           </div>
-          <div class="hero-pill">
-            <span class="hero-pill-label">Rain Rate</span>
-            <span class="hero-pill-value">{{ .LatestReading.RainRate }}</span>
+        </section>
+        {{ end }}
+
+        <section class="section-card" aria-label="Hourly weather forecast">
+          <div class="section-header">
+            <h2 class="section-title">Hourly Forecast</h2>
+            {{ if .HourlyIssuedAt }}
+            <span class="section-subtitle">Issued {{ if .HourlyIssuedAtISO }}<time datetime="{{ .HourlyIssuedAtISO }}" data-time-format="datetime">{{ .HourlyIssuedAt }}</time>{{ else }}{{ .HourlyIssuedAt }}{{ end }}</span>
+            {{ end }}
           </div>
-          <div class="hero-pill">
-            <span class="hero-pill-label">Wind</span>
-            <span class="hero-pill-value">
-              {{ .LatestReading.WindSpeed }}
-              {{ if .LatestReading.HasWindAngle }}
-              <i class="wi wi-wind towards-{{ .LatestReading.WindRotationDeg }}-deg wind-arrow" aria-hidden="true"></i>
-              <span>{{ .LatestReading.WindCardinal }}</span>
-              {{ end }}
-            </span>
+
+          {{ if .HourlyForecast }}
+          <div class="forecast-strip" tabindex="0" role="region" aria-label="Hourly forecast list">
+            {{ range .HourlyForecast }}
+            {{ template "hourly-forecast-card" . }}
+            {{ end }}
           </div>
-          <div class="hero-pill">
-            <span class="hero-pill-label">Air Quality</span>
-            <span class="hero-pill-value">
+          {{ else }}
+          <p class="section-subtitle">No hourly forecast predictions available for this station yet.</p>
+          {{ end }}
+        </section>
+
+        <section class="section-card" aria-label="Daily weather forecast">
+          <div class="section-header">
+            <h2 class="section-title">Daily Forecast</h2>
+            {{ if .DailyIssuedAt }}
+            <span class="section-subtitle">Issued {{ if .DailyIssuedAtISO }}<time datetime="{{ .DailyIssuedAtISO }}" data-time-format="datetime">{{ .DailyIssuedAt }}</time>{{ else }}{{ .DailyIssuedAt }}{{ end }}</span>
+            {{ end }}
+          </div>
+
+          {{ if .DailyForecast }}
+          <div class="forecast-grid-daily">
+            {{ range .DailyForecast }}
+            {{ template "daily-forecast-card" . }}
+            {{ end }}
+          </div>
+          {{ else }}
+          <p class="section-subtitle">No daily forecast predictions available for this station yet.</p>
+          {{ end }}
+        </section>
+
+        {{ if .LatestReading }}
+        <div class="grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Climate</span>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <span class="metric-label">Temperature</span>
+                <span class="metric-value">{{ .LatestReading.Temperature }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Humidity</span>
+                <span class="metric-value">{{ .LatestReading.Humidity }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Pressure</span>
+                <span class="metric-value">{{ .LatestReading.Pressure }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Rainfall</span>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <span class="metric-label">Last 1 Hour</span>
+                <span class="metric-value">{{ .LatestReading.Rain1h }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Last 24 Hours</span>
+                <span class="metric-value">{{ .LatestReading.Rain24h }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Air Quality</span>
               <span class="aq-badge aq-{{ .LatestReading.AirQualityLevel }}">{{ .LatestReading.AirQualityLabel }}</span>
-            </span>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <span class="metric-label">PM2.5</span>
+                <span class="metric-value">{{ .LatestReading.PM2_5 }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">PM10</span>
+                <span class="metric-value">{{ .LatestReading.PM10_0 }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">PM1.0</span>
+                <span class="metric-value">{{ .LatestReading.PM1_0 }}</span>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
-      {{ end }}
 
-      <section class="section-card" aria-label="Hourly weather forecast">
-        <div class="section-header">
-          <h2 class="section-title">Hourly Forecast</h2>
-          {{ if .HourlyIssuedAt }}
-          <span class="section-subtitle">Issued {{ if .HourlyIssuedAtISO }}<time datetime="{{ .HourlyIssuedAtISO }}" data-time-format="datetime">{{ .HourlyIssuedAt }}</time>{{ else }}{{ .HourlyIssuedAt }}{{ end }}</span>
-          {{ end }}
-        </div>
-
-        {{ if .HourlyForecast }}
-        <div class="forecast-strip">
-          {{ range .HourlyForecast }}
-          {{ template "hourly-forecast-card" . }}
-          {{ end }}
-        </div>
-        {{ else }}
-        <p class="section-subtitle">No hourly forecast predictions available for this station yet.</p>
+        <details class="diagnostics-panel">
+          <summary>Sensor Diagnostics &amp; Raw Telemetry</summary>
+          <div class="diagnostics-grid">
+            <div class="metric">
+              <span class="metric-label">Raw Wind Speed / Angle</span>
+              <span class="metric-value">{{ .LatestReading.RawWindSpeed }} / {{ .LatestReading.RawWindAngle }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Anemometer Status / AGC</span>
+              <span class="metric-value">{{ .LatestReading.AnemoStatus }} / {{ .LatestReading.AnemoAGC }} (var {{ .LatestReading.AnemoAGCVar }})</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Wind Vane Status / AGC</span>
+              <span class="metric-value">{{ .LatestReading.VaneStatus }} / {{ .LatestReading.VaneAGC }} (var {{ .LatestReading.VaneAGCVar }})</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Rain Meter Status / AGC</span>
+              <span class="metric-value">{{ .LatestReading.RainStatus }} / {{ .LatestReading.RainAGC }} (var {{ .LatestReading.RainAGCVar }})</span>
+            </div>
+          </div>
+        </details>
         {{ end }}
-      </section>
 
-      <section class="section-card" aria-label="Daily weather forecast">
-        <div class="section-header">
-          <h2 class="section-title">Daily Forecast</h2>
-          {{ if .DailyIssuedAt }}
-          <span class="section-subtitle">Issued {{ if .DailyIssuedAtISO }}<time datetime="{{ .DailyIssuedAtISO }}" data-time-format="datetime">{{ .DailyIssuedAt }}</time>{{ else }}{{ .DailyIssuedAt }}{{ end }}</span>
-          {{ end }}
-        </div>
-
-        {{ if .DailyForecast }}
-        <div class="forecast-grid-daily">
-          {{ range .DailyForecast }}
-          {{ template "daily-forecast-card" . }}
-          {{ end }}
-        </div>
-        {{ else }}
-        <p class="section-subtitle">No daily forecast predictions available for this station yet.</p>
-        {{ end }}
-      </section>
-
-      {{ if .LatestReading }}
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Climate</span>
-          </div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="metric-label">Temperature</span>
-              <span class="metric-value">{{ .LatestReading.Temperature }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Humidity</span>
-              <span class="metric-value">{{ .LatestReading.Humidity }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Pressure</span>
-              <span class="metric-value">{{ .LatestReading.Pressure }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Rainfall</span>
-          </div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="metric-label">Last 1 Hour</span>
-              <span class="metric-value">{{ .LatestReading.Rain1h }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Last 24 Hours</span>
-              <span class="metric-value">{{ .LatestReading.Rain24h }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Air Quality</span>
-            <span class="aq-badge aq-{{ .LatestReading.AirQualityLevel }}">{{ .LatestReading.AirQualityLabel }}</span>
-          </div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="metric-label">PM2.5</span>
-              <span class="metric-value">{{ .LatestReading.PM2_5 }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">PM10</span>
-              <span class="metric-value">{{ .LatestReading.PM10_0 }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">PM1.0</span>
-              <span class="metric-value">{{ .LatestReading.PM1_0 }}</span>
-            </div>
-          </div>
-        </div>
+      {{ else if .NoNodes }}
+      <div class="empty-state">
+        <h3>No Weather Stations Available</h3>
+        <p>No station has been registered yet. Readings will appear once a station reports data.</p>
       </div>
-
-      <details class="diagnostics-panel">
-        <summary>Sensor Diagnostics &amp; Raw Telemetry</summary>
-        <div class="diagnostics-grid">
-          <div class="metric">
-            <span class="metric-label">Raw Wind Speed / Angle</span>
-            <span class="metric-value">{{ .LatestReading.RawWindSpeed }} / {{ .LatestReading.RawWindAngle }}</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Anemometer Status / AGC</span>
-            <span class="metric-value">{{ .LatestReading.AnemoStatus }} / {{ .LatestReading.AnemoAGC }} (var {{ .LatestReading.AnemoAGCVar }})</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Wind Vane Status / AGC</span>
-            <span class="metric-value">{{ .LatestReading.VaneStatus }} / {{ .LatestReading.VaneAGC }} (var {{ .LatestReading.VaneAGCVar }})</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Rain Meter Status / AGC</span>
-            <span class="metric-value">{{ .LatestReading.RainStatus }} / {{ .LatestReading.RainAGC }} (var {{ .LatestReading.RainAGCVar }})</span>
-          </div>
-        </div>
-      </details>
+      {{ else }}
+      <div class="empty-state">
+        <h3>No Readings Recorded Yet</h3>
+        <p>Station <strong>{{ .SelectedNodeID }}</strong> has not reported any sensor readings to the database.</p>
+      </div>
       {{ end }}
-
-    {{ else if .NoNodes }}
-    <div class="empty-state">
-      <h3>No Weather Stations Available</h3>
-      <p>No station has been registered yet. Readings will appear once a station reports data.</p>
-    </div>
-    {{ else }}
-    <div class="empty-state">
-      <h3>No Readings Recorded Yet</h3>
-      <p>Station <strong>{{ .SelectedNodeID }}</strong> has not reported any sensor readings to the database.</p>
-    </div>
-    {{ end }}
+    </main>
 
     <footer class="site-footer">
       Weather icons by <a href="https://erikflowers.github.io/weather-icons/" target="_blank" rel="noopener noreferrer">Erik Flowers (Weather Icons)</a>, licensed under <a href="/static/WEATHER_ICONS_LICENSE.txt">SIL OFL 1.1 &amp; MIT</a>.
@@ -269,23 +271,30 @@
   </div>
   <script>
     (function () {
-      var pad = function (n) { return String(n).padStart(2, "0"); };
-      var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      document.querySelectorAll("time[datetime][data-time-format]").forEach(function (el) {
-        var d = new Date(el.getAttribute("datetime") || "");
-        if (isNaN(d.getTime())) return;
-        var fmt = el.getAttribute("data-time-format");
-        var datePart = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-        var timePart = pad(d.getHours()) + ":" + pad(d.getMinutes());
-        if (fmt === "datetime-sec") {
-          el.textContent = datePart + " " + timePart + ":" + pad(d.getSeconds());
-        } else if (fmt === "datetime") {
-          el.textContent = datePart + " " + timePart;
-        } else if (fmt === "time") {
-          el.textContent = timePart;
-        } else if (fmt === "date") {
-          el.textContent = days[d.getDay()] + " " + pad(d.getDate()) + " " + months[d.getMonth()];
+      const stationSelect = document.getElementById("node_id");
+      if (stationSelect && stationSelect.form) {
+        stationSelect.addEventListener("change", () => stationSelect.form.submit());
+      }
+
+      const pad = (num) => String(num).padStart(2, "0");
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+      document.querySelectorAll("time[datetime][data-time-format]").forEach((element) => {
+        const date = new Date(element.getAttribute("datetime") || "");
+        if (Number.isNaN(date.getTime())) return;
+        const format = element.getAttribute("data-time-format");
+        const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+        if (format === "datetime-sec") {
+          element.textContent = `${datePart} ${timePart}:${pad(date.getSeconds())}`;
+        } else if (format === "datetime") {
+          element.textContent = `${datePart} ${timePart}`;
+        } else if (format === "time") {
+          element.textContent = timePart;
+        } else if (format === "date") {
+          element.textContent = `${dayNames[date.getDay()]} ${pad(date.getDate())} ${monthNames[date.getMonth()]}`;
         }
       });
     })();
