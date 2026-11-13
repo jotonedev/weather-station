@@ -33,7 +33,7 @@ def _extract_rainfall_stats(
 ) -> tuple[float, float, float]:
     """_extract_rainfall_stats returns (median_mm, p90_mm, exceedance_probability)."""
     rain_prob = float(np.clip(exceedance_probability(curve, levels, threshold_mm), 0.0, 1.0))
-    median_mm = float(max(0.0, quantile_at(curve, levels, 0.5))) if rain_prob > 0.0 else 0.0
+    median_mm = float(max(0.0, quantile_at(curve, levels, 0.5)))
     p90_mm = float(max(0.0, quantile_at(curve, levels, 0.9)))
     return median_mm, p90_mm, rain_prob
 

@@ -89,7 +89,7 @@ func classifyWeatherCondition(rainfallMm *float32) (string, string) {
 
 // classifyForecastCondition determines a Weather Icons class name and label for a forecast item.
 func classifyForecastCondition(rainfallMm, rainProb *float32) (string, string) {
-	isRainy := (rainProb != nil && *rainProb >= 0.5) || (rainProb == nil && rainfallMm != nil && *rainfallMm >= 0.2)
+	isRainy := (rainProb != nil && *rainProb >= 0.4) || (rainfallMm != nil && *rainfallMm >= 0.2)
 	if !isRainy {
 		return "wi-day-cloudy", "Clear Sky"
 	}

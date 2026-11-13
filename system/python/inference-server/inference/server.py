@@ -238,6 +238,7 @@ class InferenceServer:
             backend_name=config.model_backend,
             model_name=config.model_name,
             idle_timeout_seconds=config.idle_timeout_seconds,
+            timestral_symmetric_averaging=config.timestral_symmetric_averaging,
         )
         self.servicer = InferenceServicer(self.backend, self.config)
         self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))

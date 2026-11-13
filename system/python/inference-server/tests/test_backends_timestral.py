@@ -90,14 +90,26 @@ class RecordingForecaster:
         self.captured_prediction_length = None
         self.captured_past_covariates: np.ndarray | None = None
         self.captured_known_covariates: np.ndarray | None = None
+        self.captured_clip_nonnegative: bool | None = None
+        self.captured_symmetric_averaging: bool | None = None
         self.quantile_levels = (0.1, 0.3, 0.5, 0.7, 0.9)
 
-    def forecast(self, context, prediction_length, past_covariates=None, known_covariates=None):
+    def forecast(
+        self,
+        context,
+        prediction_length,
+        past_covariates=None,
+        known_covariates=None,
+        clip_nonnegative=True,
+        symmetric_averaging=True,
+    ):
         """forecast captures arguments and returns quantiles holding the level index at every position."""
         self.captured_context = context
         self.captured_prediction_length = prediction_length
         self.captured_past_covariates = past_covariates
         self.captured_known_covariates = known_covariates
+        self.captured_clip_nonnegative = clip_nonnegative
+        self.captured_symmetric_averaging = symmetric_averaging
         quantiles = torch.arange(5, dtype=torch.float32).reshape(1, 1, 1, 5).expand(1, 2, 8, 5).clone()
         return Forecast(quantiles=quantiles, quantile_levels=self.quantile_levels)
 
@@ -136,6 +148,8 @@ def test_timestral_predict_maps_inputs_and_all_levels() -> None:
         np.concatenate([np.ones(10), 2.0 * np.ones(8)]),
     )
 
+    assert forecaster.captured_clip_nonnegative is False
+    assert forecaster.captured_symmetric_averaging is False
     assert quantiles.shape == (2, 8, 5)
     assert levels == (0.1, 0.3, 0.5, 0.7, 0.9)
 
@@ -149,15 +163,31 @@ def test_timestral_predict_without_covariates() -> None:
         def __init__(self):
             self.captured_past_covariates: np.ndarray | None = None
             self.captured_known_covariates: np.ndarray | None = None
+            self.captured_clip_nonnegative: bool | None = None
+            self.captured_symmetric_averaging: bool | None = None
 
-        def forecast(self, context, prediction_length, past_covariates=None, known_covariates=None):
+        def forecast(
+            self,
+            context,
+            prediction_length,
+            past_covariates=None,
+            known_covariates=None,
+            clip_nonnegative=True,
+            symmetric_averaging=True,
+        ):
             self.captured_past_covariates = past_covariates
             self.captured_known_covariates = known_covariates
+            self.captured_clip_nonnegative = clip_nonnegative
+            self.captured_symmetric_averaging = symmetric_averaging
             quantiles = torch.zeros((1, 1, 4, 3), dtype=torch.float32)
             return Forecast(quantiles=quantiles, quantile_levels=(0.1, 0.5, 0.9))
 
     forecaster = NullForecaster()
-    backend = TimestralBackend(model_name="synthetic-test", pipeline=cast(TimestralForecaster, forecaster))
+    backend = TimestralBackend(
+        model_name="synthetic-test",
+        pipeline=cast(TimestralForecaster, forecaster),
+        symmetric_averaging=True,
+    )
 
     quantiles, levels = backend.predict(
         target=np.zeros((1, 12), dtype=np.float32),
@@ -167,5 +197,42 @@ def test_timestral_predict_without_covariates() -> None:
     )
 
     assert forecaster.captured_known_covariates is None
+    assert forecaster.captured_clip_nonnegative is False
+    assert forecaster.captured_symmetric_averaging is True
     assert quantiles.shape == (1, 4, 3)
     assert levels == (0.1, 0.5, 0.9)
+
+
+def test_timestral_allows_negative_forecasts_from_positive_history() -> None:
+    """Test_timestral_allows_negative_forecasts_from_positive_history verifies clip_nonnegative=False behavior."""
+
+    class SubZeroForecaster:
+        """SubZeroForecaster returns negative temperatures unless clip_nonnegative=True is requested."""
+
+        def forecast(
+            self,
+            context,
+            prediction_length,
+            past_covariates=None,
+            known_covariates=None,
+            clip_nonnegative=True,
+            symmetric_averaging=True,
+        ):
+            values = torch.full((1, 1, prediction_length, 3), -2.5, dtype=torch.float32)
+            if clip_nonnegative and bool(np.all(context >= 0.0)):
+                values = torch.clamp(values, min=0.0)
+            return Forecast(quantiles=values, quantile_levels=(0.1, 0.5, 0.9))
+
+    backend = TimestralBackend(
+        model_name="synthetic-test",
+        pipeline=cast(TimestralForecaster, SubZeroForecaster()),
+    )
+    # Positive context trending downward toward freezing
+    target = np.linspace(5.0, 0.5, 16, dtype=np.float32)[None, :]
+    quantiles, _ = backend.predict(
+        target=target,
+        past_covariates={},
+        future_covariates={},
+        prediction_length=4,
+    )
+    assert np.allclose(quantiles, -2.5)

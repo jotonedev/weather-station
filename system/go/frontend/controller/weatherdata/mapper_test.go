@@ -158,3 +158,30 @@ func TestClassifyAirQuality(t *testing.T) {
 		})
 	}
 }
+
+func TestClassifyForecastCondition(t *testing.T) {
+	f32 := func(v float32) *float32 { return &v }
+
+	tests := []struct {
+		name      string
+		rainfall  *float32
+		rainProb  *float32
+		wantIcon  string
+		wantLabel string
+	}{
+		{"dry low prob", f32(0.0), f32(0.25), "wi-day-cloudy", "Clear Sky"},
+		{"moderate prob triggers showers", f32(0.0), f32(0.45), "wi-showers", "Light Rain"},
+		{"rainfall >= 0.2 triggers showers even with low prob", f32(0.3), f32(0.2), "wi-showers", "Light Rain"},
+		{"heavy rain", f32(4.5), f32(0.9), "wi-rain", "Heavy Rain"},
+		{"nil prob uses rainfall", f32(0.2), nil, "wi-showers", "Light Rain"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			icon, label := classifyForecastCondition(tt.rainfall, tt.rainProb)
+			if icon != tt.wantIcon || label != tt.wantLabel {
+				t.Errorf("classifyForecastCondition() = (%q, %q), want (%q, %q)", icon, label, tt.wantIcon, tt.wantLabel)
+			}
+		})
+	}
+}

@@ -13,6 +13,7 @@ class Config:
     idle_timeout_seconds: float = 3600.0
     max_workers: int = 4
     max_horizon_hours: int = 240
+    timestral_symmetric_averaging: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -24,6 +25,12 @@ class Config:
         idle_val = float(os.getenv("INFERENCE_IDLE_TIMEOUT_SECONDS", "3600.0"))
         workers_val = int(os.getenv("INFERENCE_MAX_WORKERS", "4"))
         max_horizon_val = int(os.getenv("INFERENCE_MAX_HORIZON_HOURS", "240"))
+        sym_avg_val = os.getenv("INFERENCE_TIMESTRAL_SYMMETRIC_AVERAGING", "false").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
         return cls(
             host=host_val,
@@ -33,4 +40,5 @@ class Config:
             idle_timeout_seconds=idle_val,
             max_workers=workers_val,
             max_horizon_hours=max_horizon_val,
+            timestral_symmetric_averaging=sym_avg_val,
         )

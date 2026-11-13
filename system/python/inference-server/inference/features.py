@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from weather.inference.v1.inference_pb2 import TimeSeriesObservation
 
-from inference.validator import trim_early_outage
+from inference.validator import DAILY_REQUIRED_FIELDS, HOURLY_REQUIRED_FIELDS, trim_early_outage
 
 
 def floor_to_hour(dt: datetime) -> datetime:
@@ -34,12 +34,14 @@ def _filter_and_trim_history(
     if issue_time is None:
         return sorted_obs
     step_seconds = int(step.total_seconds())
-    floored_issue = floor_to_day(issue_time) if step >= timedelta(days=1) else floor_to_hour(issue_time)
+    is_daily = step >= timedelta(days=1)
+    floored_issue = floor_to_day(issue_time) if is_daily else floor_to_hour(issue_time)
     floored_issue_sec = int(floored_issue.timestamp())
     completed = [obs for obs in sorted_obs if obs.timestamp.seconds < floored_issue_sec]
-    if completed:
-        sorted_obs = completed
-    return trim_early_outage(sorted_obs, floored_issue_sec, step_seconds)
+    if not completed:
+        return []
+    required_fields = DAILY_REQUIRED_FIELDS if is_daily else HOURLY_REQUIRED_FIELDS
+    return trim_early_outage(completed, floored_issue_sec, step_seconds, required_fields=required_fields)
 
 
 def _compute_grid_bounds(
@@ -68,11 +70,10 @@ def _extract_wind_components(obs: TimeSeriesObservation, wind_speed: float, wind
     if has_u and has_v:
         return float(obs.wind_u_mps), float(obs.wind_v_mps)
 
-    if np.isfinite(wind_dir):
-        speed = wind_speed if np.isfinite(wind_speed) else 1.0
+    if np.isfinite(wind_speed) and np.isfinite(wind_dir):
         rad = float(np.radians(wind_dir))
-        u_val = float(obs.wind_u_mps) if has_u else float(-speed * np.sin(rad))
-        v_val = float(obs.wind_v_mps) if has_v else float(-speed * np.cos(rad))
+        u_val = float(obs.wind_u_mps) if has_u else float(-wind_speed * np.sin(rad))
+        v_val = float(obs.wind_v_mps) if has_v else float(-wind_speed * np.cos(rad))
         return u_val, v_val
 
     return (
@@ -113,18 +114,18 @@ def _observation_to_record(ts: datetime, obs: TimeSeriesObservation | None) -> d
     return {
         "timestamp": ts,
         "temperature_c": temp,
-        "min_temperature_c": obs.min_temperature_c if obs.HasField("min_temperature_c") else temp,
-        "max_temperature_c": obs.max_temperature_c if obs.HasField("max_temperature_c") else temp,
+        "min_temperature_c": obs.min_temperature_c if obs.HasField("min_temperature_c") else np.nan,
+        "max_temperature_c": obs.max_temperature_c if obs.HasField("max_temperature_c") else np.nan,
         "humidity_pct": hum,
-        "min_humidity_pct": obs.min_humidity_pct if obs.HasField("min_humidity_pct") else hum,
-        "max_humidity_pct": obs.max_humidity_pct if obs.HasField("max_humidity_pct") else hum,
+        "min_humidity_pct": obs.min_humidity_pct if obs.HasField("min_humidity_pct") else np.nan,
+        "max_humidity_pct": obs.max_humidity_pct if obs.HasField("max_humidity_pct") else np.nan,
         "pressure_hpa": pressure,
-        "min_pressure_hpa": obs.min_pressure_hpa if obs.HasField("min_pressure_hpa") else pressure,
-        "max_pressure_hpa": obs.max_pressure_hpa if obs.HasField("max_pressure_hpa") else pressure,
+        "min_pressure_hpa": obs.min_pressure_hpa if obs.HasField("min_pressure_hpa") else np.nan,
+        "max_pressure_hpa": obs.max_pressure_hpa if obs.HasField("max_pressure_hpa") else np.nan,
         "rainfall_mm": obs.rainfall_mm if obs.HasField("rainfall_mm") else np.nan,
         "wind_speed_mps": wind_speed,
         "wind_direction_deg": wind_dir,
-        "wind_gust_mps": obs.max_wind_speed_mps if obs.HasField("max_wind_speed_mps") else wind_speed,
+        "wind_gust_mps": obs.max_wind_speed_mps if obs.HasField("max_wind_speed_mps") else np.nan,
         "wind_u_mps": wind_u,
         "wind_v_mps": wind_v,
         "rain_rate_max_mmh": obs.max_rain_rate_mmh if obs.HasField("max_rain_rate_mmh") else np.nan,
@@ -142,6 +143,8 @@ def extract_observation_dataframe(
 
     sorted_obs = sort_observations(observations)
     sorted_obs = _filter_and_trim_history(sorted_obs, issue_time, step)
+    if not sorted_obs:
+        return pd.DataFrame()
     first_dt, grid_end = _compute_grid_bounds(sorted_obs, issue_time, step)
 
     grid_timestamps: list[datetime] = []

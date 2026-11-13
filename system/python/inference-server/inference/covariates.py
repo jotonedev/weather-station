@@ -106,20 +106,20 @@ def _compute_moisture_features(temp_c: np.ndarray, hum_pct: np.ndarray) -> dict[
 
 
 def _lag_difference(values: np.ndarray, lag: int) -> np.ndarray:
-    """_lag_difference computes values[t] - values[max(0, t - lag)] while preserving NaNs."""
+    """_lag_difference computes values[t] - values[t - lag] for t >= lag and NaN for t < lag."""
     n = values.size
     if n == 0:
         return values.astype(np.float32)
-    indices = np.arange(n)
-    lagged_indices = np.maximum(0, indices - lag)
-    with np.errstate(invalid="ignore"):
-        diff = values - values[lagged_indices]
-    return diff.astype(np.float32)
+    diff = np.full(n, np.nan, dtype=np.float32)
+    if lag < n:
+        with np.errstate(invalid="ignore"):
+            diff[lag:] = (values[lag:] - values[:-lag]).astype(np.float32)
+    return diff
 
 
 def _rolling_rain_sum(rain: pd.Series, window: int) -> np.ndarray:
-    """_rolling_rain_sum computes a trailing rolling rain total while keeping outage rows as NaN."""
-    rolled = rain.rolling(window=window, min_periods=1).sum()
+    """_rolling_rain_sum computes a trailing rolling rain total while keeping warmup and outage rows as NaN."""
+    rolled = rain.rolling(window=window, min_periods=window).sum()
     rolled = rolled.where(rain.notna(), np.nan)
     return rolled.to_numpy(dtype=np.float32)
 

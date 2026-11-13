@@ -15,7 +15,12 @@ def available_backends() -> list[str]:
     return sorted(_BACKEND_REGISTRY)
 
 
-def create_backend(backend_name: str, model_name: str, idle_timeout_seconds: float) -> ForecastBackend:
+def create_backend(
+    backend_name: str,
+    model_name: str,
+    idle_timeout_seconds: float,
+    timestral_symmetric_averaging: bool = False,
+) -> ForecastBackend:
     """create_backend instantiates the requested forecast backend by name.
 
     New architectures are added by subclassing ForecastBackend and registering one
@@ -29,4 +34,10 @@ def create_backend(backend_name: str, model_name: str, idle_timeout_seconds: flo
 
     module = importlib.import_module(module_path)
     backend_cls = getattr(module, class_name)
+    if backend_name == "timestral":
+        return backend_cls(
+            model_name=model_name,
+            idle_timeout_seconds=idle_timeout_seconds,
+            symmetric_averaging=timestral_symmetric_averaging,
+        )
     return backend_cls(model_name=model_name, idle_timeout_seconds=idle_timeout_seconds)

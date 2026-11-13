@@ -134,3 +134,25 @@ def test_format_predictions_clamping() -> None:
     assert predictions[0].rain_probability == 0.0
     assert predictions[0].temperature_c == -90.0
     assert predictions[0].humidity_pct == 100.0
+
+
+def test_format_predictions_retains_sub_threshold_drizzle() -> None:
+    """Test_format_predictions_retains_sub_threshold_drizzle keeps positive median rainfall below 0.2 mm."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    quantiles = np.zeros((1, 1, 3), dtype=np.float32)
+    quantiles[0, 0, :] = [0.0, 0.1, 0.15]
+
+    predictions = format_hourly_predictions(
+        node_id="station-drizzle",
+        issue_time=issue_time,
+        horizon_hours=1,
+        quantiles=quantiles,
+        target_columns=["rainfall_mm"],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+
+    assert np.isclose(predictions[0].rainfall_mm, 0.1)
+    assert np.isclose(predictions[0].rainfall_mm_p90, 0.15)
+    assert predictions[0].rain_probability == 0.0

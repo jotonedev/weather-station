@@ -202,3 +202,59 @@ def test_extract_observation_dataframe_trailing_downtime_hourly_and_daily() -> N
     daily_df = extract_observation_dataframe(daily_obs, step=timedelta(days=1), issue_time=daily_issue)
     assert len(daily_df) == 3
     assert daily_df["timestamp"].iloc[-1] == datetime(2026, 6, 3, 0, 0, tzinfo=UTC)
+
+
+def test_missing_wind_speed_leaves_wind_components_nan() -> None:
+    """Test_missing_wind_speed_leaves_wind_components_nan verifies no synthetic 1.0 m/s fallback is used."""
+    ts = Timestamp()
+    ts.FromSeconds(360000)
+    obs = [
+        TimeSeriesObservation(
+            timestamp=ts,
+            temperature_c=20.0,
+            humidity_pct=50.0,
+            wind_direction_deg=90.0,
+        )
+    ]
+    df = extract_observation_dataframe(obs)
+    assert np.isnan(df["wind_u_mps"].iloc[0])
+    assert np.isnan(df["wind_v_mps"].iloc[0])
+
+
+def test_missing_daily_min_max_targets_remain_nan() -> None:
+    """Test_missing_daily_min_max_targets_remain_nan verifies absent min/max fields are not copied from mean."""
+    ts = Timestamp()
+    ts.FromSeconds(360000)
+    obs = [
+        TimeSeriesObservation(
+            timestamp=ts,
+            temperature_c=20.0,
+            humidity_pct=50.0,
+            pressure_hpa=1013.0,
+            wind_speed_mps=4.0,
+        )
+    ]
+    df = extract_observation_dataframe(obs)
+    for col in (
+        "min_temperature_c",
+        "max_temperature_c",
+        "min_humidity_pct",
+        "max_humidity_pct",
+        "min_pressure_hpa",
+        "max_pressure_hpa",
+        "wind_gust_mps",
+    ):
+        assert np.isnan(df[col].iloc[0])
+
+
+def test_extract_observation_dataframe_empty_when_no_completed_observations() -> None:
+    """Test_extract_observation_dataframe_empty_when_no_completed_observations returns empty DataFrame."""
+    issue_time = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    ts = Timestamp()
+    ts.FromDatetime(issue_time)
+    df = extract_observation_dataframe(
+        [TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=50.0)],
+        step=timedelta(hours=1),
+        issue_time=issue_time,
+    )
+    assert df.empty

@@ -6,7 +6,6 @@ import numpy as np
 
 RAIN_THRESHOLD_HOURLY_MM = 0.2
 RAIN_THRESHOLD_DAILY_MM = 1.0
-_MEDIAN_DRY_DEADZONE_RATIO = 0.05
 
 
 def _validate_levels(quantiles: np.ndarray, levels: Sequence[float]) -> np.ndarray:
@@ -52,38 +51,25 @@ def quantile_at(quantiles: np.ndarray, levels: Sequence[float], level: float) ->
 
 
 def _single_exceedance_probability(curve: np.ndarray, levels_arr: np.ndarray, threshold: float) -> float:
-    """_single_exceedance_probability evaluates calibrated P(X >= threshold) for one monotone quantile curve.
-
-    Zero-inflated time-series models retain historical upper-tail spikes even when the central
-    forecast is dry (median near zero). Scaling sub-threshold forecasts by p50 / threshold
-    suppresses the unconditional climatological tail floor while remaining continuous at p50 = threshold.
-    """
+    """_single_exceedance_probability evaluates P(X >= threshold) from a monotone quantile curve."""
     if threshold <= 0.0 or curve[-1] < threshold:
         return 0.0
-
-    p50 = float(max(0.0, _interpolate_level(curve, levels_arr, 0.5)))
-    if p50 <= _MEDIAN_DRY_DEADZONE_RATIO * threshold:
-        return 0.0
-
     if curve[0] >= threshold:
-        raw_prob = 1.0
+        return 1.0
+
+    right_idx = int(np.searchsorted(curve, threshold, side="left"))
+    left_idx = right_idx - 1
+    x_left = float(curve[left_idx])
+    x_right = float(curve[right_idx])
+    q_left = float(levels_arr[left_idx])
+    q_right = float(levels_arr[right_idx])
+
+    if x_right <= x_left:
+        cdf_at_threshold = q_right
     else:
-        right_idx = int(np.searchsorted(curve, threshold, side="left"))
-        left_idx = right_idx - 1
-        x_left = float(curve[left_idx])
-        x_right = float(curve[right_idx])
-        q_left = float(levels_arr[left_idx])
-        q_right = float(levels_arr[right_idx])
-
-        if x_right <= x_left:
-            cdf_at_threshold = q_right
-        else:
-            fraction = (threshold - x_left) / (x_right - x_left)
-            cdf_at_threshold = q_left + (fraction * (q_right - q_left))
-        raw_prob = float(np.clip(1.0 - cdf_at_threshold, 0.0, 1.0))
-
-    central_scale = min(1.0, p50 / threshold)
-    return float(np.clip(raw_prob * central_scale, 0.0, 1.0))
+        fraction = (threshold - x_left) / (x_right - x_left)
+        cdf_at_threshold = q_left + (fraction * (q_right - q_left))
+    return float(np.clip(1.0 - cdf_at_threshold, 0.0, 1.0))
 
 
 def exceedance_probability(

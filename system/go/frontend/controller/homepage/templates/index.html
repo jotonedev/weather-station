@@ -297,7 +297,7 @@
         } else if (format === "time") {
           element.textContent = timePart;
         } else if (format === "date") {
-          element.textContent = `${dayNames[date.getDay()]} ${pad(date.getDate())} ${monthNames[date.getMonth()]}`;
+          element.textContent = `${dayNames[date.getUTCDay()]} ${pad(date.getUTCDate())} ${monthNames[date.getUTCMonth()]}`;
         }
       });
     })();

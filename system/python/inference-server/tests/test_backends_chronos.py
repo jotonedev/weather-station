@@ -40,6 +40,6 @@ def test_chronos_predict_cpu_execution() -> None:
         prediction_length=prediction_length,
     )
 
-    assert quantiles.shape == (2, prediction_length, 3)
+    assert quantiles.shape == (2, prediction_length, len(QUANTILE_LEVELS))
     assert levels == QUANTILE_LEVELS
     assert np.isfinite(quantiles).all()

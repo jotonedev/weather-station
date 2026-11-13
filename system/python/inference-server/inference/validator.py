@@ -9,6 +9,13 @@ from weather.inference.v1.inference_pb2 import (
 MAX_MISSING_RATIO = 0.50
 HOURLY_STEP_SECONDS = 3600
 DAILY_STEP_SECONDS = 86400
+HOURLY_REQUIRED_FIELDS: tuple[str, ...] = ("temperature_c", "humidity_pct")
+DAILY_REQUIRED_FIELDS: tuple[str, ...] = (
+    "min_temperature_c",
+    "max_temperature_c",
+    "min_humidity_pct",
+    "max_humidity_pct",
+)
 
 
 class ValidationError(ValueError):
@@ -45,27 +52,31 @@ def _is_valid_suffix(
     items: list[TimeSeriesObservation],
     floored_issue_time_sec: int,
     step_seconds: int,
+    required_fields: tuple[str, ...] = HOURLY_REQUIRED_FIELDS,
 ) -> bool:
     first_sec = items[0].timestamp.seconds
     diff = max(0, floored_issue_time_sec - first_sec)
     total_steps = max(len(items), (diff + step_seconds - 1) // step_seconds)
     if total_steps <= 0:
         return False
-    missing_temp = total_steps - sum(1 for item in items if not is_effectively_missing(item, "temperature_c"))
-    missing_hum = total_steps - sum(1 for item in items if not is_effectively_missing(item, "humidity_pct"))
-    return (missing_temp / total_steps) <= MAX_MISSING_RATIO and (missing_hum / total_steps) <= MAX_MISSING_RATIO
+    for field_name in required_fields:
+        missing_count = total_steps - sum(1 for item in items if not is_effectively_missing(item, field_name))
+        if (missing_count / total_steps) > MAX_MISSING_RATIO:
+            return False
+    return True
 
 
 def trim_early_outage(
     observations: list[TimeSeriesObservation],
     floored_issue_time_sec: int,
     step_seconds: int,
+    required_fields: tuple[str, ...] = HOURLY_REQUIRED_FIELDS,
 ) -> list[TimeSeriesObservation]:
     """trim_early_outage finds the earliest suffix meeting the missing threshold across downtime gaps."""
     if not observations:
         return observations
 
-    if _is_valid_suffix(observations, floored_issue_time_sec, step_seconds):
+    if _is_valid_suffix(observations, floored_issue_time_sec, step_seconds, required_fields=required_fields):
         return observations
 
     for start_index in range(1, len(observations)):
@@ -73,7 +84,7 @@ def trim_early_outage(
         if gap <= step_seconds:
             continue
         suffix = observations[start_index:]
-        if _is_valid_suffix(suffix, floored_issue_time_sec, step_seconds):
+        if _is_valid_suffix(suffix, floored_issue_time_sec, step_seconds, required_fields=required_fields):
             return suffix
 
     return observations
@@ -95,6 +106,22 @@ def validate_observation_bounds(observation: TimeSeriesObservation, index: int) 
             raise ValidationError(f"{field_name} at index {index} out of bounds: {value}")
 
 
+def _deduplicate_completed_history(
+    sorted_history: list[TimeSeriesObservation],
+    reference_sec: int,
+    step_seconds: int,
+) -> list[TimeSeriesObservation]:
+    """_deduplicate_completed_history filters to completed observations and keeps the latest per UTC bucket."""
+    completed = [obs for obs in sorted_history if obs.timestamp.seconds < reference_sec]
+    if not completed:
+        raise ValidationError("history contains no completed observations before issue_time")
+
+    deduped_by_bucket: dict[int, TimeSeriesObservation] = {}
+    for obs in completed:
+        deduped_by_bucket[obs.timestamp.seconds // step_seconds] = obs
+    return list(deduped_by_bucket.values())
+
+
 def _validate_common_request(
     request: PredictHourlyWeatherRequest | PredictDailyWeatherRequest,
     step_seconds: int = HOURLY_STEP_SECONDS,
@@ -114,15 +141,16 @@ def _validate_common_request(
     )
 
     is_daily = step_seconds >= DAILY_STEP_SECONDS
-    if is_daily:
-        reference_sec = (request.issue_time.seconds // DAILY_STEP_SECONDS) * DAILY_STEP_SECONDS
-    else:
-        reference_sec = (request.issue_time.seconds // HOURLY_STEP_SECONDS) * HOURLY_STEP_SECONDS
+    reference_sec = (request.issue_time.seconds // step_seconds) * step_seconds
+    completed_history = _deduplicate_completed_history(sorted_history, reference_sec, step_seconds)
 
-    completed = [obs for obs in sorted_history if obs.timestamp.seconds < reference_sec]
-    completed_history = completed if completed else sorted_history
-
-    retained_history = trim_early_outage(completed_history, reference_sec, step_seconds)
+    required_fields = DAILY_REQUIRED_FIELDS if is_daily else HOURLY_REQUIRED_FIELDS
+    retained_history = trim_early_outage(
+        completed_history,
+        reference_sec,
+        step_seconds,
+        required_fields=required_fields,
+    )
 
     first_sec = retained_history[0].timestamp.seconds
     diff = max(0, reference_sec - first_sec)
@@ -130,18 +158,10 @@ def _validate_common_request(
     if total_steps <= 0:
         total_steps = len(retained_history)
 
-    missing_temp_count = total_steps - sum(
-        1 for obs in retained_history if not is_effectively_missing(obs, "temperature_c")
-    )
-    missing_hum_count = total_steps - sum(
-        1 for obs in retained_history if not is_effectively_missing(obs, "humidity_pct")
-    )
-
-    if (missing_temp_count / total_steps) > MAX_MISSING_RATIO:
-        raise ValidationError("temperature_c exceeds maximum allowed missing ratio of 50 percent")
-
-    if (missing_hum_count / total_steps) > MAX_MISSING_RATIO:
-        raise ValidationError("humidity_pct exceeds maximum allowed missing ratio of 50 percent")
+    for field_name in required_fields:
+        missing_count = total_steps - sum(1 for obs in retained_history if not is_effectively_missing(obs, field_name))
+        if (missing_count / total_steps) > MAX_MISSING_RATIO:
+            raise ValidationError(f"{field_name} exceeds maximum allowed missing ratio of 50 percent")
 
     for obs_index, obs in enumerate(request.history):
         validate_observation_bounds(obs, obs_index)

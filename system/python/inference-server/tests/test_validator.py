@@ -222,3 +222,53 @@ def test_validate_request_physical_bounds(field_name: str, invalid_value: float)
 
     with pytest.raises(ValidationError, match=r"out of bounds"):
         validate_hourly_request(request)
+
+
+def test_validate_request_rejects_zero_completed_observations() -> None:
+    """Test_validate_request_rejects_zero_completed_observations rejects history only at/after issue_time."""
+    request = create_valid_hourly_request()
+    issue_sec = request.issue_time.seconds
+    del request.history[:]
+    ts = Timestamp()
+    ts.FromSeconds(issue_sec)
+    request.history.append(TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=50.0))
+
+    with pytest.raises(ValidationError, match="no completed observations"):
+        validate_hourly_request(request)
+
+
+def test_validate_request_deduplicates_same_bucket_timestamps() -> None:
+    """Test_validate_request_deduplicates_same_bucket_timestamps prevents duplicate readings masking sparsity."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+    floored_issue = (issue_time.seconds // 3600) * 3600
+
+    observations = []
+    # 10 duplicate observations in the earliest bucket (10 hours before issue_time) and nothing in the next 9 buckets
+    for offset in range(10):
+        ts = Timestamp()
+        ts.FromSeconds(floored_issue - (10 * 3600) + (offset * 60))
+        observations.append(TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=50.0))
+
+    request = PredictHourlyWeatherRequest(
+        node_id="station-node-alpha",
+        issue_time=issue_time,
+        horizon_hours=24,
+        history=observations,
+    )
+    with pytest.raises(ValidationError, match="exceeds maximum allowed missing ratio"):
+        validate_hourly_request(request)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["min_temperature_c", "max_temperature_c", "min_humidity_pct", "max_humidity_pct"],
+)
+def test_validate_daily_request_checks_min_max_sparsity(field_name: str) -> None:
+    """Test_validate_daily_request_checks_min_max_sparsity rejects >50% missing daily min/max targets."""
+    request = create_valid_daily_request()
+    for index in range(6):
+        request.history[index].ClearField(field_name)
+
+    with pytest.raises(ValidationError, match=f"{field_name} exceeds maximum allowed missing ratio"):
+        validate_daily_request(request)

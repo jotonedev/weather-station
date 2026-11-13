@@ -57,7 +57,7 @@ def test_backend_predict_contract() -> None:
     )
 
     assert backend.is_loaded()
-    assert quantiles.shape == (2, 8, 3)
+    assert quantiles.shape == (2, 8, len(QUANTILE_LEVELS))
     assert levels == QUANTILE_LEVELS
 
 
