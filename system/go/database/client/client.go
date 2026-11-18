@@ -150,7 +150,6 @@ func (c *Client) initSchema(ctx context.Context) error {
 			rain_agc           INTEGER,
 			rain_agc_variance  INTEGER
 		);`,
-		`DROP INDEX IF EXISTS idx_weather_node_ts;`,
 
 		// 2. Node coordinates metadata table
 		`CREATE TABLE IF NOT EXISTS node_coordinates (
@@ -160,12 +159,6 @@ func (c *Client) initSchema(ctx context.Context) error {
 			elevation_m   DOUBLE NOT NULL,
 			location_name VARCHAR
 		);`,
-
-		// 3. Drop legacy forecast prediction indexes and tables (predictions are stored in memory)
-		`DROP INDEX IF EXISTS idx_hourly_predictions_node_ts;`,
-		`DROP INDEX IF EXISTS idx_daily_predictions_node_ts;`,
-		`DROP TABLE IF EXISTS hourly_predictions;`,
-		`DROP TABLE IF EXISTS daily_predictions;`,
 	}
 
 	for _, q := range queries {
