@@ -9,6 +9,10 @@
 
 namespace ARQ {
 
+constexpr uint8_t kRxFrameBufferSize = 64;
+constexpr uint8_t kMinPacketLength = HEADER_SIZE + 1;
+constexpr uint8_t kMaxPacketLength = kRxFrameBufferSize + 1;
+
 // milliseconds since an arbitrary fixed epoch. Uses the Arduino timer on the
 // device and the host steady clock in host unit tests.
 uint32_t nowMillis() {
@@ -24,6 +28,9 @@ uint32_t nowMillis() {
 ARQ* ARQ::instance = nullptr;
 
 ARQ::~ARQ() {
+    if (instance == this) {
+        instance = nullptr;
+    }
     delete[] txBuffer;
     delete[] rxPayloadBuffer;
     txBuffer = nullptr;
@@ -31,6 +38,10 @@ ARQ::~ARQ() {
 }
 
 Status ARQ::initializeCC1101(uint8_t packetLength) {
+    if (packetLength < kMinPacketLength || packetLength > kMaxPacketLength) {
+        return STATUS_INVALID_PARAM;
+    }
+
     instance = this;
     this->packetLength = packetLength - 1; // Subtract 1 for the address byte in the packet
     this->hasNewMessage = false;
@@ -102,6 +113,9 @@ Status ARQ::initializeCC1101(uint8_t packetLength) {
 }
 
 Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
+    if (data == nullptr && length > 0) {
+        return STATUS_INVALID_PARAM;
+    }
     if (HEADER_SIZE + length > this->packetLength) {
         return STATUS_INVALID_SIZE;
     }
@@ -136,6 +150,9 @@ Status ARQ::enterRxMode() {
 }
 
 Status ARQ::startReceiveData(address_t localAddress) {
+    if (currentState != RadioState::IDLE) {
+        return STATUS_BUSY;
+    }
     this->localAddress = localAddress;
     return startReceiveData();
 }
@@ -179,7 +196,7 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
     uint8_t const rxBytes = radio.readRegField(kRegRxBytes, 6, 0);
     if (packetDone || rxBytes >= (this->packetLength + 1)) {
         packetDone = false;
-        uint8_t buffer[64];
+        uint8_t buffer[kRxFrameBufferSize];
         size_t bytesRead = 0;
 
         auto const status = radio.readData(buffer, this->packetLength, &bytesRead);
@@ -252,7 +269,7 @@ Status ARQ::handleStateReceiving() {
     }
 
     packetDone = false;
-    uint8_t buffer[64];
+    uint8_t buffer[kRxFrameBufferSize];
     size_t bytesRead = 0;
 
     auto const status = radio.readData(buffer, this->packetLength, &bytesRead);

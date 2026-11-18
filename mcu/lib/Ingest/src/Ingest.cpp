@@ -150,7 +150,7 @@ bool appendJsonReading(BufferWriter& writer, const IngestReading& reading, const
 } // namespace
 
 int formatFloat(char* out, size_t capacity, float value) {
-    if (capacity == 0 || std::isnan(value) || std::isinf(value)) {
+    if (out == nullptr || capacity == 0 || std::isnan(value) || std::isinf(value)) {
         return 0;
     }
     if (value == 0.0f) {
@@ -169,6 +169,11 @@ int formatFloat(char* out, size_t capacity, float value) {
         if (*end == '.') {
             *end = '\0';
             n = static_cast<int>(end - out);
+            if (n == 2 && out[0] == '-' && out[1] == '0') {
+                out[0] = '0';
+                out[1] = '\0';
+                return 1;
+            }
             return n;
         }
         end++;
@@ -179,7 +184,7 @@ int formatFloat(char* out, size_t capacity, float value) {
 }
 
 int formatIso8601(uint32_t epoch, char* out, size_t capacity) {
-    if (capacity < 21) {
+    if (out == nullptr || capacity < 21) {
         return 0;
     }
     auto const seconds = static_cast<time_t>(epoch);
@@ -217,7 +222,7 @@ bool sanitizeNodeId(const char* raw, char* out, size_t capacity) {
 
 int buildSinglePayload(const IngestReading& reading, const char* nodeId, char* out,
                        size_t capacity) {
-    if (out == nullptr || capacity == 0) {
+    if (nodeId == nullptr || out == nullptr || capacity == 0) {
         return 0;
     }
     BufferWriter writer{out, capacity};
@@ -229,7 +234,7 @@ int buildSinglePayload(const IngestReading& reading, const char* nodeId, char* o
 
 int buildBatchPayload(const IngestReading* readings, size_t count, const char* nodeId, char* out,
                       size_t capacity) {
-    if (readings == nullptr || count == 0 || out == nullptr || capacity == 0) {
+    if (readings == nullptr || count == 0 || nodeId == nullptr || out == nullptr || capacity == 0) {
         return 0;
     }
     BufferWriter writer{out, capacity};

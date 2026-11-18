@@ -16,7 +16,7 @@ int16_t encodeTemperature(float celsius) {
 
 uint16_t encodeUnsigned(float value, float scale) {
     long rounded = std::lroundf(value * scale);
-    rounded = std::clamp(rounded, 0L, static_cast<long>(std::numeric_limits<uint16_t>::max()));
+    rounded = std::clamp(rounded, 0L, static_cast<long>(kInvalidUint16 - 1));
     return static_cast<uint16_t>(rounded);
 }
 
@@ -65,7 +65,7 @@ float decodeRainRate(uint16_t raw) {
 }
 
 bool packWeatherData(const WeatherData& data, uint8_t* out, size_t capacity) {
-    if (capacity < sizeof(WeatherData)) {
+    if (out == nullptr || capacity < sizeof(WeatherData)) {
         return false;
     }
     std::memcpy(out, &data, sizeof(WeatherData));
@@ -73,7 +73,7 @@ bool packWeatherData(const WeatherData& data, uint8_t* out, size_t capacity) {
 }
 
 bool unpackWeatherData(const uint8_t* in, size_t length, WeatherData& out) {
-    if (length < sizeof(WeatherData)) {
+    if (in == nullptr || length < sizeof(WeatherData)) {
         return false;
     }
     std::memcpy(&out, in, sizeof(WeatherData));
