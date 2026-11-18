@@ -2,6 +2,8 @@ package prediction
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -75,7 +77,7 @@ func TestExtractDailyValues(t *testing.T) {
 }
 
 func TestStoreHourlyPredictionsEmpty(t *testing.T) {
-	repo := &Repository{client: nil, log: zap.NewNop()}
+	repo := &Repository{log: zap.NewNop()}
 	stored, err := repo.StoreHourlyPredictions(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("StoreHourlyPredictions(empty): %v", err)
@@ -86,7 +88,7 @@ func TestStoreHourlyPredictionsEmpty(t *testing.T) {
 }
 
 func TestStoreDailyPredictionsEmpty(t *testing.T) {
-	repo := &Repository{client: nil, log: zap.NewNop()}
+	repo := &Repository{log: zap.NewNop()}
 	stored, err := repo.StoreDailyPredictions(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("StoreDailyPredictions(empty): %v", err)
@@ -200,5 +202,286 @@ func TestStoreAndGetDailyPredictions(testingT *testing.T) {
 	}
 	if *forecast.Daily[0].MaxTemperatureC != temperatureMax {
 		testingT.Errorf("forecast.Daily[0].MaxTemperatureC = %v, want %v", *forecast.Daily[0].MaxTemperatureC, temperatureMax)
+	}
+}
+
+func TestInMemoryPredictions_OrderingAndMultiNode(t *testing.T) {
+	ctx := context.Background()
+	repo := New(nil, zap.NewNop())
+
+	ts := time.Date(2026, 10, 22, 14, 0, 0, 0, time.UTC)
+	tAlpha := float32(20.0)
+	tBeta := float32(15.0)
+
+	stored, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+		{NodeID: "station-alpha", Ts: ts, HorizonHours: 24, TemperatureC: &tAlpha},
+		{NodeID: "station-alpha", Ts: ts, HorizonHours: 1, TemperatureC: &tAlpha},
+		{NodeID: "station-alpha", Ts: ts, HorizonHours: 6, TemperatureC: &tAlpha},
+		{NodeID: "station-beta", Ts: ts, HorizonHours: 12, TemperatureC: &tBeta},
+		{NodeID: "station-beta", Ts: ts, HorizonHours: 3, TemperatureC: &tBeta},
+	})
+	if err != nil {
+		t.Fatalf("StoreHourlyPredictions: %v", err)
+	}
+	if stored != 5 {
+		t.Fatalf("stored = %d, want 5", stored)
+	}
+
+	storedDaily, err := repo.StoreDailyPredictions(ctx, []DailyPrediction{
+		{NodeID: "station-alpha", Ts: ts, HorizonDays: 5, MaxTemperatureC: &tAlpha},
+		{NodeID: "station-alpha", Ts: ts, HorizonDays: 1, MaxTemperatureC: &tAlpha},
+		{NodeID: "station-alpha", Ts: ts, HorizonDays: 3, MaxTemperatureC: &tAlpha},
+	})
+	if err != nil {
+		t.Fatalf("StoreDailyPredictions: %v", err)
+	}
+	if storedDaily != 3 {
+		t.Fatalf("storedDaily = %d, want 3", storedDaily)
+	}
+
+	alphaForecast, err := repo.GetForecast(ctx, "station-alpha")
+	if err != nil {
+		t.Fatalf("GetForecast(station-alpha): %v", err)
+	}
+	if len(alphaForecast.Hourly) != 3 {
+		t.Fatalf("len(alphaForecast.Hourly) = %d, want 3", len(alphaForecast.Hourly))
+	}
+	wantHourlyHorizons := []int32{1, 6, 24}
+	for i, want := range wantHourlyHorizons {
+		if alphaForecast.Hourly[i].HorizonHours != want {
+			t.Errorf("alphaForecast.Hourly[%d].HorizonHours = %d, want %d", i, alphaForecast.Hourly[i].HorizonHours, want)
+		}
+	}
+	wantDailyHorizons := []int32{1, 3, 5}
+	if len(alphaForecast.Daily) != 3 {
+		t.Fatalf("len(alphaForecast.Daily) = %d, want 3", len(alphaForecast.Daily))
+	}
+	for i, want := range wantDailyHorizons {
+		if alphaForecast.Daily[i].HorizonDays != want {
+			t.Errorf("alphaForecast.Daily[%d].HorizonDays = %d, want %d", i, alphaForecast.Daily[i].HorizonDays, want)
+		}
+	}
+
+	betaForecast, err := repo.GetForecast(ctx, "station-beta")
+	if err != nil {
+		t.Fatalf("GetForecast(station-beta): %v", err)
+	}
+	if len(betaForecast.Hourly) != 2 || betaForecast.Hourly[0].HorizonHours != 3 || betaForecast.Hourly[1].HorizonHours != 12 {
+		t.Fatalf("unexpected beta hourly forecast: %+v", betaForecast.Hourly)
+	}
+	if len(betaForecast.Daily) != 0 {
+		t.Errorf("expected empty beta daily forecast, got %d", len(betaForecast.Daily))
+	}
+
+	missing, err := repo.GetForecast(ctx, "unknown-node")
+	if err != nil {
+		t.Fatalf("GetForecast(unknown-node): %v", err)
+	}
+	if len(missing.Hourly) != 0 || len(missing.Daily) != 0 {
+		t.Errorf("expected empty forecast for unknown node, got %+v", missing)
+	}
+}
+
+func TestInMemoryPredictions_LatestBatchRetention(t *testing.T) {
+	ctx := context.Background()
+	repo := New(nil, zap.NewNop())
+
+	t1 := time.Date(2026, 10, 22, 10, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 10, 22, 11, 0, 0, 0, time.UTC)
+	t3 := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+
+	v1 := float32(11.0)
+	v2 := float32(12.0)
+	v3 := float32(13.0)
+	v3Retry := float32(13.5)
+
+	if _, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+		{NodeID: "n1", Ts: t2, HorizonHours: 1, TemperatureC: &v2},
+		{NodeID: "n1", Ts: t2, HorizonHours: 2, TemperatureC: &v2},
+	}); err != nil {
+		t.Fatalf("store t2 hourly: %v", err)
+	}
+
+	// Newer batch t3 replaces t2.
+	if _, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+		{NodeID: "n1", Ts: t3, HorizonHours: 1, TemperatureC: &v3},
+	}); err != nil {
+		t.Fatalf("store t3 hourly: %v", err)
+	}
+
+	// Stale batch t1 must not overwrite t3.
+	if _, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+		{NodeID: "n1", Ts: t1, HorizonHours: 1, TemperatureC: &v1},
+	}); err != nil {
+		t.Fatalf("store stale t1 hourly: %v", err)
+	}
+
+	forecast, err := repo.GetForecast(ctx, "n1")
+	if err != nil {
+		t.Fatalf("GetForecast: %v", err)
+	}
+	if len(forecast.Hourly) != 1 || !forecast.Hourly[0].Ts.Equal(t3) || *forecast.Hourly[0].TemperatureC != v3 {
+		t.Fatalf("expected t3 batch with temp %v, got %+v", v3, forecast.Hourly)
+	}
+
+	// Same timestamp retry replaces t3.
+	if _, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+		{NodeID: "n1", Ts: t3, HorizonHours: 1, TemperatureC: &v3Retry},
+	}); err != nil {
+		t.Fatalf("store retry t3 hourly: %v", err)
+	}
+
+	forecast, err = repo.GetForecast(ctx, "n1")
+	if err != nil {
+		t.Fatalf("GetForecast after retry: %v", err)
+	}
+	if len(forecast.Hourly) != 1 || *forecast.Hourly[0].TemperatureC != v3Retry {
+		t.Fatalf("expected retry t3 batch with temp %v, got %+v", v3Retry, forecast.Hourly)
+	}
+
+	// Daily stale vs newer batch check.
+	if _, err := repo.StoreDailyPredictions(ctx, []DailyPrediction{
+		{NodeID: "n1", Ts: t3, HorizonDays: 1, MaxTemperatureC: &v3},
+	}); err != nil {
+		t.Fatalf("store t3 daily: %v", err)
+	}
+	if _, err := repo.StoreDailyPredictions(ctx, []DailyPrediction{
+		{NodeID: "n1", Ts: t1, HorizonDays: 1, MaxTemperatureC: &v1},
+	}); err != nil {
+		t.Fatalf("store stale t1 daily: %v", err)
+	}
+	forecast, err = repo.GetForecast(ctx, "n1")
+	if err != nil {
+		t.Fatalf("GetForecast daily: %v", err)
+	}
+	if len(forecast.Daily) != 1 || !forecast.Daily[0].Ts.Equal(t3) || *forecast.Daily[0].MaxTemperatureC != v3 {
+		t.Fatalf("expected t3 daily batch, got %+v", forecast.Daily)
+	}
+}
+
+func TestInMemoryPredictions_SliceIsolation(t *testing.T) {
+	ctx := context.Background()
+	repo := New(nil, zap.NewNop())
+	ts := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	temp := float32(20.0)
+
+	input := []HourlyPrediction{{NodeID: "n1", Ts: ts, HorizonHours: 1, TemperatureC: &temp}}
+	if _, err := repo.StoreHourlyPredictions(ctx, input); err != nil {
+		t.Fatalf("StoreHourlyPredictions: %v", err)
+	}
+	input[0].HorizonHours = 99
+
+	got, err := repo.GetForecast(ctx, "n1")
+	if err != nil {
+		t.Fatalf("GetForecast: %v", err)
+	}
+	if got.Hourly[0].HorizonHours != 1 {
+		t.Fatalf("stored slice mutated via input: got horizon %d, want 1", got.Hourly[0].HorizonHours)
+	}
+	got.Hourly[0].HorizonHours = 77
+
+	gotAgain, err := repo.GetForecast(ctx, "n1")
+	if err != nil {
+		t.Fatalf("GetForecast second call: %v", err)
+	}
+	if gotAgain.Hourly[0].HorizonHours != 1 {
+		t.Fatalf("stored slice mutated via returned Forecast: got horizon %d, want 1", gotAgain.Hourly[0].HorizonHours)
+	}
+}
+
+func TestInMemoryPredictions_Concurrency(t *testing.T) {
+	ctx := context.Background()
+	repo := New(nil, zap.NewNop())
+	baseTs := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+
+	const workers = 12
+	const iterations = 50
+
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			nodeID := fmt.Sprintf("station-%d", workerID%4)
+			for i := 0; i < iterations; i++ {
+				ts := baseTs.Add(time.Duration(i) * time.Minute)
+				temp := float32(15.0 + float32(i)*0.1)
+
+				if _, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+					{NodeID: nodeID, Ts: ts, HorizonHours: 3, TemperatureC: &temp},
+					{NodeID: nodeID, Ts: ts, HorizonHours: 1, TemperatureC: &temp},
+					{NodeID: nodeID, Ts: ts, HorizonHours: 2, TemperatureC: &temp},
+				}); err != nil {
+					t.Errorf("StoreHourlyPredictions error: %v", err)
+					return
+				}
+
+				if _, err := repo.StoreDailyPredictions(ctx, []DailyPrediction{
+					{NodeID: nodeID, Ts: ts, HorizonDays: 2, MaxTemperatureC: &temp},
+					{NodeID: nodeID, Ts: ts, HorizonDays: 1, MaxTemperatureC: &temp},
+				}); err != nil {
+					t.Errorf("StoreDailyPredictions error: %v", err)
+					return
+				}
+
+				forecast, err := repo.GetForecast(ctx, nodeID)
+				if err != nil {
+					t.Errorf("GetForecast error: %v", err)
+					return
+				}
+				for idx := 1; idx < len(forecast.Hourly); idx++ {
+					if forecast.Hourly[idx-1].HorizonHours >= forecast.Hourly[idx].HorizonHours {
+						t.Errorf("hourly predictions out of order: %+v", forecast.Hourly)
+						return
+					}
+				}
+				for idx := 1; idx < len(forecast.Daily); idx++ {
+					if forecast.Daily[idx-1].HorizonDays >= forecast.Daily[idx].HorizonDays {
+						t.Errorf("daily predictions out of order: %+v", forecast.Daily)
+						return
+					}
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+}
+
+func TestInMemoryPredictions_DeleteNode(t *testing.T) {
+	ctx := context.Background()
+	repo := New(nil, zap.NewNop())
+	ts := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	temp := float32(21.5)
+
+	if _, err := repo.StoreHourlyPredictions(ctx, []HourlyPrediction{
+		{NodeID: "station-alpha", Ts: ts, HorizonHours: 1, TemperatureC: &temp},
+		{NodeID: "station-beta", Ts: ts, HorizonHours: 1, TemperatureC: &temp},
+	}); err != nil {
+		t.Fatalf("StoreHourlyPredictions: %v", err)
+	}
+	if _, err := repo.StoreDailyPredictions(ctx, []DailyPrediction{
+		{NodeID: "station-alpha", Ts: ts, HorizonDays: 1, MaxTemperatureC: &temp},
+		{NodeID: "station-beta", Ts: ts, HorizonDays: 1, MaxTemperatureC: &temp},
+	}); err != nil {
+		t.Fatalf("StoreDailyPredictions: %v", err)
+	}
+
+	repo.DeleteNode("station-alpha")
+	repo.DeleteNode("")
+
+	alphaForecast, err := repo.GetForecast(ctx, "station-alpha")
+	if err != nil {
+		t.Fatalf("GetForecast(station-alpha): %v", err)
+	}
+	if len(alphaForecast.Hourly) != 0 || len(alphaForecast.Daily) != 0 {
+		t.Errorf("expected station-alpha forecast cleared, got hourly=%d daily=%d", len(alphaForecast.Hourly), len(alphaForecast.Daily))
+	}
+
+	betaForecast, err := repo.GetForecast(ctx, "station-beta")
+	if err != nil {
+		t.Fatalf("GetForecast(station-beta): %v", err)
+	}
+	if len(betaForecast.Hourly) != 1 || len(betaForecast.Daily) != 1 {
+		t.Errorf("expected station-beta forecast preserved, got hourly=%d daily=%d", len(betaForecast.Hourly), len(betaForecast.Daily))
 	}
 }

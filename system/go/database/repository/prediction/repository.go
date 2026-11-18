@@ -1,258 +1,204 @@
 package prediction
 
 import (
+	"cmp"
 	"context"
+	"slices"
+	"sync"
+	"time"
 
 	duckdb "weather-station/database/client"
 
 	"go.uber.org/zap"
 )
 
-// Repository persists forecast predictions to the embedded DuckDB hourly and daily prediction tables.
+type hourlyBatch struct {
+	ts          time.Time
+	predictions []HourlyPrediction
+}
+
+type dailyBatch struct {
+	ts          time.Time
+	predictions []DailyPrediction
+}
+
+var (
+	reposMu sync.RWMutex
+	repos   = make(map[*Repository]struct{})
+)
+
+// Repository stores the latest hourly and daily forecast predictions per node in memory.
 type Repository struct {
-	client *duckdb.Client
 	log    *zap.Logger
+	mu     sync.RWMutex
+	hourly map[string]hourlyBatch
+	daily  map[string]dailyBatch
 }
 
-func New(client *duckdb.Client, log *zap.Logger) *Repository {
-	return &Repository{client: client, log: log}
+func New(_ *duckdb.Client, log *zap.Logger) *Repository {
+	r := &Repository{
+		log:    log,
+		hourly: make(map[string]hourlyBatch),
+		daily:  make(map[string]dailyBatch),
+	}
+	reposMu.Lock()
+	repos[r] = struct{}{}
+	reposMu.Unlock()
+	return r
 }
 
-const insertHourlyPredictionSQL = `INSERT INTO hourly_predictions (
-	node_id, ts, horizon_hours,
-	temperature_c, humidity_pct,
-	rainfall_mm, rain_probability,
-	temperature_c_p10, temperature_c_p90,
-	humidity_pct_p10, humidity_pct_p90,
-	rainfall_mm_p90,
-	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
-
-const insertDailyPredictionSQL = `INSERT INTO daily_predictions (
-	node_id, ts, horizon_days,
-	min_temperature_c, max_temperature_c,
-	min_humidity_pct, max_humidity_pct,
-	rainfall_mm, rain_probability,
-	min_temperature_c_p10, max_temperature_c_p90,
-	rainfall_mm_p90,
-	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
-
-const deleteHourlyPredictionsSQL = `DELETE FROM hourly_predictions WHERE node_id = ? AND ts = ?;`
-
-const deleteDailyPredictionsSQL = `DELETE FROM daily_predictions WHERE node_id = ? AND ts = ?;`
-
-// StoreHourlyPredictions bulk-inserts hourly predictions and returns the number of rows written.
-func (r *Repository) StoreHourlyPredictions(ctx context.Context, predictions []HourlyPrediction) (int64, error) {
+// StoreHourlyPredictions stores the latest hourly prediction batch per node in memory and returns the number of items processed.
+func (r *Repository) StoreHourlyPredictions(_ context.Context, predictions []HourlyPrediction) (int64, error) {
 	if len(predictions) == 0 {
 		return 0, nil
 	}
 
-	tx, err := r.client.DB().BeginTx(ctx, nil)
-	if err != nil {
-		r.log.Error("failed to start transaction for hourly predictions", zap.Error(err))
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	deleteStmt, err := tx.PrepareContext(ctx, deleteHourlyPredictionsSQL)
-	if err != nil {
-		r.log.Error("failed to prepare delete statement for hourly predictions", zap.Error(err))
-		return 0, err
-	}
-	defer deleteStmt.Close()
-
-	distinctKeys := make(map[string]struct{})
+	latestTs := make(map[string]time.Time)
 	for _, pred := range predictions {
-		key := pred.NodeID + pred.Ts.UTC().String()
-		if _, seen := distinctKeys[key]; !seen {
-			distinctKeys[key] = struct{}{}
-			if _, err := deleteStmt.ExecContext(ctx, pred.NodeID, pred.Ts); err != nil {
-				r.log.Error("failed to delete prior hourly predictions", zap.String("node_id", pred.NodeID), zap.Error(err))
-				return 0, err
-			}
+		if cur, ok := latestTs[pred.NodeID]; !ok || pred.Ts.After(cur) {
+			latestTs[pred.NodeID] = pred.Ts
 		}
 	}
 
-	stmt, err := tx.PrepareContext(ctx, insertHourlyPredictionSQL)
-	if err != nil {
-		r.log.Error("failed to prepare insert statement for hourly predictions", zap.Error(err))
-		return 0, err
-	}
-	defer stmt.Close()
-
-	var stored int64
+	byNode := make(map[string]map[int32]HourlyPrediction, len(latestTs))
 	for _, pred := range predictions {
-		vals := extractHourlyValues(pred)
-		if _, err := stmt.ExecContext(ctx, vals...); err != nil {
-			r.log.Error("failed to exec insert for hourly prediction", zap.String("node_id", pred.NodeID), zap.Error(err))
-			return 0, err
+		if !pred.Ts.Equal(latestTs[pred.NodeID]) {
+			continue
 		}
-		stored++
+		horizons := byNode[pred.NodeID]
+		if horizons == nil {
+			horizons = make(map[int32]HourlyPrediction)
+			byNode[pred.NodeID] = horizons
+		}
+		horizons[pred.HorizonHours] = pred
 	}
 
-	if err := tx.Commit(); err != nil {
-		r.log.Error("failed to commit transaction for hourly predictions", zap.Error(err))
-		return 0, err
+	batches := make(map[string]hourlyBatch, len(byNode))
+	for nodeID, horizons := range byNode {
+		items := make([]HourlyPrediction, 0, len(horizons))
+		for _, pred := range horizons {
+			items = append(items, pred)
+		}
+		slices.SortFunc(items, func(a, b HourlyPrediction) int {
+			return cmp.Compare(a.HorizonHours, b.HorizonHours)
+		})
+		batches[nodeID] = hourlyBatch{
+			ts:          latestTs[nodeID],
+			predictions: items,
+		}
 	}
 
-	r.log.Debug("stored hourly predictions", zap.Int64("stored", stored))
+	r.mu.Lock()
+	if r.hourly == nil {
+		r.hourly = make(map[string]hourlyBatch)
+	}
+	for nodeID, batch := range batches {
+		if existing, ok := r.hourly[nodeID]; !ok || !batch.ts.Before(existing.ts) {
+			r.hourly[nodeID] = batch
+		}
+	}
+	r.mu.Unlock()
+
+	stored := int64(len(predictions))
+	if r.log != nil {
+		r.log.Debug("stored hourly predictions", zap.Int64("stored", stored))
+	}
 	return stored, nil
 }
 
-// StoreDailyPredictions bulk-inserts daily predictions and returns the number of rows written.
-func (r *Repository) StoreDailyPredictions(ctx context.Context, predictions []DailyPrediction) (int64, error) {
+// StoreDailyPredictions stores the latest daily prediction batch per node in memory and returns the number of items processed.
+func (r *Repository) StoreDailyPredictions(_ context.Context, predictions []DailyPrediction) (int64, error) {
 	if len(predictions) == 0 {
 		return 0, nil
 	}
 
-	tx, err := r.client.DB().BeginTx(ctx, nil)
-	if err != nil {
-		r.log.Error("failed to start transaction for daily predictions", zap.Error(err))
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	deleteStmt, err := tx.PrepareContext(ctx, deleteDailyPredictionsSQL)
-	if err != nil {
-		r.log.Error("failed to prepare delete statement for daily predictions", zap.Error(err))
-		return 0, err
-	}
-	defer deleteStmt.Close()
-
-	distinctKeys := make(map[string]struct{})
+	latestTs := make(map[string]time.Time)
 	for _, pred := range predictions {
-		key := pred.NodeID + pred.Ts.UTC().String()
-		if _, seen := distinctKeys[key]; !seen {
-			distinctKeys[key] = struct{}{}
-			if _, err := deleteStmt.ExecContext(ctx, pred.NodeID, pred.Ts); err != nil {
-				r.log.Error("failed to delete prior daily predictions", zap.String("node_id", pred.NodeID), zap.Error(err))
-				return 0, err
-			}
+		if cur, ok := latestTs[pred.NodeID]; !ok || pred.Ts.After(cur) {
+			latestTs[pred.NodeID] = pred.Ts
 		}
 	}
 
-	stmt, err := tx.PrepareContext(ctx, insertDailyPredictionSQL)
-	if err != nil {
-		r.log.Error("failed to prepare insert statement for daily predictions", zap.Error(err))
-		return 0, err
-	}
-	defer stmt.Close()
-
-	var stored int64
+	byNode := make(map[string]map[int32]DailyPrediction, len(latestTs))
 	for _, pred := range predictions {
-		vals := extractDailyValues(pred)
-		if _, err := stmt.ExecContext(ctx, vals...); err != nil {
-			r.log.Error("failed to exec insert for daily prediction", zap.String("node_id", pred.NodeID), zap.Error(err))
-			return 0, err
+		if !pred.Ts.Equal(latestTs[pred.NodeID]) {
+			continue
 		}
-		stored++
+		horizons := byNode[pred.NodeID]
+		if horizons == nil {
+			horizons = make(map[int32]DailyPrediction)
+			byNode[pred.NodeID] = horizons
+		}
+		horizons[pred.HorizonDays] = pred
 	}
 
-	if err := tx.Commit(); err != nil {
-		r.log.Error("failed to commit transaction for daily predictions", zap.Error(err))
-		return 0, err
+	batches := make(map[string]dailyBatch, len(byNode))
+	for nodeID, horizons := range byNode {
+		items := make([]DailyPrediction, 0, len(horizons))
+		for _, pred := range horizons {
+			items = append(items, pred)
+		}
+		slices.SortFunc(items, func(a, b DailyPrediction) int {
+			return cmp.Compare(a.HorizonDays, b.HorizonDays)
+		})
+		batches[nodeID] = dailyBatch{
+			ts:          latestTs[nodeID],
+			predictions: items,
+		}
 	}
 
-	r.log.Debug("stored daily predictions", zap.Int64("stored", stored))
+	r.mu.Lock()
+	if r.daily == nil {
+		r.daily = make(map[string]dailyBatch)
+	}
+	for nodeID, batch := range batches {
+		if existing, ok := r.daily[nodeID]; !ok || !batch.ts.Before(existing.ts) {
+			r.daily[nodeID] = batch
+		}
+	}
+	r.mu.Unlock()
+
+	stored := int64(len(predictions))
+	if r.log != nil {
+		r.log.Debug("stored daily predictions", zap.Int64("stored", stored))
+	}
 	return stored, nil
 }
 
-const hourlySelectColumns = `node_id, ts, horizon_hours,
-	temperature_c, humidity_pct,
-	rainfall_mm, rain_probability,
-	temperature_c_p10, temperature_c_p90,
-	humidity_pct_p10, humidity_pct_p90,
-	rainfall_mm_p90,
-	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90`
+// GetForecast returns the latest hourly and daily forecast predictions for a node, ordered by horizon.
+func (r *Repository) GetForecast(_ context.Context, nodeID string) (Forecast, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-const dailySelectColumns = `node_id, ts, horizon_days,
-	min_temperature_c, max_temperature_c,
-	min_humidity_pct, max_humidity_pct,
-	rainfall_mm, rain_probability,
-	min_temperature_c_p10, max_temperature_c_p90,
-	rainfall_mm_p90,
-	pressure_hpa, pressure_hpa_p10, pressure_hpa_p90`
-
-// getLatestHourlyPredictions returns the latest hourly prediction batch for a node, ordered by horizon.
-func (r *Repository) getLatestHourlyPredictions(ctx context.Context, nodeID string) ([]HourlyPrediction, error) {
-	query := `SELECT ` + hourlySelectColumns + `
-		FROM hourly_predictions
-		WHERE node_id = ?
-		  AND ts = (SELECT MAX(ts) FROM hourly_predictions WHERE node_id = ?)
-		QUALIFY row_number() OVER (PARTITION BY horizon_hours ORDER BY ts DESC) = 1
-		ORDER BY horizon_hours ASC`
-
-	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID)
-	if err != nil {
-		r.log.Error("failed to query hourly forecast", zap.String("node_id", nodeID), zap.Error(err))
-		return nil, err
+	var forecast Forecast
+	if batch, ok := r.hourly[nodeID]; ok && len(batch.predictions) > 0 {
+		forecast.Hourly = slices.Clone(batch.predictions)
 	}
-	defer rows.Close()
-
-	var predictions []HourlyPrediction
-	for rows.Next() {
-		prediction, err := scanHourlyPrediction(rows)
-		if err != nil {
-			r.log.Error("failed to scan hourly prediction", zap.String("node_id", nodeID), zap.Error(err))
-			return nil, err
-		}
-		predictions = append(predictions, prediction)
+	if batch, ok := r.daily[nodeID]; ok && len(batch.predictions) > 0 {
+		forecast.Daily = slices.Clone(batch.predictions)
 	}
-	if err := rows.Err(); err != nil {
-		r.log.Error("error reading hourly prediction rows", zap.String("node_id", nodeID), zap.Error(err))
-		return nil, err
-	}
-	return predictions, nil
-}
-
-// getLatestDailyPredictions returns the latest daily prediction batch for a node, ordered by horizon.
-func (r *Repository) getLatestDailyPredictions(ctx context.Context, nodeID string) ([]DailyPrediction, error) {
-	query := `SELECT ` + dailySelectColumns + `
-		FROM daily_predictions
-		WHERE node_id = ?
-		  AND ts = (SELECT MAX(ts) FROM daily_predictions WHERE node_id = ?)
-		QUALIFY row_number() OVER (PARTITION BY horizon_days ORDER BY ts DESC) = 1
-		ORDER BY horizon_days ASC`
-
-	rows, err := r.client.DB().QueryContext(ctx, query, nodeID, nodeID)
-	if err != nil {
-		r.log.Error("failed to query daily forecast", zap.String("node_id", nodeID), zap.Error(err))
-		return nil, err
-	}
-	defer rows.Close()
-
-	var predictions []DailyPrediction
-	for rows.Next() {
-		prediction, err := scanDailyPrediction(rows)
-		if err != nil {
-			r.log.Error("failed to scan daily prediction", zap.String("node_id", nodeID), zap.Error(err))
-			return nil, err
-		}
-		predictions = append(predictions, prediction)
-	}
-	if err := rows.Err(); err != nil {
-		r.log.Error("error reading daily prediction rows", zap.String("node_id", nodeID), zap.Error(err))
-		return nil, err
-	}
-	return predictions, nil
-}
-
-// GetForecast returns the latest hourly and daily forecast predictions for a node.
-func (r *Repository) GetForecast(ctx context.Context, nodeID string) (Forecast, error) {
-	forecast := Forecast{}
-
-	hourly, err := r.getLatestHourlyPredictions(ctx, nodeID)
-	if err != nil {
-		return Forecast{}, err
-	}
-	forecast.Hourly = hourly
-
-	daily, err := r.getLatestDailyPredictions(ctx, nodeID)
-	if err != nil {
-		return Forecast{}, err
-	}
-	forecast.Daily = daily
-
 	return forecast, nil
+}
+
+// DeleteNode removes any stored hourly and daily predictions for nodeID from memory.
+func (r *Repository) DeleteNode(nodeID string) {
+	if nodeID == "" {
+		return
+	}
+	r.mu.Lock()
+	delete(r.hourly, nodeID)
+	delete(r.daily, nodeID)
+	r.mu.Unlock()
+}
+
+// DeleteNode evicts stored predictions for nodeID across all registered prediction repositories.
+func DeleteNode(nodeID string) {
+	if nodeID == "" {
+		return
+	}
+	reposMu.RLock()
+	for r := range repos {
+		r.DeleteNode(nodeID)
+	}
+	reposMu.RUnlock()
 }

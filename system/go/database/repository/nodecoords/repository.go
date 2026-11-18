@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	duckdb "weather-station/database/client"
+	"weather-station/database/repository/prediction"
 
 	"go.uber.org/zap"
 )
@@ -104,7 +105,7 @@ func (r *Repository) ListNodeCoordinates(ctx context.Context) ([]NodeCoordinates
 	return nodes, nil
 }
 
-// DeleteNode removes the node coordinate entry along with all readings and predictions for the node.
+// DeleteNode removes the node coordinate entry along with all weather readings for the node.
 func (r *Repository) DeleteNode(ctx context.Context, nodeID string) error {
 	if nodeID == "" {
 		return fmt.Errorf("node_id is required")
@@ -119,8 +120,6 @@ func (r *Repository) DeleteNode(ctx context.Context, nodeID string) error {
 
 	statements := []string{
 		`DELETE FROM weather WHERE node_id = ?;`,
-		`DELETE FROM hourly_predictions WHERE node_id = ?;`,
-		`DELETE FROM daily_predictions WHERE node_id = ?;`,
 		`DELETE FROM node_coordinates WHERE node_id = ?;`,
 	}
 
@@ -135,6 +134,8 @@ func (r *Repository) DeleteNode(ctx context.Context, nodeID string) error {
 		r.log.Error("failed to commit node deletion transaction", zap.String("node_id", nodeID), zap.Error(err))
 		return err
 	}
+
+	prediction.DeleteNode(nodeID)
 
 	r.log.Debug("deleted node and associated records", zap.String("node_id", nodeID))
 	return nil

@@ -58,6 +58,9 @@ func NewClient(lc fx.Lifecycle, cfg *Config, log *zap.Logger) (*Client, error) {
 					c.log.Warn("failed to set duckdb threads pragma", zap.Error(err))
 				}
 			}
+			if _, err := db.ExecContext(ctx, "PRAGMA wal_autocheckpoint = '1MB';"); err != nil {
+				c.log.Warn("failed to set duckdb wal_autocheckpoint pragma", zap.Error(err))
+			}
 
 			if err := c.initSchema(ctx); err != nil {
 				c.log.Error("DuckDB schema initialization failed", zap.Error(err))
@@ -147,7 +150,7 @@ func (c *Client) initSchema(ctx context.Context) error {
 			rain_agc           INTEGER,
 			rain_agc_variance  INTEGER
 		);`,
-		`CREATE INDEX IF NOT EXISTS idx_weather_node_ts ON weather (node_id, ts);`,
+		`DROP INDEX IF EXISTS idx_weather_node_ts;`,
 
 		// 2. Node coordinates metadata table
 		`CREATE TABLE IF NOT EXISTS node_coordinates (
@@ -158,45 +161,11 @@ func (c *Client) initSchema(ctx context.Context) error {
 			location_name VARCHAR
 		);`,
 
-		// 3. Hourly forecast predictions table
-		`CREATE TABLE IF NOT EXISTS hourly_predictions (
-			node_id            VARCHAR NOT NULL,
-			ts                 TIMESTAMP NOT NULL,
-			horizon_hours      INTEGER NOT NULL,
-			temperature_c      FLOAT,
-			humidity_pct       FLOAT,
-			rainfall_mm        FLOAT,
-			rain_probability   FLOAT,
-			temperature_c_p10  FLOAT,
-			temperature_c_p90  FLOAT,
-			humidity_pct_p10   FLOAT,
-			humidity_pct_p90   FLOAT,
-			rainfall_mm_p90    FLOAT,
-			pressure_hpa       FLOAT,
-			pressure_hpa_p10   FLOAT,
-			pressure_hpa_p90   FLOAT
-		);`,
-		`CREATE INDEX IF NOT EXISTS idx_hourly_predictions_node_ts ON hourly_predictions (node_id, ts);`,
-
-		// 4. Daily forecast predictions table
-		`CREATE TABLE IF NOT EXISTS daily_predictions (
-			node_id               VARCHAR NOT NULL,
-			ts                    TIMESTAMP NOT NULL,
-			horizon_days          INTEGER NOT NULL,
-			min_temperature_c     FLOAT,
-			max_temperature_c     FLOAT,
-			min_humidity_pct      FLOAT,
-			max_humidity_pct      FLOAT,
-			rainfall_mm           FLOAT,
-			rain_probability      FLOAT,
-			min_temperature_c_p10 FLOAT,
-			max_temperature_c_p90 FLOAT,
-			rainfall_mm_p90       FLOAT,
-			pressure_hpa          FLOAT,
-			pressure_hpa_p10      FLOAT,
-			pressure_hpa_p90      FLOAT
-		);`,
-		`CREATE INDEX IF NOT EXISTS idx_daily_predictions_node_ts ON daily_predictions (node_id, ts);`,
+		// 3. Drop legacy forecast prediction indexes and tables (predictions are stored in memory)
+		`DROP INDEX IF EXISTS idx_hourly_predictions_node_ts;`,
+		`DROP INDEX IF EXISTS idx_daily_predictions_node_ts;`,
+		`DROP TABLE IF EXISTS hourly_predictions;`,
+		`DROP TABLE IF EXISTS daily_predictions;`,
 	}
 
 	for _, q := range queries {
