@@ -34,17 +34,17 @@ func TestNullable(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			output := tt.run()
-			if tt.want == nil {
-				if output != nil {
-					t.Errorf("Nullable = %v, want nil", output)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := testCase.run()
+			if testCase.want == nil {
+				if got != nil {
+					t.Errorf("Nullable = %v, want nil", got)
 				}
 				return
 			}
-			if output != tt.want {
-				t.Errorf("Nullable = %v, want %v", output, tt.want)
+			if got != testCase.want {
+				t.Errorf("Nullable = %v, want %v", got, testCase.want)
 			}
 		})
 	}

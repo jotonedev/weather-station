@@ -105,10 +105,9 @@ func TestNewGatewayValidation(t *testing.T) {
 }
 
 func TestGatewayCheck(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	expectedRequest := &grpc_health_v1.HealthCheckRequest{Service: "ready"}
 
-	tests := []struct {
+	testCases := []struct {
 		name    string
 		setup   func(healthMock *mocks.MockHealthClient)
 		withNil bool
@@ -123,7 +122,7 @@ func TestGatewayCheck(t *testing.T) {
 			name: "serving status returns no error",
 			setup: func(healthMock *mocks.MockHealthClient) {
 				healthMock.EXPECT().
-					Check(gomock.Any(), gomock.Any()).
+					Check(gomock.Any(), gomock.Eq(expectedRequest)).
 					Return(&grpc_health_v1.HealthCheckResponse{
 						Status: grpc_health_v1.HealthCheckResponse_SERVING,
 					}, nil)
@@ -134,7 +133,7 @@ func TestGatewayCheck(t *testing.T) {
 			name: "not serving status returns error",
 			setup: func(healthMock *mocks.MockHealthClient) {
 				healthMock.EXPECT().
-					Check(gomock.Any(), gomock.Any()).
+					Check(gomock.Any(), gomock.Eq(expectedRequest)).
 					Return(&grpc_health_v1.HealthCheckResponse{
 						Status: grpc_health_v1.HealthCheckResponse_NOT_SERVING,
 					}, nil)
@@ -145,38 +144,44 @@ func TestGatewayCheck(t *testing.T) {
 			name: "rpc error returns error",
 			setup: func(healthMock *mocks.MockHealthClient) {
 				healthMock.EXPECT().
-					Check(gomock.Any(), gomock.Any()).
+					Check(gomock.Any(), gomock.Eq(expectedRequest)).
 					Return(nil, errors.New("rpc failed"))
 			},
 			wantErr: true,
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
 			var healthClient grpc_health_v1.HealthClient
-			if !tc.withNil {
+			if !testCase.withNil {
 				healthMock := mocks.NewMockHealthClient(ctrl)
-				if tc.setup != nil {
-					tc.setup(healthMock)
+				if testCase.setup != nil {
+					testCase.setup(healthMock)
 				}
 				healthClient = healthMock
 			}
 
-			gateway := &Gateway{
-				log:          zap.NewNop(),
-				healthClient: healthClient,
+			gateway, err := New(GatewayParams{
+				Logger:       zap.NewNop(),
+				Config:       Config{Address: "127.0.0.1:8090"},
+				Client:       mocks.NewMockReadingDatabaseServiceClient(ctrl),
+				HealthClient: healthClient,
+			})
+			if err != nil {
+				t.Fatalf("New() unexpected error = %v", err)
 			}
 
 			if gateway.Name() != "database" {
 				t.Errorf("expected name database, got %q", gateway.Name())
 			}
 
-			err := gateway.Check(context.Background())
-			if tc.wantErr && err == nil {
+			err = gateway.Check(context.Background())
+			if testCase.wantErr && err == nil {
 				t.Fatal("expected error but got nil")
 			}
-			if !tc.wantErr && err != nil {
+			if !testCase.wantErr && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})

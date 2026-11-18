@@ -25,6 +25,8 @@ func TestHandlerServeHTTP(t *testing.T) {
 		method         string
 		body           string
 		omitAuth       bool
+		authUser       string
+		authPass       string
 		setup          func(client *mocks.MockReadingDatabaseServiceClient)
 		wantStatusCode int
 	}{
@@ -48,6 +50,15 @@ func TestHandlerServeHTTP(t *testing.T) {
 			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
+			name:           "unauthorized on invalid basic auth credentials",
+			method:         http.MethodPost,
+			body:           `{"node_id":"node-123","temperature":21.5}`,
+			authUser:       "wronguser",
+			authPass:       "wrongpassword",
+			setup:          func(client *mocks.MockReadingDatabaseServiceClient) {},
+			wantStatusCode: http.StatusUnauthorized,
+		},
+		{
 			name:           "method not allowed for GET request",
 			method:         http.MethodGet,
 			body:           `{"node_id":"node-123"}`,
@@ -55,9 +66,23 @@ func TestHandlerServeHTTP(t *testing.T) {
 			wantStatusCode: http.StatusMethodNotAllowed,
 		},
 		{
+			name:           "bad request on empty body",
+			method:         http.MethodPost,
+			body:           ``,
+			setup:          func(client *mocks.MockReadingDatabaseServiceClient) {},
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
 			name:           "bad request on malformed json",
 			method:         http.MethodPost,
 			body:           `{not-valid-json`,
+			setup:          func(client *mocks.MockReadingDatabaseServiceClient) {},
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:           "bad request on json array payload",
+			method:         http.MethodPost,
+			body:           `[]`,
 			setup:          func(client *mocks.MockReadingDatabaseServiceClient) {},
 			wantStatusCode: http.StatusBadRequest,
 		},
@@ -81,7 +106,7 @@ func TestHandlerServeHTTP(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for index, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
@@ -117,10 +142,19 @@ func TestHandlerServeHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("New() unexpected error = %v", err)
 			}
+			if index == 0 && handler.Pattern() != "/reading" {
+				t.Fatalf("Pattern() = %q, want /reading", handler.Pattern())
+			}
 
 			request := httptest.NewRequest(testCase.method, "/reading", bytes.NewBufferString(testCase.body))
 			if !testCase.omitAuth {
-				request.SetBasicAuth("testuser", "testpassword")
+				username := testCase.authUser
+				password := testCase.authPass
+				if username == "" && password == "" {
+					username = "testuser"
+					password = "testpassword"
+				}
+				request.SetBasicAuth(username, password)
 			}
 			recorder := httptest.NewRecorder()
 
@@ -130,12 +164,5 @@ func TestHandlerServeHTTP(t *testing.T) {
 				t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, testCase.wantStatusCode)
 			}
 		})
-	}
-}
-
-func TestHandlerPattern(t *testing.T) {
-	handler := &Handler{}
-	if pattern := handler.Pattern(); pattern != "/reading" {
-		t.Fatalf("Pattern() = %q, want /reading", pattern)
 	}
 }

@@ -3,13 +3,16 @@ package health
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -18,16 +21,16 @@ type staticChecker struct {
 	err  error
 }
 
-func (s *staticChecker) Name() string {
-	return s.name
+func (checker *staticChecker) Name() string {
+	return checker.name
 }
 
-func (s *staticChecker) Check(_ context.Context) error {
-	return s.err
+func (checker *staticChecker) Check(_ context.Context) error {
+	return checker.err
 }
 
 func TestHealthHandler(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name       string
 		wantStatus int
 		wantBody   string
@@ -39,8 +42,8 @@ func TestHealthHandler(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			handler, err := NewHealth(HealthHandlerParams{Logger: zap.NewNop()})
 			if err != nil {
 				t.Fatalf("unexpected error creating handler: %v", err)
@@ -54,19 +57,19 @@ func TestHealthHandler(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
-			if rec.Code != tc.wantStatus {
-				t.Errorf("expected status %d, got %d", tc.wantStatus, rec.Code)
+			if rec.Code != testCase.wantStatus {
+				t.Errorf("expected status %d, got %d", testCase.wantStatus, rec.Code)
 			}
 
-			if rec.Body.String() != tc.wantBody {
-				t.Errorf("expected body %q, got %q", tc.wantBody, rec.Body.String())
+			if rec.Body.String() != testCase.wantBody {
+				t.Errorf("expected body %q, got %q", testCase.wantBody, rec.Body.String())
 			}
 		})
 	}
 }
 
 func TestReadyHandler(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name       string
 		checkers   []Checker
 		wantStatus int
@@ -96,11 +99,11 @@ func TestReadyHandler(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			handler, err := NewReady(ReadyHandlerParams{
 				Logger:   zap.NewNop(),
-				Checkers: tc.checkers,
+				Checkers: testCase.checkers,
 			})
 			if err != nil {
 				t.Fatalf("unexpected error creating handler: %v", err)
@@ -114,22 +117,23 @@ func TestReadyHandler(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
-			if rec.Code != tc.wantStatus {
-				t.Errorf("expected status %d, got %d", tc.wantStatus, rec.Code)
+			if rec.Code != testCase.wantStatus {
+				t.Errorf("expected status %d, got %d", testCase.wantStatus, rec.Code)
 			}
 
-			if rec.Body.String() != tc.wantBody {
-				t.Errorf("expected body %q, got %q", tc.wantBody, rec.Body.String())
+			if rec.Body.String() != testCase.wantBody {
+				t.Errorf("expected body %q, got %q", testCase.wantBody, rec.Body.String())
 			}
 		})
 	}
 }
 
 func TestGRPCHandler(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name        string
 		checkers    []Checker
 		service     string
+		stopBefore  bool
 		wantStatus  grpc_health_v1.HealthCheckResponse_ServingStatus
 		expectError bool
 	}{
@@ -161,36 +165,71 @@ func TestGRPCHandler(t *testing.T) {
 			service:    "ready",
 			wantStatus: grpc_health_v1.HealthCheckResponse_NOT_SERVING,
 		},
+		{
+			name:       "default service returns not serving after lifecycle stop",
+			checkers:   nil,
+			service:    "",
+			stopBefore: true,
+			wantStatus: grpc_health_v1.HealthCheckResponse_NOT_SERVING,
+		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			lc := fxtest.NewLifecycle(t)
-			h := NewGRPC(lc, ReadyHandlerParams{
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			lifecycle := fxtest.NewLifecycle(t)
+			handler := NewGRPC(lifecycle, ReadyHandlerParams{
 				Logger:   zap.NewNop(),
-				Checkers: tc.checkers,
+				Checkers: testCase.checkers,
 			})
+
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatalf("net.Listen() unexpected error = %v", err)
+			}
 
 			server := grpc.NewServer()
-			h.Register(server)
-
-			checkServer := &grpcHealthServer{
-				HealthServer: h.base,
-				checkers:     tc.checkers,
-			}
-
-			resp, err := checkServer.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{
-				Service: tc.service,
+			handler.Register(server)
+			go func() {
+				_ = server.Serve(listener)
+			}()
+			t.Cleanup(func() {
+				server.Stop()
+				_ = listener.Close()
 			})
 
-			if tc.expectError && err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			if err := lifecycle.Start(ctx); err != nil {
+				t.Fatalf("lifecycle.Start() unexpected error = %v", err)
+			}
+			if testCase.stopBefore {
+				if err := lifecycle.Stop(ctx); err != nil {
+					t.Fatalf("lifecycle.Stop() unexpected error = %v", err)
+				}
+			}
+
+			conn, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				t.Fatalf("grpc.NewClient() unexpected error = %v", err)
+			}
+			t.Cleanup(func() {
+				_ = conn.Close()
+			})
+
+			healthClient := grpc_health_v1.NewHealthClient(conn)
+			resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+				Service: testCase.service,
+			})
+
+			if testCase.expectError && err == nil {
 				t.Fatal("expected error but got nil")
 			}
-			if !tc.expectError && err != nil {
+			if !testCase.expectError && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if resp.Status != tc.wantStatus {
-				t.Errorf("expected status %v, got %v", tc.wantStatus, resp.Status)
+			if resp.Status != testCase.wantStatus {
+				t.Errorf("expected status %v, got %v", testCase.wantStatus, resp.Status)
 			}
 		})
 	}
