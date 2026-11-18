@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
+import pytest
 from google.protobuf.timestamp_pb2 import Timestamp
 from weather.inference.v1.inference_pb2 import TimeSeriesObservation
 
@@ -16,25 +17,21 @@ from inference.features import (
 
 
 def test_sort_observations() -> None:
-    """Test_sort_observations verifies observations are sorted in ascending chronological order."""
-    timestamp_first = Timestamp()
-    timestamp_first.FromSeconds(100)
-    timestamp_second = Timestamp()
-    timestamp_second.FromSeconds(200)
+    """Test_sort_observations verifies observations sort ascending by (seconds, nanos)."""
+    timestamp_early = Timestamp(seconds=100, nanos=100_000_000)
+    timestamp_late_same_sec = Timestamp(seconds=100, nanos=500_000_000)
+    timestamp_next_sec = Timestamp(seconds=200, nanos=0)
 
-    observation_one = TimeSeriesObservation(timestamp=timestamp_second)
-    observation_two = TimeSeriesObservation(timestamp=timestamp_first)
+    observation_next = TimeSeriesObservation(timestamp=timestamp_next_sec)
+    observation_late_same_sec = TimeSeriesObservation(timestamp=timestamp_late_same_sec)
+    observation_early = TimeSeriesObservation(timestamp=timestamp_early)
 
-    sorted_result = sort_observations([observation_one, observation_two])
-    assert sorted_result[0].timestamp.seconds == 100
-    assert sorted_result[1].timestamp.seconds == 200
-
-
-def test_floor_helpers() -> None:
-    """Test_floor_helpers verifies hourly and daily timestamp flooring."""
-    dt = datetime(2026, 6, 15, 14, 37, 22, tzinfo=UTC)
-    assert floor_to_hour(dt) == datetime(2026, 6, 15, 14, 0, 0, tzinfo=UTC)
-    assert floor_to_day(dt) == datetime(2026, 6, 15, 0, 0, 0, tzinfo=UTC)
+    sorted_result = sort_observations([observation_next, observation_late_same_sec, observation_early])
+    assert [(obs.timestamp.seconds, obs.timestamp.nanos) for obs in sorted_result] == [
+        (100, 100_000_000),
+        (100, 500_000_000),
+        (200, 0),
+    ]
 
 
 def test_wind_features_fallback_from_direction() -> None:
@@ -62,8 +59,16 @@ def test_wind_features_fallback_from_direction() -> None:
     assert np.isclose(float(prepared.past_covariates["wind_v_mps"][0]), 0.0, atol=1e-5)
 
 
-def test_column_filtering_sparse_column_dropped() -> None:
-    """Test_column_filtering_sparse_column_dropped verifies dropping columns with missing ratio over 50 percent."""
+@pytest.mark.parametrize(
+    ("present_count", "expected_retained"),
+    [
+        (4, False),
+        (5, True),
+        (6, True),
+    ],
+)
+def test_column_filtering_density_threshold(present_count: int, expected_retained: bool) -> None:
+    """Test_column_filtering_density_threshold keeps columns up to 50% missing and drops sparser ones."""
     observations = []
     for step_index in range(10):
         timestamp = Timestamp()
@@ -73,42 +78,19 @@ def test_column_filtering_sparse_column_dropped() -> None:
             temperature_c=20.0,
             humidity_pct=50.0,
         )
-        # Supply rainfall only for 4 out of 10 observations (60 percent missing)
-        if step_index < 4:
-            observation.rainfall_mm = 1.2
+        if step_index < present_count:
+            observation.rainfall_mm = 0.5
+            observation.pressure_hpa = 1013.0
 
         observations.append(observation)
 
     dataframe = extract_observation_dataframe(observations)
     prepared = prepare_context_and_covariates(dataframe)
 
-    assert "rainfall_mm" not in prepared.target_columns
+    assert ("rainfall_mm" in prepared.target_columns) is expected_retained
+    assert ("pressure_hpa" in prepared.target_columns) is expected_retained
     assert "temperature_c" in prepared.target_columns
     assert "humidity_pct" in prepared.target_columns
-
-
-def test_column_filtering_dense_column_retained() -> None:
-    """Test_column_filtering_dense_column_retained verifies keeping columns with missing ratio under 50 percent."""
-    observations = []
-    for step_index in range(10):
-        timestamp = Timestamp()
-        timestamp.FromSeconds(1000 + (step_index * 3600))
-        observation = TimeSeriesObservation(
-            timestamp=timestamp,
-            temperature_c=20.0,
-            humidity_pct=50.0,
-            pressure_hpa=1013.0,
-        )
-        if step_index < 6:
-            observation.rainfall_mm = 0.5
-
-        observations.append(observation)
-
-    dataframe = extract_observation_dataframe(observations)
-    prepared = prepare_context_and_covariates(dataframe)
-
-    assert "rainfall_mm" in prepared.target_columns
-    assert "pressure_hpa" in prepared.target_columns
 
 
 def test_inf_normalized_to_missing_and_interpolated() -> None:
@@ -138,8 +120,11 @@ def test_inf_normalized_to_missing_and_interpolated() -> None:
 
 
 def test_generate_future_timestamps_contiguous_with_past() -> None:
-    """Test_generate_future_timestamps_contiguous_with_past checks bucket starts begin at floored issue_time."""
-    issue_time = datetime(2026, 1, 1, 12, 35, tzinfo=UTC)
+    """Test_generate_future_timestamps_contiguous_with_past checks flooring and bucket starts."""
+    issue_time = datetime(2026, 1, 1, 12, 35, 22, tzinfo=UTC)
+
+    assert floor_to_hour(issue_time) == datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    assert floor_to_day(issue_time) == datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     hourly_steps = generate_hourly_future_timestamps(issue_time, 24)
     assert len(hourly_steps) == 24
@@ -249,6 +234,8 @@ def test_missing_daily_min_max_targets_remain_nan() -> None:
 
 def test_extract_observation_dataframe_empty_when_no_completed_observations() -> None:
     """Test_extract_observation_dataframe_empty_when_no_completed_observations returns empty DataFrame."""
+    assert extract_observation_dataframe([]).empty
+
     issue_time = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
     ts = Timestamp()
     ts.FromDatetime(issue_time)
@@ -258,3 +245,51 @@ def test_extract_observation_dataframe_empty_when_no_completed_observations() ->
         issue_time=issue_time,
     )
     assert df.empty
+
+
+def test_wind_features_partial_components() -> None:
+    """Test_wind_features_partial_components preserves provided wind components and derives missing ones."""
+    ts = Timestamp()
+    ts.FromSeconds(360000)
+
+    u_with_speed_df = extract_observation_dataframe(
+        [
+            TimeSeriesObservation(
+                timestamp=ts,
+                temperature_c=20.0,
+                humidity_pct=50.0,
+                wind_u_mps=1.5,
+                wind_speed_mps=5.0,
+                wind_direction_deg=180.0,
+            )
+        ]
+    )
+    assert np.isclose(float(u_with_speed_df["wind_u_mps"].iloc[0]), 1.5)
+    assert np.isclose(float(u_with_speed_df["wind_v_mps"].iloc[0]), 5.0)
+
+    v_with_speed_df = extract_observation_dataframe(
+        [
+            TimeSeriesObservation(
+                timestamp=ts,
+                temperature_c=20.0,
+                humidity_pct=50.0,
+                wind_v_mps=-2.0,
+                wind_speed_mps=5.0,
+                wind_direction_deg=90.0,
+            )
+        ]
+    )
+    assert np.isclose(float(v_with_speed_df["wind_u_mps"].iloc[0]), -5.0)
+    assert np.isclose(float(v_with_speed_df["wind_v_mps"].iloc[0]), -2.0)
+
+    u_only_df = extract_observation_dataframe(
+        [TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=50.0, wind_u_mps=1.5)]
+    )
+    assert np.isclose(float(u_only_df["wind_u_mps"].iloc[0]), 1.5)
+    assert np.isnan(u_only_df["wind_v_mps"].iloc[0])
+
+    v_only_df = extract_observation_dataframe(
+        [TimeSeriesObservation(timestamp=ts, temperature_c=20.0, humidity_pct=50.0, wind_v_mps=-2.0)]
+    )
+    assert np.isnan(v_only_df["wind_u_mps"].iloc[0])
+    assert np.isclose(float(v_only_df["wind_v_mps"].iloc[0]), -2.0)

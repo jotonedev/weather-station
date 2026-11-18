@@ -107,11 +107,11 @@ def _compute_moisture_features(temp_c: np.ndarray, hum_pct: np.ndarray) -> dict[
 
 def _lag_difference(values: np.ndarray, lag: int) -> np.ndarray:
     """_lag_difference computes values[t] - values[t - lag] for t >= lag and NaN for t < lag."""
-    n = values.size
-    if n == 0:
+    length = values.size
+    if length == 0:
         return values.astype(np.float32)
-    diff = np.full(n, np.nan, dtype=np.float32)
-    if lag < n:
+    diff = np.full(length, np.nan, dtype=np.float32)
+    if lag < length:
         with np.errstate(invalid="ignore"):
             diff[lag:] = (values[lag:] - values[:-lag]).astype(np.float32)
     return diff
@@ -176,7 +176,7 @@ def prepare_context_and_covariates(
             continue
         interpolated[col] = _interpolate_short_gaps(df[col], col, max_gap=short_gap_limit)
 
-    target_columns: list[str] = list(required_targets)
+    target_columns: list[str] = [col for col in required_targets if col in interpolated]
     for col in optional_targets:
         if col in interpolated and _passes_density_threshold(interpolated[col]):
             target_columns.append(col)

@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import numpy as np
 import pytest
 
@@ -55,3 +57,47 @@ def test_probability_invalid_levels_raises() -> None:
         quantile_at(quantiles, (0.1, 0.5), 0.5)
     with pytest.raises(ValueError, match="non-empty"):
         exceedance_probability(quantiles, (), 0.2)
+    with pytest.raises(ValueError, match="non-empty 1D"):
+        quantile_at(quantiles, cast(Any, ((0.1, 0.5),)), 0.5)
+
+
+def test_probability_crossing_quantiles_repaired() -> None:
+    """Test_probability_crossing_quantiles_repaired repairs non-monotonic quantiles before evaluation."""
+    levels = (0.1, 0.5, 0.9)
+    crossing = np.array([[10.0, 25.0, 20.0]], dtype=np.float32)
+    assert np.isclose(float(quantile_at(crossing, levels, 0.9)[0]), 25.0)
+    assert np.isclose(float(quantile_at(crossing, levels, 0.7)[0]), 25.0)
+
+    crossing_rain = np.array([0.0, 0.5, 0.1], dtype=np.float32)
+    assert np.isclose(float(exceedance_probability(crossing_rain, levels, 0.2)), 0.74)
+
+
+def test_exceedance_probability_edge_cases() -> None:
+    """Test_exceedance_probability_edge_cases checks threshold boundaries, flat steps, and tensor shapes."""
+    levels = (0.1, 0.5, 0.9)
+    curve = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    assert float(exceedance_probability(curve, levels, 0.0)) == 0.0
+    assert float(exceedance_probability(curve, levels, -0.5)) == 0.0
+
+    exact_min = np.array([0.2, 0.5, 1.0], dtype=np.float32)
+    assert float(exceedance_probability(exact_min, levels, 0.2)) == 1.0
+
+    flat_step = np.array([0.0, 0.2, 0.2, 1.0], dtype=np.float32)
+    assert np.isclose(float(exceedance_probability(flat_step, (0.1, 0.4, 0.7, 0.9), 0.2)), 0.6)
+
+    batch_quantiles = np.broadcast_to(np.array([0.0, 0.1, 0.3], dtype=np.float32), (2, 3, 3)).copy()
+    batch_med = quantile_at(batch_quantiles, levels, 0.5)
+    batch_prob = exceedance_probability(batch_quantiles, levels, 0.2)
+    assert batch_med.shape == (2, 3)
+    assert batch_prob.shape == (2, 3)
+    assert np.allclose(batch_med, 0.1)
+    assert np.allclose(batch_prob, 0.3)
+
+
+def test_probability_single_knot_levels() -> None:
+    """Test_probability_single_knot_levels handles single-level quantile tensors."""
+    quantiles = np.array([[0.2], [0.1]], dtype=np.float32)
+    levels = (0.5,)
+    assert np.allclose(quantile_at(quantiles, levels, 0.1), [0.2, 0.1])
+    assert np.allclose(quantile_at(quantiles, levels, 0.9), [0.2, 0.1])
+    assert np.allclose(exceedance_probability(quantiles, levels, 0.2), [1.0, 0.0])

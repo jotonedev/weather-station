@@ -3,12 +3,7 @@ from typing import cast
 import numpy as np
 import pytest
 
-pytest.importorskip("timestral")
-
-import torch
-from timestral import Forecast, TimestralForecaster
-
-from inference.backends.timestral import TimestralBackend, _split_covariates
+from inference.backends.base import _split_covariates
 from tests.helpers import create_synthetic_timestral_forecaster
 
 
@@ -42,24 +37,46 @@ def test_split_covariates_empty_returns_none() -> None:
     assert _split_covariates({}, {}) == (None, None)
 
 
+def test_split_covariates_single_side_only() -> None:
+    """Test_split_covariates_single_side_only verifies past-only and known-only channel tensors."""
+    past_only_tensor, known_when_past_only = _split_covariates(
+        {"dew_point_c": np.array([10.0, 11.0])},
+        {},
+    )
+    assert past_only_tensor is not None
+    assert past_only_tensor.shape == (1, 1, 2)
+    assert past_only_tensor.dtype == np.float32
+    assert known_when_past_only is None
+
+    past_when_known_only, known_only_tensor = _split_covariates(
+        {"solar_hour_sin": np.array([1.0, 2.0])},
+        {"solar_hour_sin": np.array([3.0])},
+    )
+    assert past_when_known_only is None
+    assert known_only_tensor is not None
+    assert known_only_tensor.shape == (1, 1, 3)
+    np.testing.assert_array_equal(known_only_tensor[0, 0], [1.0, 2.0, 3.0])
+
+
 def test_split_covariates_missing_past_keys_raises() -> None:
     """Test_split_covariates_missing_past_keys_raises verifies future keys without past counterparts fail."""
     with pytest.raises(ValueError, match="missing keys"):
         _split_covariates({}, {"solar_hour_sin": np.array([1.0])})
 
 
-def test_timestral_max_recommended_horizon_unbounded() -> None:
-    """Test_timestral_max_recommended_horizon_unbounded reports no prediction length cap."""
+@pytest.fixture
+def timestral_package():
+    """Timestral_package skips optional Timestral tests when timestral is not installed."""
+    return pytest.importorskip("timestral")
+
+
+def test_timestral_predict_with_synthetic_model(timestral_package: object) -> None:
+    """Test_timestral_predict_with_synthetic_model verifies a full CPU forecast and unbounded horizon."""
+    from inference.backends.timestral import TimestralBackend
+
     forecaster = create_synthetic_timestral_forecaster()
     backend = TimestralBackend(model_name="synthetic-test", pipeline=forecaster)
-
     assert backend.max_recommended_horizon() is None
-
-
-def test_timestral_predict_with_synthetic_model() -> None:
-    """Test_timestral_predict_with_synthetic_model verifies a full CPU forecast with past and known covariates."""
-    forecaster = create_synthetic_timestral_forecaster()
-    backend = TimestralBackend(model_name="synthetic-test", pipeline=forecaster)
 
     history_length = 40
     prediction_length = 16
@@ -82,49 +99,72 @@ def test_timestral_predict_with_synthetic_model() -> None:
     assert (np.diff(quantiles, axis=-1) >= -1e-5).all()
 
 
-class RecordingForecaster:
-    """RecordingForecaster records forecast arguments and returns a fixed Forecast object."""
+@pytest.mark.parametrize(
+    ("with_covariates", "symmetric_averaging"),
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_timestral_predict_maps_inputs_and_all_levels(
+    timestral_package: object,
+    with_covariates: bool,
+    symmetric_averaging: bool,
+) -> None:
+    """Test_timestral_predict_maps_inputs_and_all_levels verifies context, covariates, and knot output."""
+    import torch
+    from timestral import Forecast, TimestralForecaster
 
-    def __init__(self):
-        self.captured_context = None
-        self.captured_prediction_length = None
-        self.captured_past_covariates: np.ndarray | None = None
-        self.captured_known_covariates: np.ndarray | None = None
-        self.captured_clip_nonnegative: bool | None = None
-        self.captured_symmetric_averaging: bool | None = None
-        self.quantile_levels = (0.1, 0.3, 0.5, 0.7, 0.9)
+    from inference.backends.timestral import TimestralBackend
 
-    def forecast(
-        self,
-        context,
-        prediction_length,
-        past_covariates=None,
-        known_covariates=None,
-        clip_nonnegative=True,
-        symmetric_averaging=True,
-    ):
-        """forecast captures arguments and returns quantiles holding the level index at every position."""
-        self.captured_context = context
-        self.captured_prediction_length = prediction_length
-        self.captured_past_covariates = past_covariates
-        self.captured_known_covariates = known_covariates
-        self.captured_clip_nonnegative = clip_nonnegative
-        self.captured_symmetric_averaging = symmetric_averaging
-        quantiles = torch.arange(5, dtype=torch.float32).reshape(1, 1, 1, 5).expand(1, 2, 8, 5).clone()
-        return Forecast(quantiles=quantiles, quantile_levels=self.quantile_levels)
+    class RecordingForecaster:
+        """RecordingForecaster records forecast arguments and returns a fixed Forecast object."""
 
+        def __init__(self):
+            self.captured_context = None
+            self.captured_prediction_length = None
+            self.captured_past_covariates: np.ndarray | None = None
+            self.captured_known_covariates: np.ndarray | None = None
+            self.captured_clip_nonnegative: bool | None = None
+            self.captured_symmetric_averaging: bool | None = None
+            self.quantile_levels = (0.1, 0.3, 0.5, 0.7, 0.9)
 
-def test_timestral_predict_maps_inputs_and_all_levels() -> None:
-    """Test_timestral_predict_maps_inputs_and_all_levels verifies context, covariates, and full knot output."""
+        def forecast(
+            self,
+            context,
+            prediction_length,
+            past_covariates=None,
+            known_covariates=None,
+            clip_nonnegative=True,
+            symmetric_averaging=True,
+        ):
+            """forecast captures arguments and returns quantiles holding the level index at every position."""
+            self.captured_context = context
+            self.captured_prediction_length = prediction_length
+            self.captured_past_covariates = past_covariates
+            self.captured_known_covariates = known_covariates
+            self.captured_clip_nonnegative = clip_nonnegative
+            self.captured_symmetric_averaging = symmetric_averaging
+            quantiles = torch.arange(5, dtype=torch.float32).reshape(1, 1, 1, 5).expand(1, 2, 8, 5).clone()
+            return Forecast(quantiles=quantiles, quantile_levels=self.quantile_levels)
+
     forecaster = RecordingForecaster()
-    backend = TimestralBackend(model_name="synthetic-test", pipeline=cast(TimestralForecaster, forecaster))
+    backend = TimestralBackend(
+        model_name="synthetic-test",
+        pipeline=cast(TimestralForecaster, forecaster),
+        symmetric_averaging=symmetric_averaging,
+    )
 
     target = np.zeros((2, 10), dtype=np.float32)
-    past_covariates = {
-        "wind_gust_mps": 3.0 * np.ones(10, dtype=np.float32),
-        "solar_hour_sin": np.ones(10, dtype=np.float32),
-    }
-    future_covariates = {"solar_hour_sin": 2.0 * np.ones(8, dtype=np.float32)}
+    if with_covariates:
+        past_covariates = {
+            "wind_gust_mps": 3.0 * np.ones(10, dtype=np.float32),
+            "solar_hour_sin": np.ones(10, dtype=np.float32),
+        }
+        future_covariates = {"solar_hour_sin": 2.0 * np.ones(8, dtype=np.float32)}
+    else:
+        past_covariates = {}
+        future_covariates = {}
 
     quantiles, levels = backend.predict(
         target=target,
@@ -135,104 +175,24 @@ def test_timestral_predict_maps_inputs_and_all_levels() -> None:
 
     assert forecaster.captured_prediction_length == 8
     np.testing.assert_array_equal(forecaster.captured_context, target[None, ...])
-    past_tensor = forecaster.captured_past_covariates
-    assert past_tensor is not None
-    assert past_tensor.shape == (1, 1, 10)
-    np.testing.assert_array_equal(past_tensor[0, 0], 3.0 * np.ones(10))
-
-    known_covariates = forecaster.captured_known_covariates
-    assert known_covariates is not None
-    assert known_covariates.shape == (1, 1, 18)
-    np.testing.assert_array_equal(
-        known_covariates[0, 0],
-        np.concatenate([np.ones(10), 2.0 * np.ones(8)]),
-    )
-
     assert forecaster.captured_clip_nonnegative is False
-    assert forecaster.captured_symmetric_averaging is False
+    assert forecaster.captured_symmetric_averaging is symmetric_averaging
     assert quantiles.shape == (2, 8, 5)
     assert levels == (0.1, 0.3, 0.5, 0.7, 0.9)
 
+    if with_covariates:
+        past_tensor = forecaster.captured_past_covariates
+        assert past_tensor is not None
+        assert past_tensor.shape == (1, 1, 10)
+        np.testing.assert_array_equal(past_tensor[0, 0], 3.0 * np.ones(10))
 
-def test_timestral_predict_without_covariates() -> None:
-    """Test_timestral_predict_without_covariates verifies covariate-free forecasts skip optional tensors."""
-
-    class NullForecaster:
-        """NullForecaster records covariate arguments and returns a minimal Forecast."""
-
-        def __init__(self):
-            self.captured_past_covariates: np.ndarray | None = None
-            self.captured_known_covariates: np.ndarray | None = None
-            self.captured_clip_nonnegative: bool | None = None
-            self.captured_symmetric_averaging: bool | None = None
-
-        def forecast(
-            self,
-            context,
-            prediction_length,
-            past_covariates=None,
-            known_covariates=None,
-            clip_nonnegative=True,
-            symmetric_averaging=True,
-        ):
-            self.captured_past_covariates = past_covariates
-            self.captured_known_covariates = known_covariates
-            self.captured_clip_nonnegative = clip_nonnegative
-            self.captured_symmetric_averaging = symmetric_averaging
-            quantiles = torch.zeros((1, 1, 4, 3), dtype=torch.float32)
-            return Forecast(quantiles=quantiles, quantile_levels=(0.1, 0.5, 0.9))
-
-    forecaster = NullForecaster()
-    backend = TimestralBackend(
-        model_name="synthetic-test",
-        pipeline=cast(TimestralForecaster, forecaster),
-        symmetric_averaging=True,
-    )
-
-    quantiles, levels = backend.predict(
-        target=np.zeros((1, 12), dtype=np.float32),
-        past_covariates={},
-        future_covariates={},
-        prediction_length=4,
-    )
-
-    assert forecaster.captured_known_covariates is None
-    assert forecaster.captured_clip_nonnegative is False
-    assert forecaster.captured_symmetric_averaging is True
-    assert quantiles.shape == (1, 4, 3)
-    assert levels == (0.1, 0.5, 0.9)
-
-
-def test_timestral_allows_negative_forecasts_from_positive_history() -> None:
-    """Test_timestral_allows_negative_forecasts_from_positive_history verifies clip_nonnegative=False behavior."""
-
-    class SubZeroForecaster:
-        """SubZeroForecaster returns negative temperatures unless clip_nonnegative=True is requested."""
-
-        def forecast(
-            self,
-            context,
-            prediction_length,
-            past_covariates=None,
-            known_covariates=None,
-            clip_nonnegative=True,
-            symmetric_averaging=True,
-        ):
-            values = torch.full((1, 1, prediction_length, 3), -2.5, dtype=torch.float32)
-            if clip_nonnegative and bool(np.all(context >= 0.0)):
-                values = torch.clamp(values, min=0.0)
-            return Forecast(quantiles=values, quantile_levels=(0.1, 0.5, 0.9))
-
-    backend = TimestralBackend(
-        model_name="synthetic-test",
-        pipeline=cast(TimestralForecaster, SubZeroForecaster()),
-    )
-    # Positive context trending downward toward freezing
-    target = np.linspace(5.0, 0.5, 16, dtype=np.float32)[None, :]
-    quantiles, _ = backend.predict(
-        target=target,
-        past_covariates={},
-        future_covariates={},
-        prediction_length=4,
-    )
-    assert np.allclose(quantiles, -2.5)
+        known_covariates = forecaster.captured_known_covariates
+        assert known_covariates is not None
+        assert known_covariates.shape == (1, 1, 18)
+        np.testing.assert_array_equal(
+            known_covariates[0, 0],
+            np.concatenate([np.ones(10), 2.0 * np.ones(8)]),
+        )
+    else:
+        assert forecaster.captured_past_covariates is None
+        assert forecaster.captured_known_covariates is None

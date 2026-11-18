@@ -231,14 +231,20 @@ class InferenceServer:
         self,
         config: Config,
         backend: ForecastBackend | None = None,
+        idle_check_interval_seconds: float = 60.0,
     ):
         """InferenceServer initializes gRPC server and background tasks."""
         self.config = config
-        self.backend = backend or create_backend(
-            backend_name=config.model_backend,
-            model_name=config.model_name,
-            idle_timeout_seconds=config.idle_timeout_seconds,
-            timestral_symmetric_averaging=config.timestral_symmetric_averaging,
+        self._idle_check_interval_seconds = idle_check_interval_seconds
+        self.backend = (
+            backend
+            if backend is not None
+            else create_backend(
+                backend_name=config.model_backend,
+                model_name=config.model_name,
+                idle_timeout_seconds=config.idle_timeout_seconds,
+                timestral_symmetric_averaging=config.timestral_symmetric_averaging,
+            )
         )
         self.servicer = InferenceServicer(self.backend, self.config)
         self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
@@ -252,7 +258,7 @@ class InferenceServer:
 
     def _idle_monitor(self) -> None:
         """_idle_monitor periodically triggers idle model eviction."""
-        while not self._stop_event.wait(timeout=60.0):
+        while not self._stop_event.wait(timeout=self._idle_check_interval_seconds):
             if self.backend.maybe_unload_idle():
                 logger.info("idle model successfully evicted from memory")
 

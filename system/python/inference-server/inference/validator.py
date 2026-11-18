@@ -137,7 +137,7 @@ def _validate_common_request(
 
     sorted_history = sorted(
         request.history,
-        key=lambda item: item.timestamp.seconds + (item.timestamp.nanos * 1e-9),
+        key=lambda item: (item.timestamp.seconds, item.timestamp.nanos),
     )
 
     is_daily = step_seconds >= DAILY_STEP_SECONDS

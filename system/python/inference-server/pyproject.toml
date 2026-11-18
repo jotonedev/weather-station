@@ -91,3 +91,15 @@ explicit = true
 
 [tool.ty.environment]
 extra-paths = ["../../proto/gen/python"]
+
+[[tool.ty.overrides]]
+include = [
+    "inference/backends/chronos.py",
+    "inference/backends/timestral.py",
+    "tests/helpers.py",
+    "tests/test_backends_chronos.py",
+    "tests/test_backends_timestral.py",
+]
+
+[tool.ty.overrides.analysis]
+allowed-unresolved-imports = ["chronos", "chronos.**", "timestral", "timestral.**"]

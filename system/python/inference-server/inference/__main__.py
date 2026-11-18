@@ -2,6 +2,7 @@ import argparse
 import logging
 import signal
 import sys
+from collections.abc import Sequence
 
 from inference.config import Config
 from inference.server import InferenceServer
@@ -13,8 +14,8 @@ logging.basicConfig(
 logger = logging.getLogger("inference")
 
 
-def main() -> None:
-    """Main parses arguments and runs the inference server until interrupted."""
+def build_config(argv: Sequence[str] | None = None) -> Config:
+    """build_config parses CLI arguments and merges them over environment defaults."""
     parser = argparse.ArgumentParser(description="Weather Inference Server")
     parser.add_argument("--host", default=None, help="Host address to bind")
     parser.add_argument("--port", type=int, default=None, help="Port to listen on")
@@ -22,18 +23,25 @@ def main() -> None:
     parser.add_argument("--model-name", default=None, help="HuggingFace model repository or checkpoint path")
     parser.add_argument("--idle-timeout", type=float, default=None, help="Idle timeout seconds before model eviction")
 
-    args = parser.parse_args()
-
+    args = parser.parse_args(argv)
     default_config = Config.from_env()
-    config = Config(
-        host=args.host or default_config.host,
-        port=args.port or default_config.port,
-        model_backend=args.model_backend or default_config.model_backend,
-        model_name=args.model_name or default_config.model_name,
-        idle_timeout_seconds=args.idle_timeout or default_config.idle_timeout_seconds,
+    return Config(
+        host=args.host if args.host is not None else default_config.host,
+        port=args.port if args.port is not None else default_config.port,
+        model_backend=args.model_backend if args.model_backend is not None else default_config.model_backend,
+        model_name=args.model_name if args.model_name is not None else default_config.model_name,
+        idle_timeout_seconds=(
+            args.idle_timeout if args.idle_timeout is not None else default_config.idle_timeout_seconds
+        ),
         max_workers=default_config.max_workers,
         max_horizon_hours=default_config.max_horizon_hours,
+        timestral_symmetric_averaging=default_config.timestral_symmetric_averaging,
     )
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """Main parses arguments and runs the inference server until interrupted."""
+    config = build_config(argv)
 
     server = InferenceServer(config)
     server.start()

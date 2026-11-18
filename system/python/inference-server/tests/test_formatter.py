@@ -114,45 +114,190 @@ def test_format_predictions_clamping() -> None:
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
-    quantiles = np.zeros((3, 1, 3), dtype=np.float32)
-    quantiles[0, 0, :] = -5.0
+    quantiles = np.zeros((4, 2, 3), dtype=np.float32)
+    quantiles[0, :, :] = -5.0
     quantiles[1, 0, :] = -120.0
+    quantiles[1, 1, :] = 85.0
     quantiles[2, 0, :] = 150.0
+    quantiles[2, 1, :] = -10.0
+    quantiles[3, 0, :] = 250.0
+    quantiles[3, 1, :] = 1200.0
 
-    target_columns = ["rainfall_mm", "temperature_c", "humidity_pct"]
+    target_columns = ["rainfall_mm", "temperature_c", "humidity_pct", "pressure_hpa"]
 
     predictions = format_hourly_predictions(
         node_id="station-three",
         issue_time=issue_time,
-        horizon_hours=1,
+        horizon_hours=2,
         quantiles=quantiles,
         target_columns=target_columns,
         quantile_levels=(0.1, 0.5, 0.9),
     )
 
     assert predictions[0].rainfall_mm == 0.0
+    assert predictions[0].rainfall_mm_p90 == 0.0
     assert predictions[0].rain_probability == 0.0
     assert predictions[0].temperature_c == -90.0
+    assert predictions[1].temperature_c == 70.0
     assert predictions[0].humidity_pct == 100.0
+    assert predictions[1].humidity_pct == 0.0
+    assert predictions[0].pressure_hpa == 300.0
+    assert predictions[1].pressure_hpa == 1100.0
 
 
 def test_format_predictions_retains_sub_threshold_drizzle() -> None:
-    """Test_format_predictions_retains_sub_threshold_drizzle keeps positive median rainfall below 0.2 mm."""
+    """Test_format_predictions_retains_sub_threshold_drizzle checks drizzle and negative-median wet tails."""
     issue_time = Timestamp()
     issue_time.FromSeconds(1700000000)
 
-    quantiles = np.zeros((1, 1, 3), dtype=np.float32)
-    quantiles[0, 0, :] = [0.0, 0.1, 0.15]
+    hourly_quantiles = np.zeros((1, 2, 3), dtype=np.float32)
+    hourly_quantiles[0, 0, :] = [0.0, 0.1, 0.15]
+    hourly_quantiles[0, 1, :] = [-1.0, -0.2, 0.4]
 
-    predictions = format_hourly_predictions(
+    hourly_predictions = format_hourly_predictions(
         node_id="station-drizzle",
         issue_time=issue_time,
-        horizon_hours=1,
-        quantiles=quantiles,
+        horizon_hours=2,
+        quantiles=hourly_quantiles,
         target_columns=["rainfall_mm"],
         quantile_levels=(0.1, 0.5, 0.9),
     )
 
-    assert np.isclose(predictions[0].rainfall_mm, 0.1)
-    assert np.isclose(predictions[0].rainfall_mm_p90, 0.15)
-    assert predictions[0].rain_probability == 0.0
+    assert np.isclose(hourly_predictions[0].rainfall_mm, 0.1)
+    assert np.isclose(hourly_predictions[0].rainfall_mm_p90, 0.15)
+    assert hourly_predictions[0].rain_probability == 0.0
+
+    assert hourly_predictions[1].rainfall_mm == 0.0
+    assert np.isclose(hourly_predictions[1].rainfall_mm_p90, 0.4)
+    assert np.isclose(hourly_predictions[1].rain_probability, 1.0 - (0.5 + ((0.2 - (-0.2)) / 0.6) * 0.4))
+
+    daily_quantiles = np.zeros((1, 1, 3), dtype=np.float32)
+    daily_quantiles[0, 0, :] = [0.0, 0.5, 0.9]
+    daily_predictions = format_daily_predictions(
+        node_id="station-drizzle",
+        issue_time=issue_time,
+        horizon_days=1,
+        quantiles=daily_quantiles,
+        target_columns=["rainfall_mm"],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+
+    assert np.isclose(daily_predictions[0].rainfall_mm, 0.5)
+    assert np.isclose(daily_predictions[0].rainfall_mm_p90, 0.9)
+    assert daily_predictions[0].rain_probability == 0.0
+
+
+def test_format_daily_predictions_swaps_inverted_min_max() -> None:
+    """Test_format_daily_predictions_swaps_inverted_min_max orders inverted daily bounds and outer quantiles."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    quantiles = np.zeros((4, 1, 3), dtype=np.float32)
+    quantiles[0, 0, :] = [23.0, 25.0, 27.0]
+    quantiles[1, 0, :] = [18.0, 20.0, 22.0]
+    quantiles[2, 0, :] = [75.0, 80.0, 85.0]
+    quantiles[3, 0, :] = [55.0, 60.0, 65.0]
+
+    predictions = format_daily_predictions(
+        node_id="station-invert",
+        issue_time=issue_time,
+        horizon_days=1,
+        quantiles=quantiles,
+        target_columns=[
+            "min_temperature_c",
+            "max_temperature_c",
+            "min_humidity_pct",
+            "max_humidity_pct",
+        ],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+
+    assert np.isclose(predictions[0].min_temperature_c, 20.0)
+    assert np.isclose(predictions[0].max_temperature_c, 25.0)
+    assert np.isclose(predictions[0].min_temperature_c_p10, 20.0)
+    assert np.isclose(predictions[0].max_temperature_c_p90, 25.0)
+    assert np.isclose(predictions[0].min_humidity_pct, 60.0)
+    assert np.isclose(predictions[0].max_humidity_pct, 80.0)
+
+
+def test_format_predictions_omits_absent_optional_targets() -> None:
+    """Test_format_predictions_omits_absent_optional_targets leaves absent optional fields unset."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    hourly_preds = format_hourly_predictions(
+        node_id="station-min",
+        issue_time=issue_time,
+        horizon_hours=1,
+        quantiles=np.full((2, 1, 3), 20.0, dtype=np.float32),
+        target_columns=["temperature_c", "humidity_pct"],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+    hourly_pred = hourly_preds[0]
+    assert hourly_pred.HasField("temperature_c")
+    assert hourly_pred.HasField("humidity_pct")
+    for absent_field in (
+        "rainfall_mm",
+        "rainfall_mm_p90",
+        "rain_probability",
+        "pressure_hpa",
+        "pressure_hpa_p10",
+        "pressure_hpa_p90",
+    ):
+        assert not hourly_pred.HasField(absent_field)
+
+    daily_preds = format_daily_predictions(
+        node_id="station-min",
+        issue_time=issue_time,
+        horizon_days=1,
+        quantiles=np.full((2, 1, 3), 20.0, dtype=np.float32),
+        target_columns=["min_temperature_c", "max_humidity_pct"],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+    daily_pred = daily_preds[0]
+    assert daily_pred.HasField("min_temperature_c")
+    assert daily_pred.HasField("min_temperature_c_p10")
+    assert daily_pred.HasField("max_humidity_pct")
+    for absent_field in (
+        "max_temperature_c",
+        "max_temperature_c_p90",
+        "min_humidity_pct",
+        "rainfall_mm",
+        "rainfall_mm_p90",
+        "rain_probability",
+        "pressure_hpa",
+        "pressure_hpa_p10",
+        "pressure_hpa_p90",
+    ):
+        assert not daily_pred.HasField(absent_field)
+
+
+def test_format_predictions_truncates_to_available_steps() -> None:
+    """Test_format_predictions_truncates_to_available_steps clamps output count to available quantile steps."""
+    issue_time = Timestamp()
+    issue_time.FromSeconds(1700000000)
+
+    hourly_preds = format_hourly_predictions(
+        node_id="station-trunc",
+        issue_time=issue_time,
+        horizon_hours=24,
+        quantiles=np.zeros((2, 6, 3), dtype=np.float32),
+        target_columns=["temperature_c", "humidity_pct"],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+    assert [pred.horizon_hours for pred in hourly_preds] == [1, 2, 3, 4, 5, 6]
+
+    daily_preds = format_daily_predictions(
+        node_id="station-trunc",
+        issue_time=issue_time,
+        horizon_days=10,
+        quantiles=np.zeros((4, 3, 3), dtype=np.float32),
+        target_columns=[
+            "min_temperature_c",
+            "max_temperature_c",
+            "min_humidity_pct",
+            "max_humidity_pct",
+        ],
+        quantile_levels=(0.1, 0.5, 0.9),
+    )
+    assert [pred.horizon_days for pred in daily_preds] == [0, 1, 2]

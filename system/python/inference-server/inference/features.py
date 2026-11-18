@@ -22,7 +22,7 @@ def sort_observations(observations: Sequence[TimeSeriesObservation]) -> list[Tim
     """sort_observations sorts observations chronologically by timestamp."""
     return sorted(
         observations,
-        key=lambda item: item.timestamp.seconds + (item.timestamp.nanos * 1e-9),
+        key=lambda item: (item.timestamp.seconds, item.timestamp.nanos),
     )
 
 

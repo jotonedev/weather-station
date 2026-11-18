@@ -1,39 +1,7 @@
 import numpy as np
 from timestral import TimestralForecaster
 
-from inference.backends.base import ForecastBackend
-
-
-def _split_covariates(
-    past_covariates: dict[str, np.ndarray],
-    future_covariates: dict[str, np.ndarray],
-) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """_split_covariates separates past-only covariates from known past+future covariates.
-
-    Returns (past_tensor, known_tensor) with shapes (1, C_past, T) and (1, C_known, T + H),
-    or None for either tensor when its corresponding channel set is empty.
-    """
-    missing_past = [key for key in future_covariates if key not in past_covariates]
-    if missing_past:
-        raise ValueError(f"past covariates are missing keys present in future covariates: {missing_past}")
-
-    known_keys = [key for key in past_covariates if key in future_covariates]
-    past_only_keys = [key for key in past_covariates if key not in future_covariates]
-
-    past_tensor: np.ndarray | None = None
-    if past_only_keys:
-        past_rows = [np.asarray(past_covariates[key], dtype=np.float32) for key in past_only_keys]
-        past_tensor = np.stack(past_rows, axis=0)[None, ...]
-
-    known_tensor: np.ndarray | None = None
-    if known_keys:
-        known_rows = [
-            np.concatenate([past_covariates[key], future_covariates[key]], axis=0).astype(np.float32)
-            for key in known_keys
-        ]
-        known_tensor = np.stack(known_rows, axis=0)[None, ...]
-
-    return past_tensor, known_tensor
+from inference.backends.base import ForecastBackend, _split_covariates
 
 
 class TimestralBackend(ForecastBackend[TimestralForecaster]):

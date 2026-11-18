@@ -114,10 +114,14 @@ def test_validate_daily_request_invalid_horizon() -> None:
         validate_daily_request(request)
 
 
-def test_validate_request_missing_issue_time() -> None:
-    """Test_validate_request_missing_issue_time checks failure when issue time is zero."""
+@pytest.mark.parametrize("issue_seconds", [None, 0, -100])
+def test_validate_request_missing_issue_time(issue_seconds: int | None) -> None:
+    """Test_validate_request_missing_issue_time checks failure when issue time is unset or non-positive."""
     request = create_valid_hourly_request()
-    request.issue_time.Clear()
+    if issue_seconds is None:
+        request.issue_time.Clear()
+    else:
+        request.issue_time.FromSeconds(issue_seconds)
     with pytest.raises(ValidationError, match="valid issue_time is required"):
         validate_hourly_request(request)
 
@@ -130,31 +134,16 @@ def test_validate_request_empty_history() -> None:
         validate_hourly_request(request)
 
 
-def test_validate_request_temperature_sparsity() -> None:
-    """Test_validate_request_temperature_sparsity checks failure when temperature missing exceeds 50 percent."""
+@pytest.mark.parametrize("field_name", ["temperature_c", "humidity_pct"])
+def test_validate_request_required_field_sparsity(field_name: str) -> None:
+    """Test_validate_request_required_field_sparsity enforces the 50% missing threshold."""
     request = create_valid_hourly_request()
-    for index in range(4):
-        request.history[index].ClearField("temperature_c")
+    for index in range(5):
+        request.history[index].ClearField(field_name)
     validate_hourly_request(request)
 
-    for index in range(4, 6):
-        request.history[index].ClearField("temperature_c")
-
-    with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
-        validate_hourly_request(request)
-
-
-def test_validate_request_humidity_sparsity() -> None:
-    """Test_validate_request_humidity_sparsity checks failure when humidity missing exceeds 50 percent."""
-    request = create_valid_hourly_request()
-    for index in range(4):
-        request.history[index].ClearField("humidity_pct")
-    validate_hourly_request(request)
-
-    for index in range(4, 6):
-        request.history[index].ClearField("humidity_pct")
-
-    with pytest.raises(ValidationError, match="humidity_pct exceeds maximum allowed missing ratio"):
+    request.history[5].ClearField(field_name)
+    with pytest.raises(ValidationError, match=f"{field_name} exceeds maximum allowed missing ratio"):
         validate_hourly_request(request)
 
 
@@ -206,9 +195,13 @@ def test_validate_request_early_outage_trimmed() -> None:
         ("pressure_hpa", 1150.0),
         ("wind_speed_mps", -1.0),
         ("wind_speed_mps", 160.0),
+        ("wind_direction_deg", -0.1),
+        ("wind_direction_deg", 360.1),
         ("max_wind_speed_mps", -1.0),
         ("max_wind_speed_mps", 160.0),
         ("wind_u_mps", -160.0),
+        ("wind_u_mps", 160.0),
+        ("wind_v_mps", -160.0),
         ("wind_v_mps", 160.0),
         ("max_rain_rate_mmh", -0.5),
         ("max_rain_rate_mmh", 600.0),
@@ -222,6 +215,32 @@ def test_validate_request_physical_bounds(field_name: str, invalid_value: float)
 
     with pytest.raises(ValidationError, match=r"out of bounds"):
         validate_hourly_request(request)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("min_temperature_c", -95.0),
+        ("min_temperature_c", 75.0),
+        ("max_temperature_c", -95.0),
+        ("max_temperature_c", 75.0),
+        ("min_humidity_pct", -5.0),
+        ("min_humidity_pct", 105.0),
+        ("max_humidity_pct", -5.0),
+        ("max_humidity_pct", 105.0),
+        ("min_pressure_hpa", 250.0),
+        ("min_pressure_hpa", 1150.0),
+        ("max_pressure_hpa", 250.0),
+        ("max_pressure_hpa", 1150.0),
+    ],
+)
+def test_validate_daily_request_physical_bounds(field_name: str, invalid_value: float) -> None:
+    """Test_validate_daily_request_physical_bounds rejects out-of-range daily min/max sensor fields."""
+    request = create_valid_daily_request()
+    setattr(request.history[0], field_name, invalid_value)
+
+    with pytest.raises(ValidationError, match=r"out of bounds"):
+        validate_daily_request(request)
 
 
 def test_validate_request_rejects_zero_completed_observations() -> None:
@@ -272,3 +291,124 @@ def test_validate_daily_request_checks_min_max_sparsity(field_name: str) -> None
 
     with pytest.raises(ValidationError, match=f"{field_name} exceeds maximum allowed missing ratio"):
         validate_daily_request(request)
+
+
+def test_validate_request_non_finite_treated_as_missing() -> None:
+    """Test_validate_request_non_finite_treated_as_missing skips bounds check and counts toward sparsity."""
+    request = create_valid_hourly_request()
+    request.history[0].temperature_c = float("nan")
+    request.history[0].pressure_hpa = float("inf")
+    request.history[1].humidity_pct = float("-inf")
+    validate_hourly_request(request)
+
+    for non_finite_val in (float("nan"), float("inf")):
+        sparse_request = create_valid_hourly_request()
+        for index in range(6):
+            sparse_request.history[index].temperature_c = non_finite_val
+        with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
+            validate_hourly_request(sparse_request)
+
+
+def test_validate_request_bucket_deduplication_keeps_latest() -> None:
+    """Test_validate_request_bucket_deduplication_keeps_latest uses chronological latest per bucket."""
+    issue_time = Timestamp(seconds=1700000000)
+    floored_issue = (issue_time.seconds // 3600) * 3600
+
+    failing_observations = []
+    passing_observations = []
+    for bucket_offset in range(10):
+        bucket_start = floored_issue - ((10 - bucket_offset) * 3600)
+        early_ts = Timestamp(seconds=bucket_start)
+        late_ts = Timestamp(seconds=bucket_start + 300)
+
+        if bucket_offset < 6:
+            failing_observations.append(TimeSeriesObservation(timestamp=late_ts, humidity_pct=50.0))
+            failing_observations.append(
+                TimeSeriesObservation(timestamp=early_ts, temperature_c=20.0, humidity_pct=50.0)
+            )
+            passing_observations.append(TimeSeriesObservation(timestamp=early_ts, humidity_pct=50.0))
+            passing_observations.append(
+                TimeSeriesObservation(timestamp=late_ts, temperature_c=20.0, humidity_pct=50.0)
+            )
+        else:
+            failing_observations.append(
+                TimeSeriesObservation(timestamp=early_ts, temperature_c=20.0, humidity_pct=50.0)
+            )
+            passing_observations.append(
+                TimeSeriesObservation(timestamp=early_ts, temperature_c=20.0, humidity_pct=50.0)
+            )
+
+    failing_request = PredictHourlyWeatherRequest(
+        node_id="station-node-alpha",
+        issue_time=issue_time,
+        horizon_hours=24,
+        history=failing_observations,
+    )
+    with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
+        validate_hourly_request(failing_request)
+
+    passing_request = PredictHourlyWeatherRequest(
+        node_id="station-node-alpha",
+        issue_time=issue_time,
+        horizon_hours=24,
+        history=passing_observations,
+    )
+    validate_hourly_request(passing_request)
+
+
+def test_validate_request_early_outage_multi_gap_and_unrecoverable() -> None:
+    """Test_validate_request_early_outage_multi_gap_and_unrecoverable scans gaps until healthy or fails."""
+    issue_time = Timestamp(seconds=1700000000)
+
+    # Gap 1 -> sparse middle cluster (still >50% missing over suffix); Gap 2 -> healthy recent suffix
+    observations = [
+        TimeSeriesObservation(
+            timestamp=Timestamp(seconds=1700000000 - (20 * 86400)),
+            temperature_c=18.0,
+            humidity_pct=50.0,
+        ),
+        TimeSeriesObservation(
+            timestamp=Timestamp(seconds=1700000000 - (10 * 86400)),
+            temperature_c=19.0,
+            humidity_pct=50.0,
+        ),
+    ]
+    for step in range(10):
+        observations.append(
+            TimeSeriesObservation(
+                timestamp=Timestamp(seconds=1700000000 - ((10 - step) * 3600)),
+                temperature_c=20.0,
+                humidity_pct=55.0,
+            )
+        )
+
+    validate_hourly_request(
+        PredictHourlyWeatherRequest(
+            node_id="station-node-alpha",
+            issue_time=issue_time,
+            horizon_hours=24,
+            history=observations,
+        )
+    )
+
+    unrecoverable_observations = [
+        TimeSeriesObservation(
+            timestamp=Timestamp(seconds=1700000000 - (20 * 86400)),
+            temperature_c=18.0,
+            humidity_pct=50.0,
+        ),
+        TimeSeriesObservation(
+            timestamp=Timestamp(seconds=1700000000 - (10 * 3600)),
+            temperature_c=19.0,
+            humidity_pct=50.0,
+        ),
+    ]
+    with pytest.raises(ValidationError, match="temperature_c exceeds maximum allowed missing ratio"):
+        validate_hourly_request(
+            PredictHourlyWeatherRequest(
+                node_id="station-node-alpha",
+                issue_time=issue_time,
+                horizon_hours=24,
+                history=unrecoverable_observations,
+            )
+        )
