@@ -31,16 +31,33 @@ TEST(Weather, HumidityPressureWindRoundTrip) {
 }
 
 TEST(Weather, RainDecode) {
-    EXPECT_NEAR(weather::decodeRainAccumulation(25), 0.25f, 0.01f);
-    EXPECT_NEAR(weather::decodeRainAccumulation(321), 3.21f, 0.01f);
-    EXPECT_NEAR(weather::decodeRainRate(120), 12.0f, 0.01f);
+    EXPECT_FLOAT_EQ(weather::decodeRainAccumulation(0), 0.0f);
+    EXPECT_NEAR(weather::decodeRainAccumulation(1), 0.01f, 0.001f);
+    EXPECT_NEAR(weather::decodeRainAccumulation(321), 3.21f, 0.001f);
+    EXPECT_NEAR(weather::decodeRainAccumulation(weather::kInvalidUint16 - 1), 655.34f, 0.001f);
+
+    EXPECT_FLOAT_EQ(weather::decodeRainRate(0), 0.0f);
+    EXPECT_NEAR(weather::decodeRainRate(1), 0.1f, 0.001f);
+    EXPECT_NEAR(weather::decodeRainRate(125), 12.5f, 0.001f);
+    EXPECT_NEAR(weather::decodeRainRate(weather::kInvalidUint16 - 1), 6553.4f, 0.001f);
 }
 
 TEST(Weather, EncodeClampsToRange) {
     EXPECT_EQ(weather::encodeTemperature(4000.0f), 32767);
+    EXPECT_EQ(weather::encodeTemperature(-4000.0f), -32767);
+    EXPECT_EQ(weather::encodeTemperature(-3276.8f), -32767);
+    EXPECT_NE(weather::encodeTemperature(-4000.0f), weather::kInvalidTemperature);
+
     EXPECT_EQ(weather::encodeHumidity(101.0f), 1010);
+    EXPECT_EQ(weather::encodeHumidity(-1.0f), 0);
+    EXPECT_EQ(weather::encodeHumidity(9000.0f), weather::kInvalidUint16 - 1);
+
+    EXPECT_EQ(weather::encodePressure(-1.0f), 0);
+    EXPECT_EQ(weather::encodePressure(9000.0f), weather::kInvalidUint16 - 1);
+
     EXPECT_EQ(weather::encodeWindSpeed(-5.0f), 0);
-    EXPECT_EQ(weather::encodeWindAngle(9000.0f), 65535);
+    EXPECT_EQ(weather::encodeWindAngle(9000.0f), weather::kInvalidUint16 - 1);
+    EXPECT_NE(weather::encodeWindAngle(9000.0f), weather::kInvalidUint16);
 }
 
 TEST(Weather, PackAndUnpackRoundTrip) {
@@ -68,12 +85,19 @@ TEST(Weather, PackAndUnpackRoundTrip) {
 
 TEST(Weather, PackRejectsSmallBuffer) {
     WeatherData const data = {};
-    uint8_t small[4];
+    uint8_t small[sizeof(WeatherData) - 1];
     EXPECT_FALSE(weather::packWeatherData(data, small, sizeof(small)));
+    EXPECT_FALSE(weather::packWeatherData(data, nullptr, sizeof(WeatherData)));
+
+    uint8_t exact[sizeof(WeatherData)];
+    EXPECT_TRUE(weather::packWeatherData(data, exact, sizeof(exact)));
 }
 
 TEST(Weather, UnpackRejectsShortFrame) {
-    uint8_t wire[10] = {0};
+    uint8_t wire[sizeof(WeatherData) - 1] = {0};
     WeatherData out = {};
+    out.airData.temperature = 123;
     EXPECT_FALSE(weather::unpackWeatherData(wire, sizeof(wire), out));
+    EXPECT_EQ(out.airData.temperature, 123);
+    EXPECT_FALSE(weather::unpackWeatherData(nullptr, sizeof(WeatherData), out));
 }
