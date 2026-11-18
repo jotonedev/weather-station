@@ -20,6 +20,13 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 - `lib/CC1101` and `lib/RadioAdapter` are ignored under `[env:native]`
 - Changes to `WeatherData` or packet encoding in `lib/Weather/` affect both `control-node` and `base-station`
 
+## Testing
+
+- Native tests use GoogleTest and GoogleMock under `test/`, one `test_<lib>.cpp` per library
+- Prioritize packet encoding round trips, ARQ retries, timeouts and sequence wraparound, and Outbox and Ingest boundary cases
+- Inject time and radio behavior through the library interfaces and do not use real sleeps or threads for timing
+- Do not test constants or trivial accessors
+
 ## Hardware, concurrency, and secrets
 
 - Do not assign ESP32-S3 reserved pins listed in `src/control-node/constants.h` (GPIO 26-37 for Flash and PSRAM, GPIO 19-20 for USB, strapping pins 0, 3, 45, 46, and UART0 pins 43-44)
