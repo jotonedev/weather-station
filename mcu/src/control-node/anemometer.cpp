@@ -333,7 +333,9 @@ float Anemometer::getRPM() {
 }
 
 float Anemometer::getWindSpeed() {
-    return getRPM() * speedFactor;
+    float rpm = getRPM();
+    if (rpm <= 0.0f) return 0.0f;
+    return rpm * speedFactor + windOffset;
 }
 
 void Anemometer::resetStats() {

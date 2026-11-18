@@ -89,7 +89,8 @@ class Anemometer {
 
     // Filtered velocity
     float filteredRpm = 0.0f;
-    float speedFactor = 0.05f; // m/s per RPM (calibration default)
+    float speedFactor = 0.259f; // m/s per RPM (calibration default)
+    float windOffset = 0.0f; // m/s (calibration offset for anemometer startup)
 
     // Status & diagnostic counters
     uint8_t lastStatus = 0;
