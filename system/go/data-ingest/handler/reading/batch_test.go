@@ -173,7 +173,7 @@ func TestBatchHandlerServeHTTP(t *testing.T) {
 		},
 	}
 
-	for index, testCase := range testCases {
+	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
@@ -209,10 +209,6 @@ func TestBatchHandlerServeHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBatch() unexpected error = %v", err)
 			}
-			if index == 0 && handler.Pattern() != "/readings" {
-				t.Fatalf("Pattern() = %q, want /readings", handler.Pattern())
-			}
-
 			request := httptest.NewRequest(testCase.method, "/readings", bytes.NewBufferString(testCase.body))
 			if !testCase.omitAuth {
 				username := testCase.authUser

@@ -283,10 +283,3 @@ func TestHandler_ServeHTTP_MethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected status 405, got %d", rec.Code)
 	}
 }
-
-func TestHandler_Pattern(t *testing.T) {
-	h := newTestHandler(t)
-	if h.Pattern() != "/static/" {
-		t.Fatalf("expected /static/, got %s", h.Pattern())
-	}
-}

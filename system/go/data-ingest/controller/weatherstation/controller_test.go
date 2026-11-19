@@ -17,6 +17,7 @@ import (
 
 func TestControllerStoreReading(t *testing.T) {
 	testTime := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	beforeCall := time.Now().UTC()
 	errGateway := errors.New("gateway failure")
 
 	testCases := []struct {
@@ -62,6 +63,10 @@ func TestControllerStoreReading(t *testing.T) {
 						if in.Readings[0].Timestamp == nil {
 							t.Fatal("expected timestamp to be populated, got nil")
 						}
+						timestamp := in.Readings[0].Timestamp.AsTime()
+						if timestamp.Before(beforeCall) || timestamp.After(time.Now().UTC()) {
+							t.Fatalf("default timestamp = %v, want between %v and now", timestamp, beforeCall)
+						}
 						return &protodatabasev1.StoreReadingsResponse{Stored: 1}, nil
 					})
 			},
@@ -87,7 +92,8 @@ func TestControllerStoreReading(t *testing.T) {
 					StoreReadings(gomock.Any(), gomock.Any()).
 					Return(nil, errGateway)
 			},
-			wantErr: true,
+			wantErr:     true,
+			expectedErr: errGateway,
 		},
 	}
 
@@ -143,10 +149,10 @@ func TestControllerStoreReadings(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name:        "empty batch returns without error",
-			readings:    nil,
-			setup:       func(client *mocks.MockReadingDatabaseServiceClient) {},
-			wantErr:     false,
+			name:     "empty batch returns without error",
+			readings: nil,
+			setup:    func(client *mocks.MockReadingDatabaseServiceClient) {},
+			wantErr:  false,
 		},
 		{
 			name: "success storing multiple readings",
@@ -189,7 +195,8 @@ func TestControllerStoreReadings(t *testing.T) {
 					StoreReadings(gomock.Any(), gomock.Any()).
 					Return(nil, errGateway)
 			},
-			wantErr: true,
+			wantErr:     true,
+			expectedErr: errGateway,
 		},
 	}
 

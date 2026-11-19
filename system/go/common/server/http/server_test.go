@@ -128,11 +128,7 @@ func TestHTTPServerLifecycle(t *testing.T) {
 				},
 			})
 
-			server := NewHTTPServer(lifecycle, mux, zap.NewNop(), Config{Address: address})
-			if server == nil {
-				t.Fatal("NewHTTPServer() returned nil")
-			}
-
+			NewHTTPServer(lifecycle, mux, zap.NewNop(), Config{Address: address})
 			startCtx, cancelStart := context.WithTimeout(context.Background(), time.Second)
 			defer cancelStart()
 

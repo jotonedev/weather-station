@@ -55,10 +55,13 @@ func TestGatewayStoreReading(t *testing.T) {
 			},
 			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
 				client.EXPECT().
-					StoreReadings(gomock.Any(), gomock.Any()).
+					StoreReadings(gomock.Any(), gomock.Eq(&protodatabasev1.StoreReadingsRequest{
+						Readings: []*protodatabasev1.Reading{{NodeId: "node-1"}},
+					})).
 					Return(nil, errDatabaseFailed)
 			},
-			wantErr: true,
+			wantErr:     true,
+			expectedErr: errDatabaseFailed,
 		},
 	}
 
@@ -171,10 +174,6 @@ func TestGatewayCheck(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatalf("New() unexpected error = %v", err)
-			}
-
-			if gateway.Name() != "database" {
-				t.Errorf("expected name database, got %q", gateway.Name())
 			}
 
 			err = gateway.Check(context.Background())

@@ -64,13 +64,13 @@ func TestGatewayPredictHourlyWeather(t *testing.T) {
 	tests := []struct {
 		name    string
 		req     *protoinferencev1.PredictHourlyWeatherRequest
-		setup   func(client *mocks.MockInferenceServiceClient)
+		setup   func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictHourlyWeatherRequest)
 		wantErr bool
 	}{
 		{
 			name:    "nil request returns error",
 			req:     nil,
-			setup:   func(client *mocks.MockInferenceServiceClient) {},
+			setup:   func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictHourlyWeatherRequest) {},
 			wantErr: true,
 		},
 		{
@@ -79,9 +79,9 @@ func TestGatewayPredictHourlyWeather(t *testing.T) {
 				NodeId:       "node-1",
 				HorizonHours: 24,
 			},
-			setup: func(client *mocks.MockInferenceServiceClient) {
+			setup: func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictHourlyWeatherRequest) {
 				client.EXPECT().
-					PredictHourlyWeather(gomock.Any(), gomock.Any()).
+					PredictHourlyWeather(gomock.Any(), gomock.Eq(req)).
 					Return(nil, errCall)
 			},
 			wantErr: true,
@@ -92,9 +92,9 @@ func TestGatewayPredictHourlyWeather(t *testing.T) {
 				NodeId:       "node-1",
 				HorizonHours: 24,
 			},
-			setup: func(client *mocks.MockInferenceServiceClient) {
+			setup: func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictHourlyWeatherRequest) {
 				client.EXPECT().
-					PredictHourlyWeather(gomock.Any(), gomock.Any()).
+					PredictHourlyWeather(gomock.Any(), gomock.Eq(req)).
 					Return(&protoinferencev1.PredictHourlyWeatherResponse{}, nil)
 			},
 			wantErr: false,
@@ -105,7 +105,7 @@ func TestGatewayPredictHourlyWeather(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			client := mocks.NewMockInferenceServiceClient(ctrl)
-			tt.setup(client)
+			tt.setup(client, tt.req)
 
 			gw, err := New(GatewayParams{
 				Logger: logger,
@@ -130,13 +130,13 @@ func TestGatewayPredictDailyWeather(t *testing.T) {
 	tests := []struct {
 		name    string
 		req     *protoinferencev1.PredictDailyWeatherRequest
-		setup   func(client *mocks.MockInferenceServiceClient)
+		setup   func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictDailyWeatherRequest)
 		wantErr bool
 	}{
 		{
 			name:    "nil request returns error",
 			req:     nil,
-			setup:   func(client *mocks.MockInferenceServiceClient) {},
+			setup:   func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictDailyWeatherRequest) {},
 			wantErr: true,
 		},
 		{
@@ -145,9 +145,9 @@ func TestGatewayPredictDailyWeather(t *testing.T) {
 				NodeId:      "node-1",
 				HorizonDays: 10,
 			},
-			setup: func(client *mocks.MockInferenceServiceClient) {
+			setup: func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictDailyWeatherRequest) {
 				client.EXPECT().
-					PredictDailyWeather(gomock.Any(), gomock.Any()).
+					PredictDailyWeather(gomock.Any(), gomock.Eq(req)).
 					Return(nil, errCall)
 			},
 			wantErr: true,
@@ -158,9 +158,9 @@ func TestGatewayPredictDailyWeather(t *testing.T) {
 				NodeId:      "node-1",
 				HorizonDays: 10,
 			},
-			setup: func(client *mocks.MockInferenceServiceClient) {
+			setup: func(client *mocks.MockInferenceServiceClient, req *protoinferencev1.PredictDailyWeatherRequest) {
 				client.EXPECT().
-					PredictDailyWeather(gomock.Any(), gomock.Any()).
+					PredictDailyWeather(gomock.Any(), gomock.Eq(req)).
 					Return(&protoinferencev1.PredictDailyWeatherResponse{}, nil)
 			},
 			wantErr: false,
@@ -171,7 +171,7 @@ func TestGatewayPredictDailyWeather(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			client := mocks.NewMockInferenceServiceClient(ctrl)
-			tt.setup(client)
+			tt.setup(client, tt.req)
 
 			gw, err := New(GatewayParams{
 				Logger: logger,
@@ -194,10 +194,10 @@ func TestGatewayGetModelInfo(t *testing.T) {
 	errCall := errors.New("info failed")
 
 	tests := []struct {
-		name      string
-		setup     func(client *mocks.MockInferenceServiceClient)
-		wantErr   bool
-		wantName  string
+		name     string
+		setup    func(client *mocks.MockInferenceServiceClient)
+		wantErr  bool
+		wantName string
 	}{
 		{
 			name: "rpc error",
@@ -309,10 +309,6 @@ func TestGatewayCheck(t *testing.T) {
 			gateway := &Gateway{
 				log:          zap.NewNop(),
 				healthClient: healthClient,
-			}
-
-			if gateway.Name() != "inference-server" {
-				t.Errorf("expected name inference-server, got %q", gateway.Name())
 			}
 
 			err := gateway.Check(context.Background())

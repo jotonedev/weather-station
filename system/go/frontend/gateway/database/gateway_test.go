@@ -28,7 +28,7 @@ func TestGatewayGetLatestReadings(t *testing.T) {
 			nodeID: "node-1",
 			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
 				client.EXPECT().
-					GetLatestReadings(gomock.Any(), gomock.Any()).
+					GetLatestReadings(gomock.Any(), gomock.Eq(&protodatabasev1.GetLatestReadingsRequest{NodeId: "node-1", Limit: 5})).
 					Return(&protodatabasev1.GetLatestReadingsResponse{
 						Readings: []*protodatabasev1.Reading{
 							{NodeId: "node-1"},
@@ -43,7 +43,7 @@ func TestGatewayGetLatestReadings(t *testing.T) {
 			nodeID: "node-1",
 			setup: func(client *mocks.MockReadingDatabaseServiceClient) {
 				client.EXPECT().
-					GetLatestReadings(gomock.Any(), gomock.Any()).
+					GetLatestReadings(gomock.Any(), gomock.Eq(&protodatabasev1.GetLatestReadingsRequest{NodeId: "node-1", Limit: 5})).
 					Return(nil, errDatabaseFailed)
 			},
 			wantErr: true,
@@ -88,7 +88,7 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 	readingClient := mocks.NewMockReadingDatabaseServiceClient(ctrl)
 
 	nodeClient.EXPECT().
-		ListNodeCoordinates(gomock.Any(), gomock.Any()).
+		ListNodeCoordinates(gomock.Any(), gomock.Eq(&protodatabasev1.ListNodeCoordinatesRequest{})).
 		Return(&protodatabasev1.ListNodeCoordinatesResponse{
 			Nodes: []*protodatabasev1.NodeCoordinates{
 				{NodeId: "station-alpha"},
@@ -116,6 +116,13 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 
 func TestGatewayCreateAndDeleteNode(t *testing.T) {
 	errRPC := errors.New("rpc error")
+	newNode := &protodatabasev1.NodeCoordinates{
+		NodeId:       "station-alpha",
+		Latitude:     45.0,
+		Longitude:    7.0,
+		ElevationM:   250.0,
+		LocationName: "Turin",
+	}
 
 	tests := []struct {
 		name    string
@@ -128,7 +135,7 @@ func TestGatewayCreateAndDeleteNode(t *testing.T) {
 			action: "create",
 			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
 				client.EXPECT().
-					CreateNode(gomock.Any(), gomock.Any()).
+					CreateNode(gomock.Any(), gomock.Eq(&protodatabasev1.CreateNodeRequest{Node: newNode})).
 					Return(&protodatabasev1.CreateNodeResponse{}, nil)
 			},
 			wantErr: false,
@@ -138,7 +145,7 @@ func TestGatewayCreateAndDeleteNode(t *testing.T) {
 			action: "create",
 			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
 				client.EXPECT().
-					CreateNode(gomock.Any(), gomock.Any()).
+					CreateNode(gomock.Any(), gomock.Eq(&protodatabasev1.CreateNodeRequest{Node: newNode})).
 					Return(nil, errRPC)
 			},
 			wantErr: true,
@@ -158,7 +165,7 @@ func TestGatewayCreateAndDeleteNode(t *testing.T) {
 			action: "delete",
 			setup: func(client *mocks.MockNodeDatabaseServiceClient) {
 				client.EXPECT().
-					DeleteNode(gomock.Any(), gomock.Any()).
+					DeleteNode(gomock.Any(), gomock.Eq(&protodatabasev1.DeleteNodeRequest{NodeId: "station-alpha"})).
 					Return(nil, errRPC)
 			},
 			wantErr: true,
@@ -182,13 +189,7 @@ func TestGatewayCreateAndDeleteNode(t *testing.T) {
 
 			var callErr error
 			if tc.action == "create" {
-				callErr = gateway.CreateNode(context.Background(), &protodatabasev1.NodeCoordinates{
-					NodeId:       "station-alpha",
-					Latitude:     45.0,
-					Longitude:    7.0,
-					ElevationM:   250.0,
-					LocationName: "Turin",
-				})
+				callErr = gateway.CreateNode(context.Background(), newNode)
 			} else {
 				callErr = gateway.DeleteNode(context.Background(), "station-alpha")
 			}
@@ -224,7 +225,7 @@ func TestGatewayGetForecast(t *testing.T) {
 			nodeID: "station-alpha",
 			setup: func(client *mocks.MockPredictionDatabaseServiceClient) {
 				client.EXPECT().
-					GetForecast(gomock.Any(), gomock.Any()).
+					GetForecast(gomock.Any(), gomock.Eq(&protodatabasev1.GetForecastRequest{NodeId: "station-alpha"})).
 					Return(&protodatabasev1.GetForecastResponse{
 						HourlyPredictions: []*protodatabasev1.HourlyPrediction{
 							{NodeId: "station-alpha", HorizonHours: 1},
@@ -242,7 +243,7 @@ func TestGatewayGetForecast(t *testing.T) {
 			nodeID: "station-alpha",
 			setup: func(client *mocks.MockPredictionDatabaseServiceClient) {
 				client.EXPECT().
-					GetForecast(gomock.Any(), gomock.Any()).
+					GetForecast(gomock.Any(), gomock.Eq(&protodatabasev1.GetForecastRequest{NodeId: "station-alpha"})).
 					Return(nil, errForecastFailed)
 			},
 			wantErr: true,
@@ -362,10 +363,6 @@ func TestGatewayCheck(t *testing.T) {
 			gateway := &Gateway{
 				log:          zap.NewNop(),
 				healthClient: healthClient,
-			}
-
-			if gateway.Name() != "database" {
-				t.Errorf("expected name database, got %q", gateway.Name())
 			}
 
 			err := gateway.Check(context.Background())

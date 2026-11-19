@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -97,6 +98,28 @@ func TestGatewaySendReadings(t *testing.T) {
 					if !ok || user != "admin" || pass != "secret" {
 						w.WriteHeader(http.StatusUnauthorized)
 						return
+					}
+				}
+				if len(tc.readings) > 0 {
+					if r.Method != http.MethodPost {
+						t.Errorf("method = %q, want POST", r.Method)
+					}
+					if got := r.Header.Get("Content-Type"); got != "application/json" {
+						t.Errorf("Content-Type = %q, want application/json", got)
+					}
+					var body batchRequest
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Errorf("decode request body: %v", err)
+					} else if len(body.Readings) != len(tc.readings) {
+						t.Errorf("readings count = %d, want %d", len(body.Readings), len(tc.readings))
+					} else {
+						for index, want := range tc.readings {
+							got := body.Readings[index]
+							if got.NodeID != want.NodeID || !got.Timestamp.Equal(want.Timestamp) || got.Temperature != want.Temperature {
+								t.Errorf("reading %d = %+v, want node_id %q, timestamp %v, temperature %v",
+									index, got, want.NodeID, want.Timestamp, want.Temperature)
+							}
+						}
 					}
 				}
 				w.WriteHeader(tc.statusCode)

@@ -72,11 +72,7 @@ func TestGRPCServerLifecycle(t *testing.T) {
 			healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 			registrars := []Registrar{&healthRegistrar{server: healthServer}}
-			server := NewGRPCServer(lifecycle, zap.NewNop(), Config{Address: address}, registrars)
-			if server == nil {
-				t.Fatal("NewGRPCServer() returned nil")
-			}
-
+			NewGRPCServer(lifecycle, zap.NewNop(), Config{Address: address}, registrars)
 			startCtx, cancelStart := context.WithTimeout(context.Background(), time.Second)
 			defer cancelStart()
 

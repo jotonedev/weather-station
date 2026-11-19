@@ -57,6 +57,9 @@ func TestNewController(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("New() error = %v, wantErr = %v", err, tt.wantErr)
 			}
+			if tt.wantErr && !errors.Is(err, ErrNoGateways) {
+				t.Errorf("New() error = %v, want ErrNoGateways", err)
+			}
 			if !tt.wantErr && got == nil {
 				t.Fatal("expected non-nil Controller")
 			}
@@ -78,6 +81,7 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 		now          time.Time
 		setup        func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway)
 		wantErr      bool
+		wantErrIs    error
 	}{
 		{
 			name:         "zero horizon returns ErrInvalidHorizon",
@@ -85,7 +89,8 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 			horizonHours: 0,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: ErrInvalidHorizon,
 		},
 		{
 			name:         "negative horizon returns ErrInvalidHorizon",
@@ -93,7 +98,8 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 			horizonHours: -1,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: ErrInvalidHorizon,
 		},
 		{
 			name:         "db aggregates query error returns error",
@@ -104,7 +110,8 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 					GetClimateAggregates(gomock.Any(), "node-1", fixedTime.Add(-40*24*time.Hour), fixedTime, uint32(3600)).
 					Return(nil, errDB)
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: errDB,
 		},
 		{
 			name:         "no aggregates skips prediction and returns nil",
@@ -131,7 +138,8 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 					PredictHourlyWeather(gomock.Any(), gomock.Any()).
 					Return(nil, errInf)
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: errInf,
 		},
 		{
 			name:         "store predictions error returns error",
@@ -154,7 +162,8 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 					StoreHourlyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(errStore)
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: errStore,
 		},
 		{
 			name:         "successful hourly forecast",
@@ -238,6 +247,9 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("RunHourlyForecastForNode() error = %v, wantErr = %v", err, tt.wantErr)
 			}
+			if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("RunHourlyForecastForNode() error = %v, want %v", err, tt.wantErrIs)
+			}
 		})
 	}
 }
@@ -257,6 +269,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 		now         time.Time
 		setup       func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway)
 		wantErr     bool
+		wantErrIs   error
 	}{
 		{
 			name:        "zero horizon returns ErrInvalidHorizon",
@@ -264,7 +277,8 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			horizonDays: 0,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: ErrInvalidHorizon,
 		},
 		{
 			name:        "db aggregates query error returns error",
@@ -275,7 +289,8 @@ func TestRunDailyForecastForNode(t *testing.T) {
 					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
 					Return(nil, errDB)
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: errDB,
 		},
 		{
 			name:        "no aggregates skips prediction and returns nil",
@@ -302,7 +317,8 @@ func TestRunDailyForecastForNode(t *testing.T) {
 					PredictDailyWeather(gomock.Any(), gomock.Any()).
 					Return(nil, errInf)
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: errInf,
 		},
 		{
 			name:        "store predictions error returns error",
@@ -325,7 +341,8 @@ func TestRunDailyForecastForNode(t *testing.T) {
 					StoreDailyPredictions(gomock.Any(), gomock.Len(1)).
 					Return(errStore)
 			},
-			wantErr: true,
+			wantErr:   true,
+			wantErrIs: errStore,
 		},
 		{
 			name:        "successful daily forecast",
@@ -408,6 +425,9 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("RunDailyForecastForNode() error = %v, wantErr = %v", err, tt.wantErr)
 			}
+			if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
+				t.Errorf("RunDailyForecastForNode() error = %v, want %v", err, tt.wantErrIs)
+			}
 		})
 	}
 }
@@ -480,6 +500,9 @@ func TestRunHourlyForecast(t *testing.T) {
 			err := c.RunHourlyForecast(context.Background(), 24)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("RunHourlyForecast() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if tt.wantErr && !errors.Is(err, errList) {
+				t.Errorf("RunHourlyForecast() error = %v, want %v", err, errList)
 			}
 		})
 	}
@@ -554,6 +577,9 @@ func TestRunDailyForecast(t *testing.T) {
 			err := c.RunDailyForecast(context.Background(), 10)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("RunDailyForecast() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if tt.wantErr && !errors.Is(err, errList) {
+				t.Errorf("RunDailyForecast() error = %v, want %v", err, errList)
 			}
 		})
 	}

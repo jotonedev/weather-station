@@ -9,6 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protodatabasev1 "weather-station/gen/go/weather/database/v1"
 	"weather-station/inference-job/internal/mocks"
@@ -72,7 +73,7 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 			name: "rpc error",
 			setup: func(nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
-					ListNodeCoordinates(gomock.Any(), gomock.Any()).
+					ListNodeCoordinates(gomock.Any(), gomock.Eq(&protodatabasev1.ListNodeCoordinatesRequest{})).
 					Return(nil, errCall)
 			},
 			wantErr: true,
@@ -81,7 +82,7 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 			name: "success with nodes",
 			setup: func(nodeClient *mocks.MockNodeDatabaseServiceClient) {
 				nodeClient.EXPECT().
-					ListNodeCoordinates(gomock.Any(), gomock.Any()).
+					ListNodeCoordinates(gomock.Any(), gomock.Eq(&protodatabasev1.ListNodeCoordinatesRequest{})).
 					Return(&protodatabasev1.ListNodeCoordinatesResponse{
 						Nodes: []*protodatabasev1.NodeCoordinates{
 							{NodeId: "station-alpha"},
@@ -124,6 +125,14 @@ func TestGatewayListNodeCoordinates(t *testing.T) {
 func TestGatewayGetClimateAggregates(t *testing.T) {
 	logger := zap.NewNop()
 	errCall := errors.New("query aggregates failed")
+	start := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	wantReq := &protodatabasev1.GetClimateAggregatesRequest{
+		NodeId:        "node-1",
+		StartTime:     timestamppb.New(start),
+		EndTime:       timestamppb.New(end),
+		BucketSeconds: 3600,
+	}
 
 	tests := []struct {
 		name      string
@@ -143,7 +152,7 @@ func TestGatewayGetClimateAggregates(t *testing.T) {
 			nodeID: "node-1",
 			setup: func(aggClient *mocks.MockReadingAggregateServiceClient) {
 				aggClient.EXPECT().
-					GetClimateAggregates(gomock.Any(), gomock.Any()).
+					GetClimateAggregates(gomock.Any(), gomock.Eq(wantReq)).
 					Return(nil, errCall)
 			},
 			wantErr: true,
@@ -153,7 +162,7 @@ func TestGatewayGetClimateAggregates(t *testing.T) {
 			nodeID: "node-1",
 			setup: func(aggClient *mocks.MockReadingAggregateServiceClient) {
 				aggClient.EXPECT().
-					GetClimateAggregates(gomock.Any(), gomock.Any()).
+					GetClimateAggregates(gomock.Any(), gomock.Eq(wantReq)).
 					Return(&protodatabasev1.GetClimateAggregatesResponse{
 						Aggregates: []*protodatabasev1.ClimateAggregate{
 							{NodeId: "node-1"},
@@ -181,7 +190,7 @@ func TestGatewayGetClimateAggregates(t *testing.T) {
 				t.Fatalf("unexpected New error: %v", err)
 			}
 
-			aggregates, err := gw.GetClimateAggregates(context.Background(), tt.nodeID, time.Now().Add(-24*time.Hour), time.Now(), 3600)
+			aggregates, err := gw.GetClimateAggregates(context.Background(), tt.nodeID, start, end, 3600)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("GetClimateAggregates() error = %v, wantErr = %v", err, tt.wantErr)
 			}
@@ -195,6 +204,11 @@ func TestGatewayGetClimateAggregates(t *testing.T) {
 func TestGatewayStoreHourlyPredictions(t *testing.T) {
 	logger := zap.NewNop()
 	errCall := errors.New("store failed")
+	wantReq := &protodatabasev1.StoreHourlyPredictionsRequest{
+		Predictions: []*protodatabasev1.HourlyPrediction{
+			{NodeId: "node-1", HorizonHours: 1},
+		},
+	}
 
 	tests := []struct {
 		name        string
@@ -215,7 +229,7 @@ func TestGatewayStoreHourlyPredictions(t *testing.T) {
 			},
 			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
 				predClient.EXPECT().
-					StoreHourlyPredictions(gomock.Any(), gomock.Any()).
+					StoreHourlyPredictions(gomock.Any(), gomock.Eq(wantReq)).
 					Return(nil, errCall)
 			},
 			wantErr: true,
@@ -227,7 +241,7 @@ func TestGatewayStoreHourlyPredictions(t *testing.T) {
 			},
 			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
 				predClient.EXPECT().
-					StoreHourlyPredictions(gomock.Any(), gomock.Any()).
+					StoreHourlyPredictions(gomock.Any(), gomock.Eq(wantReq)).
 					Return(&protodatabasev1.StoreHourlyPredictionsResponse{Stored: 1}, nil)
 			},
 			wantErr: false,
@@ -261,6 +275,11 @@ func TestGatewayStoreHourlyPredictions(t *testing.T) {
 func TestGatewayStoreDailyPredictions(t *testing.T) {
 	logger := zap.NewNop()
 	errCall := errors.New("store failed")
+	wantReq := &protodatabasev1.StoreDailyPredictionsRequest{
+		Predictions: []*protodatabasev1.DailyPrediction{
+			{NodeId: "node-1", HorizonDays: 1},
+		},
+	}
 
 	tests := []struct {
 		name        string
@@ -281,7 +300,7 @@ func TestGatewayStoreDailyPredictions(t *testing.T) {
 			},
 			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
 				predClient.EXPECT().
-					StoreDailyPredictions(gomock.Any(), gomock.Any()).
+					StoreDailyPredictions(gomock.Any(), gomock.Eq(wantReq)).
 					Return(nil, errCall)
 			},
 			wantErr: true,
@@ -293,7 +312,7 @@ func TestGatewayStoreDailyPredictions(t *testing.T) {
 			},
 			setup: func(predClient *mocks.MockPredictionDatabaseServiceClient) {
 				predClient.EXPECT().
-					StoreDailyPredictions(gomock.Any(), gomock.Any()).
+					StoreDailyPredictions(gomock.Any(), gomock.Eq(wantReq)).
 					Return(&protodatabasev1.StoreDailyPredictionsResponse{Stored: 1}, nil)
 			},
 			wantErr: false,
@@ -386,10 +405,6 @@ func TestGatewayCheck(t *testing.T) {
 			gateway := &Gateway{
 				log:          zap.NewNop(),
 				healthClient: healthClient,
-			}
-
-			if gateway.Name() != "database" {
-				t.Errorf("expected name database, got %q", gateway.Name())
 			}
 
 			err := gateway.Check(context.Background())

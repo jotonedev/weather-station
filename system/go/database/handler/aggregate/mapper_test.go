@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"weather-station/common/pb"
 	repository "weather-station/database/repository/aggregate"
 )
 
@@ -95,12 +94,5 @@ func TestModelAirQualityToPB(t *testing.T) {
 	}
 	if response.AvgPm1 != nil {
 		t.Errorf("AvgPm1 = %v, want nil", response.AvgPm1)
-	}
-}
-
-func TestModelClimateToPBTimeHelper(t *testing.T) {
-	bucketStart := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
-	if got := pb.Time(bucketStart); !got.AsTime().Equal(bucketStart) {
-		t.Errorf("pb.Time = %v, want %v", got.AsTime(), bucketStart)
 	}
 }

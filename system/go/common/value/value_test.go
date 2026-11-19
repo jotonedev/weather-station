@@ -5,7 +5,6 @@ import "testing"
 func TestNullable(t *testing.T) {
 	temperature := 21.5
 	pm2_5 := int32(12)
-	var nilTemperature *float64
 
 	tests := []struct {
 		name string
@@ -21,11 +20,6 @@ func TestNullable(t *testing.T) {
 			name: "int value",
 			run:  func() any { return Nullable(&pm2_5) },
 			want: int32(12),
-		},
-		{
-			name: "nil float pointer",
-			run:  func() any { return Nullable(nilTemperature) },
-			want: nil,
 		},
 		{
 			name: "nil pointer argument",

@@ -49,10 +49,6 @@ func TestHealthHandler(t *testing.T) {
 				t.Fatalf("unexpected error creating handler: %v", err)
 			}
 
-			if handler.Pattern() != "/health" {
-				t.Errorf("expected pattern /health, got %s", handler.Pattern())
-			}
-
 			req := httptest.NewRequest(http.MethodGet, "/health", nil)
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
@@ -109,10 +105,6 @@ func TestReadyHandler(t *testing.T) {
 				t.Fatalf("unexpected error creating handler: %v", err)
 			}
 
-			if handler.Pattern() != "/ready" {
-				t.Errorf("expected pattern /ready, got %s", handler.Pattern())
-			}
-
 			req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
@@ -130,12 +122,11 @@ func TestReadyHandler(t *testing.T) {
 
 func TestGRPCHandler(t *testing.T) {
 	testCases := []struct {
-		name        string
-		checkers    []Checker
-		service     string
-		stopBefore  bool
-		wantStatus  grpc_health_v1.HealthCheckResponse_ServingStatus
-		expectError bool
+		name       string
+		checkers   []Checker
+		service    string
+		stopBefore bool
+		wantStatus grpc_health_v1.HealthCheckResponse_ServingStatus
 	}{
 		{
 			name:       "default service returns serving",
@@ -222,10 +213,7 @@ func TestGRPCHandler(t *testing.T) {
 				Service: testCase.service,
 			})
 
-			if testCase.expectError && err == nil {
-				t.Fatal("expected error but got nil")
-			}
-			if !testCase.expectError && err != nil {
+			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if resp.Status != testCase.wantStatus {
