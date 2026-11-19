@@ -9,7 +9,7 @@ This file extends the root `AGENTS.md` with rules specific to `system/python/inf
 - Use `pytest.raises` with `match` to assert the specific error and message
 - Use `monkeypatch` for environment and attributes, and avoid patching private functions of the code under test
 - Do not load real models in unit tests, use the backend interface with a stub
-- Check numeric outputs with `pytest.approx` and explicit tolerances
+- Use `pytest.approx` with explicit tolerances for scalars and `numpy.testing` assertions for arrays
 
 ## Typing and linting
 

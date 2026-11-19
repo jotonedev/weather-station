@@ -11,7 +11,26 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 ## Formatting and linting
 
 - Format modified `.cpp` and `.h` files using `mcu/.clang-format`, excluding `mcu/lib/CC1101/`
-- `clang-tidy` checks `lib/ARQ`, `lib/Weather`, `lib/Ingest`, `lib/Outbox`, and `test/` against `mcu/.clang-tidy`
+- Check formatting from `mcu/` with this command
+
+  ```sh
+  find src lib test -type f \( -name '*.cpp' -o -name '*.h' \) ! -path 'lib/CC1101/*' \
+    -exec clang-format-18 --dry-run --Werror {} +
+  ```
+
+- Run `clang-tidy` from `mcu/` against `mcu/.clang-tidy` with this command
+
+  ```sh
+  clang-tidy --config-file=.clang-tidy \
+    lib/ARQ/src/ARQ.cpp lib/Weather/src/Weather.cpp lib/Ingest/src/Ingest.cpp \
+    lib/Outbox/src/Outbox.cpp \
+    test/test_arq.cpp test/test_weather.cpp test/test_outbox.cpp test/test_ingest.cpp test/main.cpp \
+    -- -std=gnu++17 \
+    -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src \
+    -I.pio/libdeps/native/googletest/googletest/include \
+    -I.pio/libdeps/native/googletest/googlemock/include
+  ```
+
 - If `clang-format` or `clang-tidy` is not installed locally, follow `mcu/.clang-format` manually and report that the check did not run
 
 ## Library portability and protocol
