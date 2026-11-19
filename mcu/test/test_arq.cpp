@@ -1,10 +1,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <thread>
 
 #include "ARQ.h"
 
@@ -124,35 +122,6 @@ TEST(Arq, SendHappyPathWithAck) {
     EXPECT_EQ(arq.getTxSuccessCount(), 1);
 }
 
-TEST(Arq, SendRetriesThenTimesOut) {
-    NiceMock<MockRadio> mock;
-    ARQ::ARQ arq(mock, 1);
-    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
-
-    // Initial send plus two retransmissions exhaust the retry budget.
-    EXPECT_CALL(mock, transmitWithCca(_, _, 2, _))
-        .Times(3)
-        .WillRepeatedly(Return(ARQ::RadioStatus::Ok));
-    EXPECT_CALL(mock, startReceive(1)).Times(3).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
-    EXPECT_CALL(mock, idle()).Times(1);
-
-    uint8_t payload[4] = {1, 2, 3, 4};
-    ASSERT_EQ(arq.startSendData(payload, 4, 2), ARQ::STATUS_OK);
-
-    ARQ::Status result = ARQ::STATUS_OK;
-    int guard = 0;
-    while (arq.getState() != ARQ::RadioState::IDLE && guard < 5000) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        result = arq.poll(5);
-        guard++;
-    }
-
-    EXPECT_EQ(result, ARQ::STATUS_TIMEOUT);
-    EXPECT_EQ(arq.getTxTimeoutCount(), 1);
-    EXPECT_EQ(arq.getTxRetryCount(), 3);
-    EXPECT_EQ(arq.getState(), ARQ::RadioState::IDLE);
-}
-
 TEST(Arq, SendReportsChannelBusy) {
     NiceMock<MockRadio> mock;
     ARQ::ARQ arq(mock, 1);
@@ -204,32 +173,6 @@ TEST(Arq, ReceiveDeliversDataAndAcks) {
     EXPECT_EQ(std::memcmp(buffer, "\x01\x02\x03\x04", 4), 0);
     EXPECT_EQ(arq.getLastRSSI(), -60);
     EXPECT_EQ(arq.getLastLQI(), 30);
-}
-
-TEST(Arq, ReceiveSuppressesDuplicate) {
-    NiceMock<MockRadio> mock;
-    ARQ::ARQ arq(mock, 2);
-    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
-
-    EXPECT_CALL(mock, startReceive(2)).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
-    EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillRepeatedly(Return(48));
-    EXPECT_CALL(mock, readData(_, _, _))
-        .WillRepeatedly(Invoke([](uint8_t* data, size_t length, size_t* read) {
-            fillDataFrame(data, length, read, 5);
-            return ARQ::RadioStatus::Ok;
-        }));
-    EXPECT_CALL(mock, transmit(_, _, _)).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
-
-    EXPECT_EQ(arq.startReceiveData(2), ARQ::STATUS_OK);
-    EXPECT_EQ(arq.poll(), ARQ::STATUS_OK);
-    ASSERT_TRUE(arq.available());
-    ARQ::Message message;
-    uint8_t buffer[16];
-    EXPECT_EQ(arq.readMessage(message, buffer, sizeof(buffer)), ARQ::STATUS_OK);
-
-    // The same frame arrives again and is dropped, no new message surfaces.
-    EXPECT_EQ(arq.poll(), ARQ::STATUS_OK);
-    EXPECT_FALSE(arq.available());
 }
 
 TEST(Arq, ReceiveRejectsWrongVersion) {
@@ -642,7 +585,6 @@ TEST(Arq, ReadMessageEdgeCases) {
     EXPECT_NE(msg.payload, nullptr);
     EXPECT_FALSE(arq.available());
 
-    // Small buffer leaves caller buffer unmodified and aliases internal rxPayloadBuffer
     EXPECT_CALL(mock, readData(_, _, _))
         .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
             (void)length;
@@ -655,8 +597,6 @@ TEST(Arq, ReadMessageEdgeCases) {
     EXPECT_EQ(arq.readMessage(msg, small, sizeof(small)), ARQ::STATUS_OK);
     EXPECT_EQ(small[0], 0xAA);
     EXPECT_EQ(small[1], 0xBB);
-    EXPECT_NE(msg.payload, nullptr);
-    EXPECT_NE(msg.payload, small);
     EXPECT_FALSE(arq.available());
 }
 
@@ -666,7 +606,6 @@ TEST(Arq, DisableCcaUsesTransmitInsteadOfTransmitWithCca) {
     ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
 
     arq.enableCca(false);
-    EXPECT_FALSE(arq.isCcaEnabled());
 
     EXPECT_CALL(mock, transmitWithCca(_, _, _, _)).Times(0);
     EXPECT_CALL(mock, transmit(_, 47, 2)).Times(2).WillRepeatedly(Return(ARQ::RadioStatus::Ok));

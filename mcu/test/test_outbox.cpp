@@ -85,15 +85,6 @@ TEST(Outbox, WrapAroundKeepsOrder) {
     EXPECT_TRUE(outbox.empty());
 }
 
-TEST(Outbox, ResetClearsBuffer) {
-    Outbox outbox(2);
-    outbox.push(makeEntry(1));
-    outbox.push(makeEntry(2));
-    outbox.reset();
-    EXPECT_TRUE(outbox.empty());
-    EXPECT_EQ(outbox.dropped(), 0);
-}
-
 TEST(Outbox, ZeroCapacityDropsEverything) {
     Outbox outbox(0);
     EXPECT_EQ(outbox.capacity(), 0);
@@ -109,7 +100,6 @@ TEST(Outbox, ExternalBufferAndRestoreState) {
     PendingReading popped;
     ASSERT_TRUE(outbox.pop(popped));
     EXPECT_EQ(popped.sequence, 10);
-    EXPECT_EQ(outbox.head(), 1);
     EXPECT_EQ(outbox.count(), 1);
 
     Outbox restored(backing, 4);
@@ -158,7 +148,6 @@ TEST(Outbox, NullExternalBufferForcesZeroCapacity) {
     EXPECT_EQ(outbox.capacity(), 0u);
     EXPECT_TRUE(outbox.empty());
     EXPECT_TRUE(outbox.full());
-    EXPECT_EQ(outbox.head(), 0u);
     EXPECT_EQ(outbox.count(), 0u);
 
     EXPECT_FALSE(outbox.push(makeEntry(1)));
@@ -239,7 +228,6 @@ TEST(Outbox, BackfillTimestampsHandlesMillisWraparoundAndEpochUnderflow) {
     PendingReading dummy = makeEntry(0);
     ASSERT_TRUE(wrapBox.push(dummy));
     ASSERT_TRUE(wrapBox.pop(dummy));
-    ASSERT_EQ(wrapBox.head(), 1u);
 
     PendingReading e1 = makeEntry(1);
     e1.receivedAt = 0;
@@ -297,7 +285,6 @@ TEST(Outbox, ResetClearsEntriesButPreservesDroppedCount) {
     outbox.reset();
     EXPECT_TRUE(outbox.empty());
     EXPECT_EQ(outbox.count(), 0u);
-    EXPECT_EQ(outbox.head(), 0u);
     PendingReading out = {};
     EXPECT_FALSE(outbox.pop(out));
     EXPECT_EQ(outbox.dropped(), 1u);

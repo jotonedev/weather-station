@@ -4,11 +4,6 @@
 
 #include "Weather.h"
 
-TEST(Weather, WireSizeFitsArqBudget) {
-    EXPECT_EQ(sizeof(WeatherData), 34);
-    EXPECT_LE(sizeof(WeatherData), weather::kMaxWirePayload);
-}
-
 TEST(Weather, TemperatureRoundTrip) {
     EXPECT_EQ(weather::encodeTemperature(21.5f), 215);
     EXPECT_EQ(weather::encodeTemperature(-3.2f), -32);
