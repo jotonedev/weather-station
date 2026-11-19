@@ -254,14 +254,15 @@ TEST(Arq, StartSendDataBoundary40Vs41Payload) {
     uint8_t encodedLenLow = 0;
     uint8_t encodedLenHigh = 0xFF;
     EXPECT_CALL(okMock, transmitWithCca(_, 47, 2, 5))
-        .WillOnce(Invoke([&](uint8_t* data, size_t length, uint8_t target, uint8_t maxRetries) {
-            (void)length;
-            (void)target;
-            (void)maxRetries;
-            encodedLenLow = data[5];
-            encodedLenHigh = data[6];
-            return ARQ::RadioStatus::Ok;
-        }));
+        .WillOnce(
+            Invoke([&](const uint8_t* data, size_t length, uint8_t target, uint8_t maxRetries) {
+                (void)length;
+                (void)target;
+                (void)maxRetries;
+                encodedLenLow = data[5];
+                encodedLenHigh = data[6];
+                return ARQ::RadioStatus::Ok;
+            }));
     EXPECT_CALL(okMock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
 
     uint8_t payload[41] = {0};
@@ -451,7 +452,7 @@ TEST(Arq, ReceivingHandlesReadErrorOversizeAndNonDataFrames) {
     EXPECT_CALL(mock, transmit(_, _, _)).Times(0);
     EXPECT_CALL(mock, readData(_, _, _))
         .WillOnce(Return(ARQ::RadioStatus::Error))
-        .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
+        .WillOnce(Invoke([](const uint8_t* data, size_t length, size_t* read) {
             (void)data;
             (void)length;
             *read = 6;
