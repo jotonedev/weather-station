@@ -15,7 +15,7 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 
   ```sh
   find src lib test -type f \( -name '*.cpp' -o -name '*.h' \) ! -path 'lib/CC1101/*' \
-    -exec clang-format-18 --dry-run --Werror {} +
+    -exec clang-format --dry-run --Werror {} +
   ```
 
 - Run `clang-tidy` from `mcu/` against `mcu/.clang-tidy` with this command
