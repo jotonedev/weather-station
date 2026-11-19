@@ -26,11 +26,11 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install clang-format
-        run: sudo apt-get update -q && sudo apt-get install -y -q clang-format-18
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang-format
 
       - name: Check formatting
         run: |
-          CF=$(command -v clang-format-18 || command -v clang-format)
+          CF=$(command -v clang-format)
           find src lib test -type f \( -name '*.cpp' -o -name '*.h' \) \
             ! -path 'lib/CC1101/*' \
             -exec "$CF" --dry-run --Werror {} +
