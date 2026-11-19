@@ -4,6 +4,8 @@ package grpc
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -11,6 +13,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
+
+// ErrNotServing is returned when a dependency reports a non-serving health status.
+var ErrNotServing = errors.New("grpc service is not serving")
 
 // ClientFactory helps create gRPC clients with proper lifecycle management.
 type ClientFactory struct {
@@ -44,6 +49,9 @@ func (f *ClientFactory) NewConnection(target string) (*grpc.ClientConn, error) {
 				// mirroring the strict QuestDB ping.
 				f.log.Error("gRPC health check failed", zap.String("target", target), zap.Error(err))
 				return err
+			}
+			if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+				return fmt.Errorf("%w: %s", ErrNotServing, resp.Status)
 			}
 			f.log.Info("gRPC health check successful", zap.String("target", target), zap.String("status", resp.Status.String()))
 			return nil

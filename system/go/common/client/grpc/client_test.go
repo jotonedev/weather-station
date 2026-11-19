@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -66,6 +67,7 @@ func TestClientFactoryNewConnection(t *testing.T) {
 		startTimeout   time.Duration
 		wantNewConnErr bool
 		wantStartErr   bool
+		wantStartErrIs error
 		verifyAfter    bool
 	}{
 		{
@@ -84,8 +86,9 @@ func TestClientFactoryNewConnection(t *testing.T) {
 				healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
 				return startTestHealthServer(t, healthServer)
 			},
-			startTimeout: time.Second,
-			wantStartErr: true,
+			startTimeout:   time.Second,
+			wantStartErr:   true,
+			wantStartErrIs: ErrNotServing,
 		},
 		{
 			name: "unreachable target fails startup",
@@ -146,6 +149,9 @@ func TestClientFactoryNewConnection(t *testing.T) {
 			if testCase.wantStartErr {
 				if startErr == nil {
 					t.Fatal("lifecycle.Start() want error, got nil")
+				}
+				if testCase.wantStartErrIs != nil && !errors.Is(startErr, testCase.wantStartErrIs) {
+					t.Fatalf("lifecycle.Start() error = %v, want %v", startErr, testCase.wantStartErrIs)
 				}
 				return
 			}
