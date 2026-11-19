@@ -169,7 +169,7 @@ def test_format_predictions_retains_sub_threshold_drizzle() -> None:
 
     assert hourly_predictions[1].rainfall_mm == 0.0
     assert np.isclose(hourly_predictions[1].rainfall_mm_p90, 0.4)
-    assert np.isclose(hourly_predictions[1].rain_probability, 1.0 - (0.5 + ((0.2 - (-0.2)) / 0.6) * 0.4))
+    assert np.isclose(hourly_predictions[1].rain_probability, 0.2333333)
 
     daily_quantiles = np.zeros((1, 1, 3), dtype=np.float32)
     daily_quantiles[0, 0, :] = [0.0, 0.5, 0.9]

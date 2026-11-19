@@ -23,14 +23,15 @@ def test_chronos_predict_cpu_execution() -> None:
 
     history_length = 32
     prediction_length = 24
-    target = np.random.randn(2, history_length).astype(np.float32)
+    rng = np.random.default_rng(0)
+    target = rng.standard_normal((2, history_length)).astype(np.float32)
     past_covariates = {
-        "hour_sin": np.random.randn(history_length).astype(np.float32),
-        "hour_cos": np.random.randn(history_length).astype(np.float32),
+        "hour_sin": rng.standard_normal(history_length).astype(np.float32),
+        "hour_cos": rng.standard_normal(history_length).astype(np.float32),
     }
     future_covariates = {
-        "hour_sin": np.random.randn(prediction_length).astype(np.float32),
-        "hour_cos": np.random.randn(prediction_length).astype(np.float32),
+        "hour_sin": rng.standard_normal(prediction_length).astype(np.float32),
+        "hour_cos": rng.standard_normal(prediction_length).astype(np.float32),
     }
 
     quantiles, levels = backend.predict(

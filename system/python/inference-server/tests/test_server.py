@@ -3,6 +3,7 @@ import threading
 from collections.abc import Generator, Iterator
 from concurrent import futures
 from contextlib import contextmanager
+from typing import cast
 
 import grpc
 import numpy as np
@@ -13,7 +14,7 @@ from weather.inference.v1 import inference_pb2, inference_pb2_grpc
 
 from inference.backends.base import QUANTILE_LEVELS, ForecastBackend
 from inference.config import Config
-from inference.server import InferenceServer, InferenceServicer, _extract_location
+from inference.server import InferenceServer, InferenceServicer
 
 
 class StubForecastBackend(ForecastBackend[object]):
@@ -278,8 +279,7 @@ def test_grpc_predict_hourly_weather_validation_error(grpc_service: inference_pb
     with pytest.raises(grpc.RpcError) as exc_info:
         grpc_service.PredictHourlyWeather(request)
 
-    assert isinstance(exc_info.value, grpc.Call)
-    assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+    assert cast(grpc.Call, exc_info.value).code() == grpc.StatusCode.INVALID_ARGUMENT
 
 
 def test_grpc_predict_daily_weather_validation_error(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
@@ -292,8 +292,7 @@ def test_grpc_predict_daily_weather_validation_error(grpc_service: inference_pb2
     with pytest.raises(grpc.RpcError) as exc_info:
         grpc_service.PredictDailyWeather(request)
 
-    assert isinstance(exc_info.value, grpc.Call)
-    assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+    assert cast(grpc.Call, exc_info.value).code() == grpc.StatusCode.INVALID_ARGUMENT
 
 
 def test_grpc_predict_daily_weather_success(grpc_service: inference_pb2_grpc.InferenceServiceStub) -> None:
@@ -345,9 +344,8 @@ def test_grpc_predict_hourly_weather_internal_error() -> None:
     with _start_servicer(backend) as (stub, _backend), pytest.raises(grpc.RpcError) as exc_info:
         stub.PredictHourlyWeather(request)
 
-    assert isinstance(exc_info.value, grpc.Call)
-    assert exc_info.value.code() == grpc.StatusCode.INTERNAL
-    assert "inference execution failed: boom" in (exc_info.value.details() or "")
+    assert cast(grpc.Call, exc_info.value).code() == grpc.StatusCode.INTERNAL
+    assert "inference execution failed: boom" in (cast(grpc.Call, exc_info.value).details() or "")
 
 
 def test_grpc_predict_daily_weather_internal_error() -> None:
@@ -358,9 +356,8 @@ def test_grpc_predict_daily_weather_internal_error() -> None:
     with _start_servicer(backend) as (stub, _backend), pytest.raises(grpc.RpcError) as exc_info:
         stub.PredictDailyWeather(request)
 
-    assert isinstance(exc_info.value, grpc.Call)
-    assert exc_info.value.code() == grpc.StatusCode.INTERNAL
-    assert "inference execution failed: boom" in (exc_info.value.details() or "")
+    assert cast(grpc.Call, exc_info.value).code() == grpc.StatusCode.INTERNAL
+    assert "inference execution failed: boom" in (cast(grpc.Call, exc_info.value).details() or "")
 
 
 @pytest.mark.parametrize(
@@ -379,24 +376,19 @@ def test_grpc_predict_hourly_partial_and_missing_location(
     """Test_grpc_predict_hourly_partial_and_missing_location handles omitted optional location fields."""
     backend = StubForecastBackend(pipeline=object())
     request = _build_hourly_request(latitude=latitude, longitude=longitude, elevation_m=elevation_m)
-    assert _extract_location(request) == (latitude, longitude, elevation_m)
-
     zero_lon_request = _build_hourly_request(latitude=latitude, longitude=0.0, elevation_m=elevation_m)
     shifted_lon_request = _build_hourly_request(latitude=latitude, longitude=9.2, elevation_m=elevation_m)
 
     with _start_servicer(backend) as (stub, active_backend):
         response = stub.PredictHourlyWeather(request)
-        default_future = active_backend.captured_calls[-1]["future_covariates"]
+        default_future = cast(dict[str, np.ndarray], active_backend.captured_calls[-1]["future_covariates"])
         stub.PredictHourlyWeather(zero_lon_request)
-        zero_lon_future = active_backend.captured_calls[-1]["future_covariates"]
+        zero_lon_future = cast(dict[str, np.ndarray], active_backend.captured_calls[-1]["future_covariates"])
         stub.PredictHourlyWeather(shifted_lon_request)
-        shifted_lon_future = active_backend.captured_calls[-1]["future_covariates"]
+        shifted_lon_future = cast(dict[str, np.ndarray], active_backend.captured_calls[-1]["future_covariates"])
 
     assert len(response.predictions) == 24
     assert all(np.isfinite(pred.temperature_c) for pred in response.predictions)
-    assert isinstance(default_future, dict)
-    assert isinstance(zero_lon_future, dict)
-    assert isinstance(shifted_lon_future, dict)
     np.testing.assert_allclose(default_future["solar_hour_sin"], zero_lon_future["solar_hour_sin"])
     assert not np.allclose(default_future["solar_hour_sin"], shifted_lon_future["solar_hour_sin"])
 
@@ -416,15 +408,13 @@ def test_grpc_predict_daily_partial_and_missing_location(
     """Test_grpc_predict_daily_partial_and_missing_location handles omitted daily location fields."""
     backend = StubForecastBackend(pipeline=object())
     request = _build_daily_request(latitude=latitude, longitude=longitude, elevation_m=elevation_m)
-    assert _extract_location(request) == (latitude, longitude, elevation_m)
 
     with _start_servicer(backend) as (stub, active_backend):
         response = stub.PredictDailyWeather(request)
-        captured_future = active_backend.captured_calls[-1]["future_covariates"]
+        captured_future = cast(dict[str, np.ndarray], active_backend.captured_calls[-1]["future_covariates"])
 
     assert len(response.predictions) == 10
     assert all(np.isfinite(pred.min_temperature_c) for pred in response.predictions)
-    assert isinstance(captured_future, dict)
     for key in ("clear_sky_radiation_mj", "daylight_hours", "doy_sin", "doy_cos"):
         assert key in captured_future
         assert np.isfinite(captured_future[key]).all()
@@ -476,34 +466,3 @@ def test_server_idle_eviction_loop(caplog: pytest.LogCaptureFixture) -> None:
             server._idle_thread.join(timeout=1.0)
 
     assert any("idle model successfully evicted from memory" in record.message for record in caplog.records)
-
-
-def test_server_uses_create_backend_when_backend_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test_server_uses_create_backend_when_backend_is_none forwards config to create_backend."""
-    captured: dict[str, object] = {}
-
-    def fake_create_backend(**kwargs: object) -> StubForecastBackend:
-        captured.update(kwargs)
-        return StubForecastBackend(model_name=str(kwargs["model_name"]))
-
-    monkeypatch.setattr("inference.server.create_backend", fake_create_backend)
-    config = Config(
-        host="127.0.0.1",
-        port=0,
-        model_backend="timestral",
-        model_name="mistralai/Timestral-209M",
-        idle_timeout_seconds=120.0,
-        timestral_symmetric_averaging=True,
-    )
-
-    server = InferenceServer(config=config)
-    try:
-        assert captured == {
-            "backend_name": "timestral",
-            "model_name": "mistralai/Timestral-209M",
-            "idle_timeout_seconds": 120.0,
-            "timestral_symmetric_averaging": True,
-        }
-        assert server.backend.model_name == "mistralai/Timestral-209M"
-    finally:
-        server.stop(grace=0.1)

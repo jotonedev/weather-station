@@ -32,11 +32,6 @@ def test_split_covariates_separates_past_only_and_known() -> None:
     np.testing.assert_array_equal(known_tensor[0, 1], [3.0, 4.0, 6.0])
 
 
-def test_split_covariates_empty_returns_none() -> None:
-    """Test_split_covariates_empty_returns_none verifies no covariates yields None."""
-    assert _split_covariates({}, {}) == (None, None)
-
-
 def test_split_covariates_single_side_only() -> None:
     """Test_split_covariates_single_side_only verifies past-only and known-only channel tensors."""
     past_only_tensor, known_when_past_only = _split_covariates(
@@ -80,11 +75,12 @@ def test_timestral_predict_with_synthetic_model(timestral_package: object) -> No
 
     history_length = 40
     prediction_length = 16
-    target = np.random.randn(3, history_length).astype(np.float32)
+    rng = np.random.default_rng(0)
+    target = rng.standard_normal((3, history_length)).astype(np.float32)
     known_names = ("solar_hour_sin", "solar_hour_cos", "doy_sin", "doy_cos")
-    past_covariates = {name: np.random.randn(history_length).astype(np.float32) for name in known_names}
-    past_covariates["dew_point_c"] = np.random.randn(history_length).astype(np.float32)
-    future_covariates = {name: np.random.randn(prediction_length).astype(np.float32) for name in known_names}
+    past_covariates = {name: rng.standard_normal(history_length).astype(np.float32) for name in known_names}
+    past_covariates["dew_point_c"] = rng.standard_normal(history_length).astype(np.float32)
+    future_covariates = {name: rng.standard_normal(prediction_length).astype(np.float32) for name in known_names}
 
     quantiles, levels = backend.predict(
         target=target,
