@@ -62,7 +62,8 @@ class SoftTwoWire : public TwoWire {
     }
 
     size_t requestFrom(uint8_t address, size_t len) override {
-        return _softWire.requestFrom(address, (uint8_t)len, (uint8_t)true);
+        return _softWire.requestFrom(address, static_cast<uint8_t>(len),
+                                     static_cast<uint8_t>(true));
     }
 
     size_t write(uint8_t data) override { return _softWire.write(data); }
