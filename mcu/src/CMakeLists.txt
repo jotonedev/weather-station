@@ -12,6 +12,11 @@ if(CURRENT_ENV STREQUAL "control-node")
         SRC_DIRS "control-node"
         INCLUDE_DIRS "control-node"
     )
+elseif(CURRENT_ENV STREQUAL "anemometer-test")
+    idf_component_register(
+        SRC_DIRS "anemometer-test"
+        INCLUDE_DIRS "anemometer-test" "control-node"
+    )
 else()
     # Equivalent to: +<base-station/> -<control-node/>
     idf_component_register(
