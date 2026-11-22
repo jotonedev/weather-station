@@ -35,6 +35,14 @@ jobs:
             ! -path 'lib/CC1101/*' \
             -exec "$CF" --dry-run --Werror {} +
 
+      - name: Check RAII lock guards
+        run: |
+          if grep -rnE 'port(ENTER|EXIT)_CRITICAL|xSemaphore(Take|Give)' src lib \
+            --exclude-dir=CC1101 --exclude='Sync.h'; then
+            echo "Raw FreeRTOS lock calls found outside lib/Sync/src/Sync.h"
+            exit 1
+          fi
+
   unit-tests:
     name: Native tests and clang-tidy
     runs-on: ubuntu-latest
@@ -72,11 +80,11 @@ jobs:
           set -o pipefail
           clang-tidy --config-file=.clang-tidy \
             lib/ARQ/src/ARQ.cpp lib/Weather/src/Weather.cpp lib/Ingest/src/Ingest.cpp \
-            lib/Outbox/src/Outbox.cpp \
+            lib/Outbox/src/Outbox.cpp lib/Sensors/src/Sensors.cpp \
             test/test_arq.cpp test/test_weather.cpp test/test_outbox.cpp test/test_ingest.cpp \
-            test/main.cpp \
+            test/test_sensors.cpp test/main.cpp \
             -- -std=gnu++17 \
-            -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src \
+            -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src -Ilib/Sensors/src \
             -I.pio/libdeps/native/googletest/googletest/include \
             -I.pio/libdeps/native/googletest/googlemock/include \
             2>&1 | tee tidy.log
