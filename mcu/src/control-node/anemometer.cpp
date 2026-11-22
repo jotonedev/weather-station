@@ -171,11 +171,11 @@ void Anemometer::update() {
         xSemaphoreGive(busMutex);
     }
 
+    portENTER_CRITICAL(&spinlock);
     if (shouldReadDiag) {
         bool hwMagnetOk = i2cOk && (status & 0x20) && !(status & 0x10);
         bool fullReady = hwMagnetOk && !(status & 0x08);
 
-        portENTER_CRITICAL(&spinlock);
         lastStatus = status;
         lastAgc = agc;
         sensorReady = fullReady;
@@ -186,15 +186,10 @@ void Anemometer::update() {
             double deltaAgc2 = static_cast<double>(agc) - agcMean;
             agcM2 += deltaAgc * deltaAgc2;
         }
-        portEXIT_CRITICAL(&spinlock);
     }
 
-    portENTER_CRITICAL(&spinlock);
     lastHeartbeatMs = nowMs;
-    bool readySnapshot = sensorReady;
-    portEXIT_CRITICAL(&spinlock);
-
-    bool isGlitch = !i2cOk || !readySnapshot;
+    bool isGlitch = !i2cOk || !sensorReady;
     int32_t delta = 0;
 
     // Kinematic outlier rejection: even if status didn't flag ML, reject impossible jumps

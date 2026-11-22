@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Preferences.h>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -165,14 +166,24 @@ void RainMeter::update() {
 
     // Periodic diagnostic query every 5000 ms or initial run
     bool shouldReadDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
+    uint8_t status = 0;
+    uint8_t agc = 0;
     if (shouldReadDiag) {
         lastDiagMs = nowMs;
-        uint8_t status = as5600.readStatus();
-        uint8_t agc = as5600.readAGC();
+        status = as5600.readStatus();
+        agc = as5600.readAGC();
+    }
+
+    bool shouldSaveCalibration = false;
+    uint16_t calRawRef = 0;
+    int32_t calRestLeft = 0;
+    int32_t calRestRight = 0;
+
+    portENTER_CRITICAL(&spinlock);
+    if (shouldReadDiag) {
         bool hwMagnetOk = (status & 0x20) && !(status & 0x10);
         bool fullReady = hwMagnetOk && !(status & 0x08);
 
-        portENTER_CRITICAL(&spinlock);
         lastStatus = status;
         lastAgc = agc;
         sensorReady = fullReady;
@@ -183,16 +194,10 @@ void RainMeter::update() {
             double deltaAgc2 = static_cast<double>(agc) - agcMean;
             agcM2 += deltaAgc * deltaAgc2;
         }
-        portEXIT_CRITICAL(&spinlock);
     }
 
-    portENTER_CRITICAL(&spinlock);
     lastHeartbeatMs = nowMs;
-    bool readySnapshot = sensorReady;
-    portEXIT_CRITICAL(&spinlock);
-
-    if (!readySnapshot) {
-        portENTER_CRITICAL(&spinlock);
+    if (!sensorReady) {
         glitchCount++;
         consecutiveGlitches++;
         updateRollingWindows(nowMs);
@@ -259,7 +264,10 @@ void RainMeter::update() {
                     restRight = std::max(clusterA, clusterB);
                     calibrated = true;
                     recomputeGeometry();
-                    saveNvsCalibration();
+                    shouldSaveCalibration = true;
+                    calRawRef = rawReference;
+                    calRestLeft = restLeft;
+                    calRestRight = restRight;
 
                     currentState =
                         (std::abs(currentPos - restLeft) < std::abs(currentPos - restRight))
@@ -355,6 +363,10 @@ void RainMeter::update() {
     updateRollingWindows(nowMs);
 
     portEXIT_CRITICAL(&spinlock);
+
+    if (shouldSaveCalibration) {
+        saveNvsCalibration(calRawRef, calRestLeft, calRestRight);
+    }
 }
 
 void RainMeter::recordTip(uint32_t nowMs) {
@@ -596,10 +608,12 @@ void RainMeter::clearCalibration() {
     hasClusterA = false;
     hasClusterB = false;
     currentState = RainMeterState::CALIBRATING;
-    preferences.begin("rainmeter", false);
-    preferences.putBool("cal", false);
-    preferences.end();
     portEXIT_CRITICAL(&spinlock);
+
+    Preferences prefs;
+    prefs.begin("rainmeter", false);
+    prefs.putBool("cal", false);
+    prefs.end();
 }
 
 void RainMeter::setMmPerTip(float mm) {
@@ -613,26 +627,28 @@ float RainMeter::getMmPerTip() const {
 }
 
 void RainMeter::loadNvsCalibration() {
-    preferences.begin("rainmeter", false);
-    bool isCal = preferences.getBool("cal", false);
+    Preferences prefs;
+    prefs.begin("rainmeter", false);
+    bool isCal = prefs.getBool("cal", false);
     if (isCal) {
-        rawReference = preferences.getUShort("rawRef", 0);
+        rawReference = prefs.getUShort("rawRef", 0);
         hasReference = true;
-        restLeft = preferences.getInt("restL", 0);
-        restRight = preferences.getInt("restR", 0);
+        restLeft = prefs.getInt("restL", 0);
+        restRight = prefs.getInt("restR", 0);
         calibrated = true;
         recomputeGeometry();
     }
-    preferences.end();
+    prefs.end();
 }
 
-void RainMeter::saveNvsCalibration() {
-    preferences.begin("rainmeter", false);
-    preferences.putBool("cal", true);
-    preferences.putUShort("rawRef", rawReference);
-    preferences.putInt("restL", restLeft);
-    preferences.putInt("restR", restRight);
-    preferences.end();
+void RainMeter::saveNvsCalibration(uint16_t rawRef, int32_t left, int32_t right) {
+    Preferences prefs;
+    prefs.begin("rainmeter", false);
+    prefs.putBool("cal", true);
+    prefs.putUShort("rawRef", rawRef);
+    prefs.putInt("restL", left);
+    prefs.putInt("restR", right);
+    prefs.end();
 }
 
 void RainMeter::loadRtcRollingBins() {

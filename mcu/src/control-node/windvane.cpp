@@ -119,14 +119,19 @@ void WindVane::update() {
 
     // Periodic diagnostic query every 5000 ms or initial run
     bool shouldReadDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
+    uint8_t status = 0;
+    uint8_t agc = 0;
     if (shouldReadDiag) {
         lastDiagMs = nowMs;
-        uint8_t status = as5600.readStatus();
-        uint8_t agc = as5600.readAGC();
+        status = as5600.readStatus();
+        agc = as5600.readAGC();
+    }
+
+    portENTER_CRITICAL(&spinlock);
+    if (shouldReadDiag) {
         bool hwMagnetOk = (status & 0x20) && !(status & 0x10);
         bool fullReady = hwMagnetOk && !(status & 0x08);
 
-        portENTER_CRITICAL(&spinlock);
         lastStatus = status;
         lastAgc = agc;
         sensorReady = fullReady;
@@ -137,16 +142,10 @@ void WindVane::update() {
             double deltaAgc2 = static_cast<double>(agc) - agcMean;
             agcM2 += deltaAgc * deltaAgc2;
         }
-        portEXIT_CRITICAL(&spinlock);
     }
 
-    portENTER_CRITICAL(&spinlock);
     lastHeartbeatMs = nowMs;
-    bool readySnapshot = sensorReady;
-    portEXIT_CRITICAL(&spinlock);
-
-    if (!readySnapshot) {
-        portENTER_CRITICAL(&spinlock);
+    if (!sensorReady) {
         glitchCount++;
         portEXIT_CRITICAL(&spinlock);
         return;

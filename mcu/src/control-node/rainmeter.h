@@ -4,7 +4,6 @@
 #include "constants.h"
 #include <AS5600.h>
 #include <Arduino.h>
-#include <Preferences.h>
 #include <Weather.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
@@ -79,7 +78,6 @@ class RainMeter {
   private:
     TwoWire& wire;
     AS5600 as5600;
-    Preferences preferences;
     uint32_t samplePeriodMs = 30;
 
     TaskHandle_t taskHandle = nullptr;
@@ -160,7 +158,7 @@ class RainMeter {
     }
 
     void loadNvsCalibration();
-    void saveNvsCalibration();
+    void saveNvsCalibration(uint16_t rawRef, int32_t left, int32_t right);
     void loadRtcRollingBins();
     void saveRtcRollingBins();
     void recordTip(uint32_t nowMs);
