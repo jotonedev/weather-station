@@ -7,6 +7,7 @@
 #include <esp_attr.h>
 #include <esp_rom_crc.h>
 #include <esp_task_wdt.h>
+#include <freertos/task.h>
 #include <time.h>
 
 #include <ARQ.h>
@@ -72,6 +73,15 @@ static Counters lastSavedCounters;
 // Heartbeats updated by background tasks and verified before feeding the hardware watchdog.
 static volatile uint32_t lastSenderHeartbeatMs = 0;
 static volatile uint32_t lastNtpHeartbeatMs = 0;
+static TaskHandle_t radioRxTaskHandle = nullptr;
+
+void IRAM_ATTR onRadioPacketIsr() {
+    if (radioRxTaskHandle != nullptr) {
+        BaseType_t higherPriorityWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(radioRxTaskHandle, &higherPriorityWoken);
+        portYIELD_FROM_ISR(higherPriorityWoken);
+    }
+}
 
 static BackoffPolicy backoff = {BACKOFF_MIN_MS, BACKOFF_MAX_MS, BACKOFF_MULTIPLIER, 0};
 
@@ -479,6 +489,9 @@ void outboxSenderTask(void*) {
 }
 
 void reinitRadio() {
+    radioRxTaskHandle = xTaskGetCurrentTaskHandle();
+    arq.setPacketInterruptCallback(onRadioPacketIsr);
+
     ARQ::Status radioStatus = arq.initializeCC1101();
     {
         MutexGuard lock(outboxMutex);
@@ -543,6 +556,9 @@ void setup() {
     lastRadioRxMs = nowMs;
     lastSenderHeartbeatMs = nowMs;
     lastNtpHeartbeatMs = nowMs;
+
+    radioRxTaskHandle = xTaskGetCurrentTaskHandle();
+    arq.setPacketInterruptCallback(onRadioPacketIsr);
 
     ARQ::Status radioStatus = arq.initializeCC1101();
     if (radioStatus != ARQ::STATUS_OK) {
@@ -612,7 +628,6 @@ void loop() {
             static_cast<unsigned long>(snap.bufferDropped));
     }
 
-    // Pace the receiver polling loop to reduce SPI bus chatter and Core 1 power draw
-    // while responding well within the 1000 ms ARQ ACK window.
-    vTaskDelay(pdMS_TO_TICKS(5));
+    // Block on GDO0 packet interrupt, waking every 500 ms for watchdog and fallback checks.
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500));
 }

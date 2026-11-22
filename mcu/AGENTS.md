@@ -55,4 +55,10 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 - Guard FreeRTOS critical sections and mutexes with `CriticalSection` and `MutexGuard` from `lib/Sync/src/Sync.h` instead of raw lock calls
 - Never call `Preferences`, I2C, mutexes, `delay`, or `Serial` inside `CriticalSection`, and keep sensor logic in `lib/Sensors/` pure
 - Keep FreeRTOS tasks and `loop()` non-blocking so task heartbeats reset the watchdog within `WATCHDOG_TIMEOUT_MS`
+- Keep `I2C_CLOCK_HZ` at 100 kHz in `src/control-node/constants.h` to preserve signal integrity over 1 m sensor cables
+- Keep active `AnemometerTask` polling at 10 ms to handle magnet wobble, and slow polling only during sustained standstill
+- Keep `loop()` idle pacing on Core 1 so Core 0 sensor tasks run unaffected
+- Do not enable WiFi modem sleep or WiFi duty-cycling on `base-station`
+- Do not rely on deep sleep or bare-module power changes on `control-node`
+- Defer `esp_pm` frequency and light-sleep verification on `control-node` until hardware assembly completes
 - Never commit real WiFi or ingest credentials in `src/base-station/config.h` and do not change `CALIBRATION_MODE` unintentionally

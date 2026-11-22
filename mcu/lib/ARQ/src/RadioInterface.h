@@ -58,6 +58,8 @@ class RadioInterface {
     virtual RadioStatus transmitWithCca(uint8_t* data, size_t length, uint8_t address,
                                         uint8_t maxAttempts) = 0;
     virtual void idle() = 0;
+    virtual void sleep() = 0;
+    virtual void wakeUp() = 0;
     virtual int8_t getRssi() = 0;
     virtual uint8_t getLqi() = 0;
     virtual bool isChannelClear() = 0;

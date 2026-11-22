@@ -54,6 +54,9 @@ void AnemometerState::reset(uint32_t nowMs) {
     historyCount_ = 0;
     filteredRpm_ = 0.0f;
     glitchCount_ = 0;
+    standstillTracking_ = false;
+    standstillSinceMs_ = 0;
+    isStandstill_ = false;
 }
 
 void AnemometerState::step(const AnemometerSample& sample) {
@@ -117,6 +120,8 @@ void AnemometerState::step(const AnemometerSample& sample) {
             }
             lastRawAngle_ = -1;
         }
+        standstillTracking_ = false;
+        isStandstill_ = false;
         return;
     }
 
@@ -127,6 +132,8 @@ void AnemometerState::step(const AnemometerSample& sample) {
         inDropout_ = false;
         lastRawAngle_ = sample.rawAngle;
         lastValidMicros_ = sample.nowUs;
+        standstillTracking_ = false;
+        isStandstill_ = false;
         return;
     }
 
@@ -138,6 +145,8 @@ void AnemometerState::step(const AnemometerSample& sample) {
         historyIdx_ = 0;
         historyCount_ = 1;
         history_[0] = {cumulativeCounts_, sample.nowUs};
+        standstillTracking_ = false;
+        isStandstill_ = false;
         return;
     }
 
@@ -177,6 +186,17 @@ void AnemometerState::step(const AnemometerSample& sample) {
         if (filteredRpm_ < 0.1f) {
             filteredRpm_ = 0.0f;
         }
+    }
+
+    if (filteredRpm_ == 0.0f && std::abs(delta) <= 3) {
+        if (!standstillTracking_) {
+            standstillTracking_ = true;
+            standstillSinceMs_ = sample.nowMs;
+        }
+        isStandstill_ = (sample.nowMs - standstillSinceMs_) >= kStandstillHoldMs;
+    } else {
+        standstillTracking_ = false;
+        isStandstill_ = false;
     }
 }
 

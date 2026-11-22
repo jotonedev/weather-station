@@ -91,11 +91,27 @@ void Anemometer::stopTask() {
 }
 
 void Anemometer::taskLoop(uint32_t samplePeriodMs) {
+    constexpr uint32_t kStandstillPeriodMs = 40;
+    const uint32_t activePeriodMs = (samplePeriodMs > 0) ? samplePeriodMs : 10;
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(samplePeriodMs);
+    bool wasStandstill = false;
     while (true) {
         update();
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        bool standstill = false;
+        {
+            CriticalSection lock(spinlock);
+            standstill = state.isStandstill();
+        }
+        if (standstill) {
+            wasStandstill = true;
+            vTaskDelay(pdMS_TO_TICKS(kStandstillPeriodMs));
+        } else {
+            if (wasStandstill) {
+                wasStandstill = false;
+                xLastWakeTime = xTaskGetTickCount();
+            }
+            vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(activePeriodMs));
+        }
     }
 }
 

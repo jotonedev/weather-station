@@ -231,6 +231,7 @@ void setup() {
         storeLastError("radio_init");
     } else {
         Serial.println("[OK] Radio initialized");
+        arq.sleep();
     }
 }
 
@@ -341,6 +342,7 @@ void dropReading(const char* reason) {
         reinitRadio();
         linkState.consecutiveDrops = 0;
     }
+    arq.sleep();
 }
 
 void sendAttempt() {
@@ -378,6 +380,7 @@ void completeAttempt(bool successful) {
         linkState.attempt = 0;
         linkState.phase = SendPhase::Idle;
         markHealthyBoot();
+        arq.sleep();
         return;
     }
 
@@ -397,6 +400,8 @@ void handleTx() {
             newReadingPending = false;
             linkState.attempt = 0;
             sendAttempt();
+        } else if (arq.getState() == ARQ::RadioState::IDLE) {
+            arq.sleep();
         }
         break;
 
@@ -487,6 +492,14 @@ void loop() {
 
     // Pace the main loop so Core 1 enters light idle between events while staying
     // responsive during active radio ACK polling.
-    uint32_t delayMs = (linkState.phase == SendPhase::Transmitting) ? 1u : 10u;
+    uint32_t delayMs = 10u;
+#if !CALIBRATION_MODE
+    if (linkState.phase == SendPhase::Transmitting) {
+        delayMs = 1u;
+    } else if (linkState.phase == SendPhase::Idle && !newReadingPending &&
+               pmsState == PmsState::Sleeping) {
+        delayMs = 500u;
+    }
+#endif
     vTaskDelay(pdMS_TO_TICKS(delayMs));
 }

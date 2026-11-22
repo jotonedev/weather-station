@@ -41,6 +41,8 @@ class CC1101RadioAdapter : public ARQ::RadioInterface {
     ARQ::RadioStatus transmitWithCca(uint8_t* data, size_t length, uint8_t address,
                                      uint8_t maxAttempts) override;
     void idle() override;
+    void sleep() override;
+    void wakeUp() override;
     int8_t getRssi() override;
     uint8_t getLqi() override;
     bool isChannelClear() override;

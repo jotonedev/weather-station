@@ -42,6 +42,8 @@ class MockRadio : public ARQ::RadioInterface {
     MOCK_METHOD(ARQ::RadioStatus, transmitWithCca, (uint8_t*, size_t, uint8_t, uint8_t),
                 (override));
     MOCK_METHOD(void, idle, (), (override));
+    MOCK_METHOD(void, sleep, (), (override));
+    MOCK_METHOD(void, wakeUp, (), (override));
     MOCK_METHOD(int8_t, getRssi, (), (override));
     MOCK_METHOD(uint8_t, getLqi, (), (override));
     MOCK_METHOD(bool, isChannelClear, (), (override));
@@ -627,4 +629,94 @@ TEST(Arq, DisableCcaUsesTransmitInsteadOfTransmitWithCca) {
     EXPECT_EQ(arq.poll(0), ARQ::STATUS_BUSY);
     EXPECT_EQ(arq.poll(1000), ARQ::STATUS_OK);
     EXPECT_EQ(arq.getTxSuccessCount(), 1u);
+}
+
+TEST(Arq, SleepAndAutoWakeOnSendOrReceive) {
+    NiceMock<MockRadio> mock;
+    ARQ::ARQ arq(mock, 1);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    EXPECT_CALL(mock, sleep()).Times(1);
+    EXPECT_EQ(arq.sleep(), ARQ::STATUS_OK);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::SLEEPING);
+
+    // Calling sleep() when already sleeping is a no-op.
+    EXPECT_EQ(arq.sleep(), ARQ::STATUS_OK);
+    EXPECT_EQ(arq.poll(), ARQ::STATUS_OK);
+
+    // startSendData() wakes the radio before transmitting.
+    EXPECT_CALL(mock, wakeUp()).Times(1);
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, _)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    uint8_t payload[4] = {1, 2, 3, 4};
+    ASSERT_EQ(arq.startSendData(payload, 4, 2), ARQ::STATUS_OK);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::WAITING_ACK);
+
+    // Cannot sleep while awaiting an ACK.
+    EXPECT_CALL(mock, sleep()).Times(0);
+    EXPECT_EQ(arq.sleep(), ARQ::STATUS_BUSY);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::WAITING_ACK);
+
+    // Complete ACK handshake, then sleep and wake via startReceiveData().
+    EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillOnce(Return(48));
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
+            (void)length;
+            fillFrame(data, read, 2, ARQ::ACK, 1, 0);
+            return ARQ::RadioStatus::Ok;
+        }));
+    EXPECT_CALL(mock, idle()).Times(1);
+    ASSERT_EQ(arq.poll(1000), ARQ::STATUS_OK);
+
+    EXPECT_CALL(mock, sleep()).Times(1);
+    ASSERT_EQ(arq.sleep(), ARQ::STATUS_OK);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::SLEEPING);
+
+    EXPECT_CALL(mock, wakeUp()).Times(1);
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    ASSERT_EQ(arq.startReceiveData(1), ARQ::STATUS_OK);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::RECEIVING);
+}
+
+namespace {
+
+int gTestIsrCallbackCount = 0;
+
+void recordPacketInterrupt() {
+    gTestIsrCallbackCount++;
+}
+
+} // namespace
+
+TEST(Arq, PacketInterruptCallbackFiresOnIsr) {
+    NiceMock<MockRadio> mock;
+    void (*capturedIsr)() = nullptr;
+    ON_CALL(mock, setReceiveAction(_, ARQ::GdoPin::Gdo0))
+        .WillByDefault(Invoke([&](void (*fn)(), ARQ::GdoPin pin) {
+            (void)pin;
+            capturedIsr = fn;
+        }));
+
+    gTestIsrCallbackCount = 0;
+    ARQ::ARQ arq(mock, 2);
+    arq.setPacketInterruptCallback(recordPacketInterrupt);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+    ASSERT_EQ(arq.startReceiveData(2), ARQ::STATUS_OK);
+    ASSERT_NE(capturedIsr, nullptr);
+
+    capturedIsr();
+    EXPECT_EQ(gTestIsrCallbackCount, 1);
+
+    EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillOnce(Return(0));
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
+            (void)length;
+            fillFrame(data, read, 1, ARQ::DATA_FRAME, 7, 4);
+            return ARQ::RadioStatus::Ok;
+        }));
+    EXPECT_CALL(mock, transmit(_, 47, 1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(2)).WillOnce(Return(ARQ::RadioStatus::Ok));
+
+    EXPECT_EQ(arq.poll(), ARQ::STATUS_OK);
+    EXPECT_TRUE(arq.available());
 }

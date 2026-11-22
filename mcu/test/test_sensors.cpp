@@ -420,3 +420,99 @@ TEST(Sensors, RainMeterRollingWindowsAndDryDecay) {
     }
     EXPECT_FLOAT_EQ(meter.rainfall24h(), 0.0f);
 }
+
+TEST(Sensors, AnemometerStandstillDetectionAndInstantWake) {
+    sensors::AnemometerState state;
+    state.reset(0);
+    EXPECT_FALSE(state.isStandstill());
+
+    uint32_t nowMs = 0;
+    uint32_t nowUs = 0;
+    uint16_t raw = 1000;
+
+    // Spin briefly so filteredRpm_ > 0, confirming standstill stays false.
+    for (int i = 0; i < 20; ++i) {
+        sensors::AnemometerSample s;
+        s.nowMs = nowMs;
+        s.nowUs = nowUs;
+        s.rawAngle = raw;
+        s.i2cOk = true;
+        s.hasDiag = (i == 0);
+        s.diagStatus = kMagnetOk;
+        s.diagAgc = 80;
+        state.step(s);
+        nowMs += 10;
+        nowUs += 10000;
+        raw = static_cast<uint16_t>((raw + 100u) & 0x0FFFu);
+    }
+    EXPECT_FALSE(state.isStandstill());
+
+    // Stop moving; decay to 0.0 RPM first, then hold below 3000 ms.
+    for (int i = 0; i < 45; ++i) {
+        sensors::AnemometerSample s;
+        s.nowMs = nowMs;
+        s.nowUs = nowUs;
+        s.rawAngle = raw;
+        s.i2cOk = true;
+        state.step(s);
+        nowMs += 10;
+        nowUs += 10000;
+    }
+    ASSERT_FLOAT_EQ(state.rpm(), 0.0f);
+
+    for (int i = 0; i < 60; ++i) {
+        sensors::AnemometerSample s;
+        s.nowMs = nowMs;
+        s.nowUs = nowUs;
+        s.rawAngle = static_cast<uint16_t>(raw + (i % 2));
+        s.i2cOk = true;
+        state.step(s);
+        nowMs += 40;
+        nowUs += 40000;
+    }
+    // 60 * 40 ms = 2400 ms < 3000 ms threshold.
+    EXPECT_FALSE(state.isStandstill());
+
+    // Advance past 3000 ms of sustained standstill jitter.
+    for (int i = 0; i < 25; ++i) {
+        sensors::AnemometerSample s;
+        s.nowMs = nowMs;
+        s.nowUs = nowUs;
+        s.rawAngle = static_cast<uint16_t>(raw + (i % 2));
+        s.i2cOk = true;
+        state.step(s);
+        nowMs += 40;
+        nowUs += 40000;
+    }
+    EXPECT_TRUE(state.isStandstill());
+
+    // A single sample with |delta| > 3 snaps out of standstill immediately.
+    sensors::AnemometerSample wake;
+    wake.nowMs = nowMs;
+    wake.nowUs = nowUs;
+    wake.rawAngle = static_cast<uint16_t>((raw + 5u) & 0x0FFFu);
+    wake.i2cOk = true;
+    state.step(wake);
+    EXPECT_FALSE(state.isStandstill());
+
+    // Re-enter standstill, then verify an I2C glitch clears standstill.
+    raw = wake.rawAngle;
+    for (int i = 0; i < 90; ++i) {
+        nowMs += 40;
+        nowUs += 40000;
+        sensors::AnemometerSample s;
+        s.nowMs = nowMs;
+        s.nowUs = nowUs;
+        s.rawAngle = raw;
+        s.i2cOk = true;
+        state.step(s);
+    }
+    ASSERT_TRUE(state.isStandstill());
+
+    sensors::AnemometerSample fault;
+    fault.nowMs = nowMs + 40;
+    fault.nowUs = nowUs + 40000;
+    fault.i2cOk = false;
+    state.step(fault);
+    EXPECT_FALSE(state.isStandstill());
+}

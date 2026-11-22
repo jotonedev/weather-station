@@ -120,6 +120,11 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
         return STATUS_INVALID_SIZE;
     }
 
+    if (currentState == RadioState::SLEEPING) {
+        radio.wakeUp();
+        currentState = RadioState::IDLE;
+    }
+
     // If currently listening, gracefully put radio to idle first
     if (currentState == RadioState::RECEIVING) {
         radio.idle();
@@ -150,7 +155,7 @@ Status ARQ::enterRxMode() {
 }
 
 Status ARQ::startReceiveData(address_t localAddress) {
-    if (currentState != RadioState::IDLE) {
+    if (currentState != RadioState::IDLE && currentState != RadioState::SLEEPING) {
         return STATUS_BUSY;
     }
     this->localAddress = localAddress;
@@ -158,6 +163,10 @@ Status ARQ::startReceiveData(address_t localAddress) {
 }
 
 Status ARQ::startReceiveData() {
+    if (currentState == RadioState::SLEEPING) {
+        radio.wakeUp();
+        currentState = RadioState::IDLE;
+    }
     if (currentState != RadioState::IDLE) {
         return STATUS_BUSY;
     }
@@ -175,9 +184,23 @@ Status ARQ::startReceiveData() {
     return STATUS_OK;
 }
 
+Status ARQ::sleep() {
+    if (currentState == RadioState::SLEEPING) {
+        return STATUS_OK;
+    }
+    if (currentState != RadioState::IDLE && currentState != RadioState::RECEIVING) {
+        return STATUS_BUSY;
+    }
+
+    radio.sleep();
+    currentState = RadioState::SLEEPING;
+    return STATUS_OK;
+}
+
 Status ARQ::poll(uint32_t ackTimeoutMs) {
     switch (currentState) {
     case RadioState::IDLE:
+    case RadioState::SLEEPING:
         return STATUS_OK;
     case RadioState::WAITING_ACK:
         return handleStateWaitingAck(ackTimeoutMs);
@@ -448,6 +471,9 @@ void ARQ::isrHandler() {
 
 void ARQ::handleInterrupt() {
     packetDone = true;
+    if (packetInterruptCallback != nullptr) {
+        packetInterruptCallback();
+    }
 }
 
 } // namespace ARQ

@@ -47,6 +47,7 @@ class AnemometerState {
     void resetStats() { diag_.resetStats(); }
 
     bool ready() const { return diag_.sensorReady; }
+    bool isStandstill() const { return isStandstill_; }
     uint8_t lastStatus() const { return diag_.lastStatus; }
     uint8_t lastAgc() const { return diag_.lastAgc; }
     uint16_t agcVariance() const { return diag_.agcVariance(); }
@@ -79,6 +80,11 @@ class AnemometerState {
     float speedFactor_ = 0.259f;
     float windOffset_ = 0.0f;
     uint32_t glitchCount_ = 0;
+
+    static constexpr uint32_t kStandstillHoldMs = 3000u;
+    bool standstillTracking_ = false;
+    uint32_t standstillSinceMs_ = 0;
+    bool isStandstill_ = false;
 };
 
 struct WindVaneSample {

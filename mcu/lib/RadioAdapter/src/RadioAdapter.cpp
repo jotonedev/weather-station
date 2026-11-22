@@ -128,6 +128,15 @@ void CC1101RadioAdapter::idle() {
     radio_.idle();
 }
 
+void CC1101RadioAdapter::sleep() {
+    radio_.idle();
+    radio_.sendCmd(CC1101_CMD_PWD);
+}
+
+void CC1101RadioAdapter::wakeUp() {
+    radio_.wakeUp();
+}
+
 int8_t CC1101RadioAdapter::getRssi() {
     return radio_.getRSSI();
 }

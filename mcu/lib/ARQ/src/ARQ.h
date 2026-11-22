@@ -43,6 +43,7 @@ enum class RadioState {
     WAITING_ACK,
     RECEIVING,
     SENDING_ACK,
+    SLEEPING,
 };
 
 /**
@@ -81,6 +82,9 @@ class ARQ {
 
     // Main unified polling loop called inside void loop()
     Status poll(uint32_t ackTimeoutMs = 1000);
+    Status sleep();
+    using InterruptCallback = void (*)();
+    void setPacketInterruptCallback(InterruptCallback cb) { packetInterruptCallback = cb; }
 
     // Internal received message access
     bool available() const { return hasNewMessage; }
@@ -150,6 +154,7 @@ class ARQ {
     static ARQ* instance;
     static void isrHandler();
     void handleInterrupt();
+    InterruptCallback packetInterruptCallback = nullptr;
 };
 
 } // namespace ARQ
