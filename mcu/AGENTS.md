@@ -23,10 +23,11 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
   ```sh
   clang-tidy --config-file=.clang-tidy \
     lib/ARQ/src/ARQ.cpp lib/Weather/src/Weather.cpp lib/Ingest/src/Ingest.cpp \
-    lib/Outbox/src/Outbox.cpp \
-    test/test_arq.cpp test/test_weather.cpp test/test_outbox.cpp test/test_ingest.cpp test/main.cpp \
+    lib/Outbox/src/Outbox.cpp lib/Sensors/src/Sensors.cpp \
+    test/test_arq.cpp test/test_weather.cpp test/test_outbox.cpp test/test_ingest.cpp \
+    test/test_sensors.cpp test/main.cpp \
     -- -std=gnu++17 \
-    -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src \
+    -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src -Ilib/Sensors/src \
     -I.pio/libdeps/native/googletest/googletest/include \
     -I.pio/libdeps/native/googletest/googlemock/include
   ```
@@ -35,7 +36,8 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 
 ## Library portability and protocol
 
-- Keep `lib/ARQ`, `lib/Weather`, `lib/Ingest`, and `lib/Outbox` free of Arduino and ESP32 headers so `[env:native]` tests compile without hardware
+- Keep `lib/ARQ`, `lib/Weather`, `lib/Ingest`, `lib/Outbox`, and `lib/Sensors` free of Arduino and ESP32 headers so `[env:native]` tests compile without hardware
+- Keep FreeRTOS guards in `lib/Sync/src/Sync.h` header-only and unused by native libraries or tests
 - `lib/CC1101` and `lib/RadioAdapter` are ignored under `[env:native]`
 - Changes to `WeatherData` or packet encoding in `lib/Weather/` affect both `control-node` and `base-station`
 
@@ -50,5 +52,7 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 
 - Do not assign ESP32-S3 reserved pins listed in `src/control-node/constants.h` (GPIO 26-37 for Flash and PSRAM, GPIO 19-20 for USB, strapping pins 0, 3, 45, 46, and UART0 pins 43-44)
 - Guard every access to shared `Wire` between `AnemometerTask` (Core 0) and `loop()` (Core 1) with `wireMutex`
+- Guard FreeRTOS critical sections and mutexes with `CriticalSection` and `MutexGuard` from `lib/Sync/src/Sync.h` instead of raw lock calls
+- Never call `Preferences`, I2C, mutexes, `delay`, or `Serial` inside `CriticalSection`, and keep sensor logic in `lib/Sensors/` pure
 - Keep FreeRTOS tasks and `loop()` non-blocking so task heartbeats reset the watchdog within `WATCHDOG_TIMEOUT_MS`
 - Never commit real WiFi or ingest credentials in `src/base-station/config.h` and do not change `CALIBRATION_MODE` unintentionally

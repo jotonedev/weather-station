@@ -3,6 +3,8 @@
 
 #include <AS5600.h>
 #include <Arduino.h>
+#include <Sensors.h>
+#include <Sync.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -63,45 +65,10 @@ class Anemometer {
     static void taskTrampoline(void* arg);
     void taskLoop(uint32_t samplePeriodMs);
 
-    portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
+    mutable portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
-    bool initialized = false;
-    bool sensorReady = false;
-    uint32_t lastHeartbeatMs = 0;
-    int32_t lastRawAngle = -1;
-    uint32_t lastValidMicros = 0;
-    int64_t cumulativeCounts = 0;
-    uint32_t consecutiveGlitches = 0;
-    bool inDropout = false;
-    uint32_t dropoutStartMicros = 0;
-    int64_t dropoutStartCounts = 0;
-    int8_t rotationDirection = 1;
-
-    // Sliding window velocity estimation (15 samples @ 10ms = 150ms window)
-    static constexpr size_t WINDOW_SIZE = 15;
-    struct Sample {
-        int64_t counts;
-        uint32_t timeUs;
-    };
-    Sample history[WINDOW_SIZE];
-    size_t historyIdx = 0;
-    size_t historyCount = 0;
-
-    // Filtered velocity
-    float filteredRpm = 0.0f;
-    float speedFactor = 0.259f; // m/s per RPM (calibration default)
-    float windOffset = 0.0f;    // m/s (calibration offset for anemometer startup)
-
-    // Status & diagnostic counters
-    uint8_t lastStatus = 0;
-    uint8_t lastAgc = 0;
-    uint32_t glitchCount = 0;
     uint32_t lastDiagMs = 0;
-
-    // Running statistics for AGC variance (Welford's algorithm)
-    uint32_t agcCount = 0;
-    double agcMean = 0.0;
-    double agcM2 = 0.0;
+    sensors::AnemometerState state;
 };
 
 #endif // ANEMOMETER_H

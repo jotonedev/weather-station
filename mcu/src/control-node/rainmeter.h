@@ -4,23 +4,14 @@
 #include "constants.h"
 #include <AS5600.h>
 #include <Arduino.h>
+#include <Sensors.h>
+#include <Sync.h>
 #include <Weather.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-/**
- * @brief Rain Meter Operational & Mechanical States
- */
-enum class RainMeterState : uint8_t {
-    UNINITIALIZED = 0,
-    CALIBRATING,      // Discovering resting end-stops
-    REST_LEFT,        // Resting steadily on left stop
-    TRANSIT_TO_RIGHT, // In motion towards right stop
-    REST_RIGHT,       // Resting steadily on right stop
-    TRANSIT_TO_LEFT,  // In motion towards left stop
-    JAMMED            // Bucket stuck mid-transit (leaf/spiderweb/ice)
-};
+using sensors::RainMeterState;
 
 class RainMeter {
   public:
@@ -84,86 +75,15 @@ class RainMeter {
     static void taskTrampoline(void* arg);
     void taskLoop(uint32_t samplePeriodMs);
 
-    portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
+    mutable portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
-    bool initialized = false;
-    bool sensorReady = false;
-    uint32_t lastHeartbeatMs = 0;
-    float mmPerTip = RAIN_METER_CALIBRATION_MM_PER_TIP;
-
-    // Angular tracking & unwrap logic
-    bool hasReference = false;
-    uint16_t rawReference = 0;
-    int32_t currentPos = 0; // Continuous unwrapped position relative to rawReference
-    int32_t prevPos = 0;
-    float filteredPos = 0.0f;
-    uint32_t stillCount = 0; // Counter for stationary samples
-
-    // Auto-calibration state & resting clusters
-    bool calibrated = false;
-    int32_t restLeft = 0;
-    int32_t restRight = 0;
-    float centerPoint = 0.0f;
-    float hysteresis = 6.0f;
-    float travelSpan = 0.0f;
-    bool hasClusterA = false;
-    bool hasClusterB = false;
-    int32_t clusterA = 0;
-    int32_t clusterB = 0;
-
-    // State machine
-    RainMeterState currentState = RainMeterState::UNINITIALIZED;
-    uint32_t transitStartMs = 0;
-    bool tiltWarning = false;
-    float tiltDegrees = 0.0f;
-    bool jammed = false;
-
-    // Rain rate & time tracking
-    uint32_t lastTipMs = 0;
-    uint32_t prevTipMs = 0;
-    float currentRainRate = 0.0f;
-
-    // Sliding window accumulation
-    // 60 bins of 1-minute rain for 1-hour total
-    float minuteBins[60] = {0.0f};
-    size_t currentMinuteIdx = 0;
-    uint32_t lastMinuteTickMs = 0;
-
-    // 24 bins of 1-hour rain for 24-hour total
-    float hourBins[24] = {0.0f};
-    size_t currentHourIdx = 0;
-    uint32_t lastHourTickMs = 0;
-
-    // Sensor health & diagnostics (matching Anemometer)
-    uint8_t lastStatus = 0;
-    uint8_t lastAgc = 0;
-    uint32_t glitchCount = 0;
-    uint32_t consecutiveGlitches = 0;
     uint32_t lastDiagMs = 0;
+    sensors::RainMeterLogic logic;
 
-    // Welford's algorithm for AGC variance
-    uint32_t agcCount = 0;
-    double agcMean = 0.0;
-    double agcM2 = 0.0;
-
-    // Helper functions
-    static inline int32_t shortestAngleDiff(uint16_t current, uint16_t reference) {
-        int32_t diff = static_cast<int32_t>(current) - static_cast<int32_t>(reference);
-        if (diff > 2048) {
-            diff -= 4096;
-        } else if (diff < -2048) {
-            diff += 4096;
-        }
-        return diff;
-    }
-
-    void loadNvsCalibration();
-    void saveNvsCalibration(uint16_t rawRef, int32_t left, int32_t right);
+    bool loadNvsCalibration(sensors::RainCalibration& out);
+    void saveNvsCalibration(const sensors::RainCalibration& cal);
     void loadRtcRollingBins();
     void saveRtcRollingBins();
-    void recordTip(uint32_t nowMs);
-    void updateRollingWindows(uint32_t nowMs);
-    void recomputeGeometry();
 };
 
 #endif // RAIN_METER_H

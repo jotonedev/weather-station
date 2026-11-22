@@ -7,6 +7,8 @@
 - `Outbox` - ring buffer for readings awaiting delivery
 - `Ingest` - JSON payload builders
 - `RadioAdapter` - bridges the ARQ radio interface to the CC1101 driver
+- `Sensors` - pure sensor filters and state machines for wind and rain
+- `Sync` - header-only RAII wrappers for FreeRTOS spinlocks and mutexes
 
 ## Sensors
 

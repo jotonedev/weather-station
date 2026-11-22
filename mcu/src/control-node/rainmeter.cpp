@@ -1,7 +1,5 @@
 #include <Arduino.h>
 #include <Preferences.h>
-#include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <esp_attr.h>
 #include <esp_rom_crc.h>
@@ -33,7 +31,7 @@ uint32_t computeRainRtcCrc(const RainRtcState& state) {
 } // namespace
 
 RainMeter::RainMeter(TwoWire& wire, float mmPerTip)
-    : wire(wire), as5600(&wire), mmPerTip(mmPerTip) {}
+    : wire(wire), as5600(&wire), logic(mmPerTip) {}
 
 RainMeter::~RainMeter() {
     stopTask();
@@ -52,39 +50,23 @@ void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
     as5600.setPowerMode(AS5600_POWERMODE_LOW2);
     as5600.setWatchDog(AS5600_WATCHDOG_ON);
 
-    loadNvsCalibration();
+    sensors::RainCalibration cal;
+    const bool hasCal = loadNvsCalibration(cal);
 
-    uint32_t nowMs = millis();
-    portENTER_CRITICAL(&spinlock);
-    initialized = true;
-    sensorReady = false;
-    lastHeartbeatMs = nowMs;
-    currentPos = 0;
-    prevPos = 0;
-    filteredPos = 0.0f;
-    stillCount = 0;
-    currentState = calibrated ? RainMeterState::REST_LEFT : RainMeterState::CALIBRATING;
-    transitStartMs = 0;
-    lastTipMs = 0;
-    prevTipMs = 0;
-    lastMinuteTickMs = nowMs;
-    lastHourTickMs = nowMs;
-    glitchCount = 0;
-    consecutiveGlitches = 0;
+    const uint32_t nowMs = millis();
+    CriticalSection lock(spinlock);
     lastDiagMs = 0;
-    agcCount = 0;
-    agcMean = 0.0;
-    agcM2 = 0.0;
+    if (hasCal) {
+        logic.applyCalibration(cal);
+    }
+    logic.reset(nowMs);
     loadRtcRollingBins();
-    portEXIT_CRITICAL(&spinlock);
 }
 
 bool RainMeter::ready() {
     if (taskHandle != nullptr) {
-        portENTER_CRITICAL(&spinlock);
-        bool r = sensorReady;
-        portEXIT_CRITICAL(&spinlock);
-        return r;
+        CriticalSection lock(spinlock);
+        return logic.ready();
     }
     return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
            !as5600.magnetTooWeak();
@@ -138,477 +120,136 @@ void RainMeter::taskLoop(uint32_t samplePeriodMs) {
     while (true) {
         update();
         bool resting = false;
-        portENTER_CRITICAL(&spinlock);
-        resting = (currentState == RainMeterState::REST_LEFT ||
-                   currentState == RainMeterState::REST_RIGHT) &&
-                  (stillCount >= 4);
-        portEXIT_CRITICAL(&spinlock);
-        uint32_t delayMs = resting ? kRestPeriodMs : activePeriodMs;
+        {
+            CriticalSection lock(spinlock);
+            resting = logic.isResting();
+        }
+        const uint32_t delayMs = resting ? kRestPeriodMs : activePeriodMs;
         vTaskDelay(pdMS_TO_TICKS(delayMs));
     }
 }
 
 void RainMeter::update() {
-    uint32_t nowMs = millis();
-    uint16_t raw = as5600.readAngle();
-    bool i2cOk = (as5600.lastError() == AS5600_OK);
+    const uint32_t nowMs = millis();
+    sensors::RainMeterSample sample;
+    sample.nowMs = nowMs;
+    sample.samplePeriodMs = samplePeriodMs;
+    sample.rawAngle = as5600.readAngle();
+    sample.i2cOk = (as5600.lastError() == AS5600_OK);
 
-    if (!i2cOk) {
-        portENTER_CRITICAL(&spinlock);
-        lastHeartbeatMs = nowMs;
-        sensorReady = false;
-        glitchCount++;
-        consecutiveGlitches++;
-        updateRollingWindows(nowMs);
-        portEXIT_CRITICAL(&spinlock);
-        return;
-    }
-
-    // Periodic diagnostic query every 5000 ms or initial run
-    bool shouldReadDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
-    uint8_t status = 0;
-    uint8_t agc = 0;
-    if (shouldReadDiag) {
-        lastDiagMs = nowMs;
-        status = as5600.readStatus();
-        agc = as5600.readAGC();
-    }
-
-    bool shouldSaveCalibration = false;
-    uint16_t calRawRef = 0;
-    int32_t calRestLeft = 0;
-    int32_t calRestRight = 0;
-
-    portENTER_CRITICAL(&spinlock);
-    if (shouldReadDiag) {
-        bool hwMagnetOk = (status & 0x20) && !(status & 0x10);
-        bool fullReady = hwMagnetOk && !(status & 0x08);
-
-        lastStatus = status;
-        lastAgc = agc;
-        sensorReady = fullReady;
-        if (status & 0x20) {
-            agcCount++;
-            double deltaAgc = static_cast<double>(agc) - agcMean;
-            agcMean += deltaAgc / agcCount;
-            double deltaAgc2 = static_cast<double>(agc) - agcMean;
-            agcM2 += deltaAgc * deltaAgc2;
+    if (sample.i2cOk) {
+        sample.hasDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
+        if (sample.hasDiag) {
+            lastDiagMs = nowMs;
+            sample.diagStatus = as5600.readStatus();
+            sample.diagAgc = as5600.readAGC();
         }
     }
 
-    lastHeartbeatMs = nowMs;
-    if (!sensorReady) {
-        glitchCount++;
-        consecutiveGlitches++;
-        updateRollingWindows(nowMs);
-        portEXIT_CRITICAL(&spinlock);
-        return;
-    }
-    consecutiveGlitches = 0;
-
-    // Establish reference angle on first valid reading
-    if (!hasReference) {
-        rawReference = raw;
-        hasReference = true;
-        currentPos = 0;
-        prevPos = 0;
-        filteredPos = 0.0f;
-    } else {
-        // Continuous unwrapped angular position [-2048, +2047] relative to rawReference
-        currentPos = shortestAngleDiff(raw, rawReference);
-    }
-
-    // Kinematic outlier rejection: impossible mechanical jump (> 350 counts / 20ms)
-    int32_t step = currentPos - prevPos;
-    if (std::abs(step) > 350) {
-        glitchCount++;
-        portEXIT_CRITICAL(&spinlock);
-        return;
-    }
-    prevPos = currentPos;
-
-    // Exponential filter for smooth thresholding
-    filteredPos = 0.35f * static_cast<float>(currentPos) + 0.65f * filteredPos;
-
-    // Stationarity detection: motionless for >= 200 ms (10 samples @ 20ms)
-    if (std::abs(step) <= 2) {
-        if (stillCount < 1000) {
-            stillCount++;
-        }
-    } else {
-        stillCount = 0;
-    }
-    uint32_t stillThreshold = (samplePeriodMs > 0) ? (250 / samplePeriodMs) : 8;
-    if (stillThreshold < 4) {
-        stillThreshold = 4;
-    }
-    bool isStill = (stillCount >= stillThreshold);
-
-    // =========================================================================
-    // Auto-Calibration & State Machine
-    // =========================================================================
-    if (!calibrated) {
-        currentState = RainMeterState::CALIBRATING;
-        if (isStill) {
-            if (!hasClusterA) {
-                clusterA = currentPos;
-                hasClusterA = true;
-            } else if (!hasClusterB) {
-                int32_t dist = std::abs(currentPos - clusterA);
-                // At least 20 counts (~1.75 degrees) separation to constitute distinct resting
-                // positions
-                if (dist >= 20) {
-                    clusterB = currentPos;
-                    hasClusterB = true;
-                    restLeft = std::min(clusterA, clusterB);
-                    restRight = std::max(clusterA, clusterB);
-                    calibrated = true;
-                    recomputeGeometry();
-                    shouldSaveCalibration = true;
-                    calRawRef = rawReference;
-                    calRestLeft = restLeft;
-                    calRestRight = restRight;
-
-                    currentState =
-                        (std::abs(currentPos - restLeft) < std::abs(currentPos - restRight))
-                            ? RainMeterState::REST_LEFT
-                            : RainMeterState::REST_RIGHT;
-                } else {
-                    // Refine cluster A
-                    clusterA = static_cast<int32_t>(0.90f * clusterA + 0.10f * currentPos);
-                }
-            }
-        }
-    } else {
-        // Active calibrated operation
-        switch (currentState) {
-        case RainMeterState::REST_LEFT:
-            // Adaptive resting stop tracking while stationary
-            if (isStill && std::abs(currentPos - restLeft) < travelSpan * 0.30f) {
-                restLeft = static_cast<int32_t>(0.99f * restLeft + 0.01f * currentPos);
-                recomputeGeometry();
-            }
-            // Check if tipped past center crest + hysteresis
-            if (filteredPos > (centerPoint + hysteresis)) {
-                currentState = RainMeterState::TRANSIT_TO_RIGHT;
-                transitStartMs = nowMs;
-            }
-            break;
-
-        case RainMeterState::TRANSIT_TO_RIGHT:
-            // Check for successful landing in Right basin
-            if (filteredPos >= (static_cast<float>(restRight) - travelSpan * 0.25f)) {
-                recordTip(nowMs);
-                currentState = RainMeterState::REST_RIGHT;
-                jammed = false;
-            } else if (filteredPos < (centerPoint - hysteresis)) {
-                // Wind shake rejection: rocked past crest but fell back without reaching right stop
-                currentState = RainMeterState::REST_LEFT;
-            } else if (nowMs - transitStartMs > 2000) {
-                // Stuck mid-air for > 2 seconds
-                currentState = RainMeterState::JAMMED;
-                jammed = true;
-            }
-            break;
-
-        case RainMeterState::REST_RIGHT:
-            // Adaptive resting stop tracking while stationary
-            if (isStill && std::abs(currentPos - restRight) < travelSpan * 0.30f) {
-                restRight = static_cast<int32_t>(0.99f * restRight + 0.01f * currentPos);
-                recomputeGeometry();
-            }
-            // Check if tipped past center crest - hysteresis
-            if (filteredPos < (centerPoint - hysteresis)) {
-                currentState = RainMeterState::TRANSIT_TO_LEFT;
-                transitStartMs = nowMs;
-            }
-            break;
-
-        case RainMeterState::TRANSIT_TO_LEFT:
-            // Check for successful landing in Left basin
-            if (filteredPos <= (static_cast<float>(restLeft) + travelSpan * 0.25f)) {
-                recordTip(nowMs);
-                currentState = RainMeterState::REST_LEFT;
-                jammed = false;
-            } else if (filteredPos > (centerPoint + hysteresis)) {
-                // Wind shake rejection: rocked past crest but fell back to right stop
-                currentState = RainMeterState::REST_RIGHT;
-            } else if (nowMs - transitStartMs > 2000) {
-                // Stuck mid-air for > 2 seconds
-                currentState = RainMeterState::JAMMED;
-                jammed = true;
-            }
-            break;
-
-        case RainMeterState::JAMMED:
-            // Check if blockage cleared and bucket reached either resting basin
-            if (isStill) {
-                if (std::abs(currentPos - restLeft) < travelSpan * 0.30f) {
-                    currentState = RainMeterState::REST_LEFT;
-                    jammed = false;
-                } else if (std::abs(currentPos - restRight) < travelSpan * 0.30f) {
-                    currentState = RainMeterState::REST_RIGHT;
-                    jammed = false;
-                }
-            }
-            break;
-
-        default:
-            currentState = RainMeterState::CALIBRATING;
-            break;
+    sensors::RainMeterStepResult result;
+    {
+        CriticalSection lock(spinlock);
+        result = logic.step(sample);
+        if (result.saveRtcBins) {
+            saveRtcRollingBins();
         }
     }
 
-    // Advance rolling accumulation windows
-    updateRollingWindows(nowMs);
-
-    portEXIT_CRITICAL(&spinlock);
-
-    if (shouldSaveCalibration) {
-        saveNvsCalibration(calRawRef, calRestLeft, calRestRight);
-    }
-}
-
-void RainMeter::recordTip(uint32_t nowMs) {
-    float rawRate = 0.0f;
-    if (lastTipMs > 0) {
-        float dtSeconds = (nowMs - lastTipMs) / 1000.0f;
-        if (dtSeconds > 0.1f && dtSeconds < 3600.0f) {
-            rawRate = (3600.0f / dtSeconds) * mmPerTip;
-            currentRainRate = 0.30f * rawRate + 0.70f * currentRainRate;
-        }
-    } else {
-        currentRainRate = mmPerTip;
-    }
-
-    // Dynamic siphon & transit loss compensation at high rain rates:
-    // When water is pouring heavily (>20 mm/h), water enters the bucket during the 50-80ms tip
-    // transit.
-    float rateClamped = std::min(currentRainRate, 150.0f);
-    float dynamicVolume = mmPerTip * (1.0f + 0.0015f * rateClamped);
-
-    minuteBins[currentMinuteIdx] += dynamicVolume;
-    hourBins[currentHourIdx] += dynamicVolume;
-
-    prevTipMs = lastTipMs;
-    lastTipMs = nowMs;
-    saveRtcRollingBins();
-}
-
-void RainMeter::updateRollingWindows(uint32_t nowMs) {
-    bool rotated = false;
-
-    // 1-minute bucket rotation (drift-free step increments, bounded to 60 steps)
-    size_t minSteps = 0;
-    while (nowMs - lastMinuteTickMs >= 60000uL && minSteps < 60) {
-        currentMinuteIdx = (currentMinuteIdx + 1) % 60;
-        minuteBins[currentMinuteIdx] = 0.0f;
-        lastMinuteTickMs += 60000uL;
-        minSteps++;
-        rotated = true;
-
-        // Exponential decay of instantaneous rain rate when dry for > 10 min
-        if (nowMs - lastTipMs > 600000uL) {
-            currentRainRate *= 0.80f;
-            if (currentRainRate < 0.05f) {
-                currentRainRate = 0.0f;
-            }
-        }
-    }
-    if (nowMs - lastMinuteTickMs >= 60000uL) {
-        lastMinuteTickMs = nowMs;
-    }
-
-    // 1-hour bucket rotation (drift-free step increments, bounded to 24 steps)
-    size_t hourSteps = 0;
-    while (nowMs - lastHourTickMs >= 3600000uL && hourSteps < 24) {
-        currentHourIdx = (currentHourIdx + 1) % 24;
-        hourBins[currentHourIdx] = 0.0f;
-        lastHourTickMs += 3600000uL;
-        hourSteps++;
-        rotated = true;
-    }
-    if (nowMs - lastHourTickMs >= 3600000uL) {
-        lastHourTickMs = nowMs;
-    }
-
-    if (rotated) {
-        saveRtcRollingBins();
-    }
-}
-
-void RainMeter::recomputeGeometry() {
-    if (restLeft > restRight) {
-        std::swap(restLeft, restRight);
-    }
-    travelSpan = static_cast<float>(restRight - restLeft);
-    centerPoint = static_cast<float>(restLeft + restRight) / 2.0f;
-    hysteresis = std::max(travelSpan * 0.20f, 6.0f);
-
-    // Station tilt & level diagnostic: check for asymmetry between left and right travel
-    if (travelSpan > 15.0f) {
-        float leftTravel = centerPoint - static_cast<float>(restLeft);
-        float rightTravel = static_cast<float>(restRight) - centerPoint;
-        float asymmetry = std::abs(rightTravel - leftTravel) / travelSpan;
-
-        tiltWarning = (asymmetry > 0.15f);
-        tiltDegrees = asymmetry * (travelSpan * 360.0f / 4096.0f);
-    } else {
-        tiltWarning = false;
-        tiltDegrees = 0.0f;
+    if (result.saveCalibration) {
+        saveNvsCalibration(result.calibration);
     }
 }
 
 float RainMeter::getRainfall1h() {
-    portENTER_CRITICAL(&spinlock);
-    float sum = 0.0f;
-    for (size_t i = 0; i < 60; i++) {
-        sum += minuteBins[i];
-    }
-    portEXIT_CRITICAL(&spinlock);
-    return sum;
+    CriticalSection lock(spinlock);
+    return logic.rainfall1h();
 }
 
 float RainMeter::getRainfall24h() {
-    portENTER_CRITICAL(&spinlock);
-    float sum = 0.0f;
-    for (size_t i = 0; i < 24; i++) {
-        sum += hourBins[i];
-    }
-    portEXIT_CRITICAL(&spinlock);
-    return sum;
+    CriticalSection lock(spinlock);
+    return logic.rainfall24h();
 }
 
 float RainMeter::getRainRate() {
-    portENTER_CRITICAL(&spinlock);
-    float val = currentRainRate;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.rainRate();
 }
 
 RainData RainMeter::getRainData() {
-    portENTER_CRITICAL(&spinlock);
-    RainData data = {};
-    float r1h = 0.0f;
-    for (size_t i = 0; i < 60; i++) {
-        r1h += minuteBins[i];
-    }
-    float r24h = 0.0f;
-    for (size_t i = 0; i < 24; i++) {
-        r24h += hourBins[i];
-    }
-
-    data.rainfall_1h = static_cast<uint16_t>(r1h * 100.0f);         // 0.01 mm resolution
-    data.rainfall_24h = static_cast<uint16_t>(r24h * 100.0f);       // 0.01 mm resolution
-    data.rainRate = static_cast<uint16_t>(currentRainRate * 10.0f); // 0.1 mm/h
-    data.magnetStatus.status = lastStatus;
-    data.magnetStatus.agc = lastAgc;
-    data.magnetStatus.agcVariance =
-        (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
-    portEXIT_CRITICAL(&spinlock);
-    return data;
+    CriticalSection lock(spinlock);
+    return logic.rainData();
 }
 
 RainMeterState RainMeter::getState() {
-    portENTER_CRITICAL(&spinlock);
-    RainMeterState val = currentState;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.state();
 }
 
 bool RainMeter::isCalibrated() {
-    portENTER_CRITICAL(&spinlock);
-    bool val = calibrated;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.isCalibrated();
 }
 
 bool RainMeter::isJammed() {
-    portENTER_CRITICAL(&spinlock);
-    bool val = jammed;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.isJammed();
 }
 
 bool RainMeter::isTiltWarning() {
-    portENTER_CRITICAL(&spinlock);
-    bool val = tiltWarning;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.isTiltWarning();
 }
 
 float RainMeter::getTiltDegrees() {
-    portENTER_CRITICAL(&spinlock);
-    float val = tiltDegrees;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.tiltDegrees();
 }
 
 float RainMeter::getCurrentAngleDegrees() {
-    portENTER_CRITICAL(&spinlock);
-    float val = static_cast<float>(currentPos) * (360.0f / 4096.0f);
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.currentAngleDegrees();
 }
 
 float RainMeter::getTipTravelDegrees() {
-    portENTER_CRITICAL(&spinlock);
-    float val = travelSpan * (360.0f / 4096.0f);
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.tipTravelDegrees();
 }
 
 uint8_t RainMeter::getLastStatus() {
-    portENTER_CRITICAL(&spinlock);
-    uint8_t val = lastStatus;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.lastStatus();
 }
 
 uint8_t RainMeter::getLastAGC() {
-    portENTER_CRITICAL(&spinlock);
-    uint8_t val = lastAgc;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.lastAgc();
 }
 
 uint16_t RainMeter::getAGCVariance() {
-    portENTER_CRITICAL(&spinlock);
-    uint16_t val = (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.agcVariance();
 }
 
 uint32_t RainMeter::getGlitchCount() {
-    portENTER_CRITICAL(&spinlock);
-    uint32_t val = glitchCount;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.glitchCount();
 }
 
 uint32_t RainMeter::getLastHeartbeatMs() {
-    portENTER_CRITICAL(&spinlock);
-    uint32_t val = lastHeartbeatMs;
-    portEXIT_CRITICAL(&spinlock);
-    return val;
+    CriticalSection lock(spinlock);
+    return logic.lastHeartbeatMs();
 }
 
 void RainMeter::resetStats() {
-    portENTER_CRITICAL(&spinlock);
-    agcCount = 0;
-    agcMean = 0.0;
-    agcM2 = 0.0;
-    glitchCount = 0;
-    portEXIT_CRITICAL(&spinlock);
+    CriticalSection lock(spinlock);
+    logic.resetStats();
 }
 
 void RainMeter::clearCalibration() {
-    portENTER_CRITICAL(&spinlock);
-    calibrated = false;
-    hasClusterA = false;
-    hasClusterB = false;
-    currentState = RainMeterState::CALIBRATING;
-    portEXIT_CRITICAL(&spinlock);
+    {
+        CriticalSection lock(spinlock);
+        logic.clearCalibration();
+    }
 
     Preferences prefs;
     prefs.begin("rainmeter", false);
@@ -617,37 +258,35 @@ void RainMeter::clearCalibration() {
 }
 
 void RainMeter::setMmPerTip(float mm) {
-    portENTER_CRITICAL(&spinlock);
-    mmPerTip = mm;
-    portEXIT_CRITICAL(&spinlock);
+    CriticalSection lock(spinlock);
+    logic.setMmPerTip(mm);
 }
 
 float RainMeter::getMmPerTip() const {
-    return mmPerTip;
+    CriticalSection lock(spinlock);
+    return logic.mmPerTip();
 }
 
-void RainMeter::loadNvsCalibration() {
+bool RainMeter::loadNvsCalibration(sensors::RainCalibration& out) {
     Preferences prefs;
     prefs.begin("rainmeter", false);
-    bool isCal = prefs.getBool("cal", false);
+    const bool isCal = prefs.getBool("cal", false);
     if (isCal) {
-        rawReference = prefs.getUShort("rawRef", 0);
-        hasReference = true;
-        restLeft = prefs.getInt("restL", 0);
-        restRight = prefs.getInt("restR", 0);
-        calibrated = true;
-        recomputeGeometry();
+        out.rawReference = prefs.getUShort("rawRef", 0);
+        out.restLeft = prefs.getInt("restL", 0);
+        out.restRight = prefs.getInt("restR", 0);
     }
     prefs.end();
+    return isCal;
 }
 
-void RainMeter::saveNvsCalibration(uint16_t rawRef, int32_t left, int32_t right) {
+void RainMeter::saveNvsCalibration(const sensors::RainCalibration& cal) {
     Preferences prefs;
     prefs.begin("rainmeter", false);
     prefs.putBool("cal", true);
-    prefs.putUShort("rawRef", rawRef);
-    prefs.putInt("restL", left);
-    prefs.putInt("restR", right);
+    prefs.putUShort("rawRef", cal.rawReference);
+    prefs.putInt("restL", cal.restLeft);
+    prefs.putInt("restR", cal.restRight);
     prefs.end();
 }
 
@@ -655,28 +294,27 @@ void RainMeter::loadRtcRollingBins() {
     if (s_rtcRainState.magic == kRainRtcMagic &&
         s_rtcRainState.crc == computeRainRtcCrc(s_rtcRainState) &&
         s_rtcRainState.currentMinuteIdx < 60 && s_rtcRainState.currentHourIdx < 24) {
-        std::memcpy(minuteBins, s_rtcRainState.minuteBins, sizeof(minuteBins));
-        std::memcpy(hourBins, s_rtcRainState.hourBins, sizeof(hourBins));
-        currentMinuteIdx = s_rtcRainState.currentMinuteIdx;
-        currentHourIdx = s_rtcRainState.currentHourIdx;
-        currentRainRate = s_rtcRainState.currentRainRate;
+        sensors::RainRollingBins bins;
+        std::memcpy(bins.minuteBins, s_rtcRainState.minuteBins, sizeof(bins.minuteBins));
+        std::memcpy(bins.hourBins, s_rtcRainState.hourBins, sizeof(bins.hourBins));
+        bins.currentMinuteIdx = s_rtcRainState.currentMinuteIdx;
+        bins.currentHourIdx = s_rtcRainState.currentHourIdx;
+        bins.currentRainRate = s_rtcRainState.currentRainRate;
+        logic.loadRollingBins(bins);
         return;
     }
 
-    std::memset(minuteBins, 0, sizeof(minuteBins));
-    std::memset(hourBins, 0, sizeof(hourBins));
-    currentMinuteIdx = 0;
-    currentHourIdx = 0;
-    currentRainRate = 0.0f;
+    logic.clearRollingBins();
     saveRtcRollingBins();
 }
 
 void RainMeter::saveRtcRollingBins() {
+    const sensors::RainRollingBins bins = logic.exportRollingBins();
     s_rtcRainState.magic = kRainRtcMagic;
-    std::memcpy(s_rtcRainState.minuteBins, minuteBins, sizeof(minuteBins));
-    std::memcpy(s_rtcRainState.hourBins, hourBins, sizeof(hourBins));
-    s_rtcRainState.currentMinuteIdx = static_cast<uint16_t>(currentMinuteIdx);
-    s_rtcRainState.currentHourIdx = static_cast<uint16_t>(currentHourIdx);
-    s_rtcRainState.currentRainRate = currentRainRate;
+    std::memcpy(s_rtcRainState.minuteBins, bins.minuteBins, sizeof(s_rtcRainState.minuteBins));
+    std::memcpy(s_rtcRainState.hourBins, bins.hourBins, sizeof(s_rtcRainState.hourBins));
+    s_rtcRainState.currentMinuteIdx = bins.currentMinuteIdx;
+    s_rtcRainState.currentHourIdx = bins.currentHourIdx;
+    s_rtcRainState.currentRainRate = bins.currentRainRate;
     s_rtcRainState.crc = computeRainRtcCrc(s_rtcRainState);
 }

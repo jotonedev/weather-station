@@ -3,6 +3,8 @@
 
 #include <AS5600.h>
 #include <Arduino.h>
+#include <Sensors.h>
+#include <Sync.h>
 #include <Weather.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
@@ -53,36 +55,16 @@ class WindVane {
   private:
     TwoWire& wire;
     AS5600 as5600;
-    float calibrationOffset;
     uint32_t samplePeriodMs = 1000;
 
     TaskHandle_t taskHandle = nullptr;
     static void taskTrampoline(void* arg);
     void taskLoop(uint32_t samplePeriodMs);
 
-    portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
+    mutable portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
 
-    bool initialized = false;
-    bool sensorReady = false;
-    uint32_t lastHeartbeatMs = 0;
-    float currentAngle = 0.0f;
-    float rawAngleDegrees = 0.0f;
-
-    // Circular vector exponential moving average (dampens vane flutter & handles 0/360 wrap)
-    float vecX = 1.0f;
-    float vecY = 0.0f;
-    bool hasFirstSample = false;
-
-    // Diagnostics
-    uint8_t lastStatus = 0;
-    uint8_t lastAgc = 0;
-    uint32_t glitchCount = 0;
     uint32_t lastDiagMs = 0;
-
-    // Running statistics for AGC variance (Welford's algorithm)
-    uint32_t agcCount = 0;
-    double agcMean = 0.0;
-    double agcM2 = 0.0;
+    sensors::WindVaneState state;
 };
 
 #endif // WINDVANE_H

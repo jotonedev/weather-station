@@ -14,6 +14,7 @@
 #include <Adafruit_BMP085.h>
 #include <PMS.h>
 #include <RadioAdapter.h>
+#include <Sync.h>
 #include <Weather.h>
 #include <cc1101.h>
 
@@ -267,35 +268,38 @@ WeatherData sampleSensors() {
             static_cast<uint16_t>(windVane.getAGCVariance());
     }
 
-    if (xSemaphoreTake(wireMutex, portMAX_DELAY) == pdTRUE) {
-        if (!ahtOk) {
-            ahtOk = aht.begin(&Wire);
-        }
-        if (ahtOk) {
-            sensors_event_t humidityEvent;
-            sensors_event_t temperatureEvent;
-            if (aht.getEvent(&humidityEvent, &temperatureEvent)) {
-                reading.airData.temperature =
-                    weather::encodeTemperature(temperatureEvent.temperature);
-                reading.airData.humidity = weather::encodeHumidity(humidityEvent.relative_humidity);
-            } else {
-                ahtOk = false;
+    {
+        MutexGuard wireLock(wireMutex);
+        if (wireLock.locked()) {
+            if (!ahtOk) {
+                ahtOk = aht.begin(&Wire);
             }
-        }
+            if (ahtOk) {
+                sensors_event_t humidityEvent;
+                sensors_event_t temperatureEvent;
+                if (aht.getEvent(&humidityEvent, &temperatureEvent)) {
+                    reading.airData.temperature =
+                        weather::encodeTemperature(temperatureEvent.temperature);
+                    reading.airData.humidity =
+                        weather::encodeHumidity(humidityEvent.relative_humidity);
+                } else {
+                    ahtOk = false;
+                }
+            }
 
-        if (!bmpOk) {
-            bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
-        }
-        if (bmpOk) {
-            int32_t pascal = bmp180.readPressure();
-            if (pascal > 0) {
-                reading.airData.pressure =
-                    weather::encodePressure(static_cast<float>(pascal) / 100.0f);
-            } else {
-                bmpOk = false;
+            if (!bmpOk) {
+                bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
+            }
+            if (bmpOk) {
+                int32_t pascal = bmp180.readPressure();
+                if (pascal > 0) {
+                    reading.airData.pressure =
+                        weather::encodePressure(static_cast<float>(pascal) / 100.0f);
+                } else {
+                    bmpOk = false;
+                }
             }
         }
-        xSemaphoreGive(wireMutex);
     }
 
     if (rainMeter.ready()) {

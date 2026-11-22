@@ -13,6 +13,7 @@
 #include <Ingest.h>
 #include <Outbox.h>
 #include <RadioAdapter.h>
+#include <Sync.h>
 #include <Weather.h>
 #include <cc1101.h>
 
@@ -180,11 +181,13 @@ void ntpSyncTask(void*) {
             clockSynced = true;
             uint32_t nowEpoch = static_cast<uint32_t>(time(nullptr));
             uint32_t nowMs = millis();
-            if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-                if (outbox.backfillTimestamps(nowEpoch, nowMs) > 0) {
-                    syncRtcOutbox();
+            {
+                MutexGuard lock(outboxMutex);
+                if (lock.locked()) {
+                    if (outbox.backfillTimestamps(nowEpoch, nowMs) > 0) {
+                        syncRtcOutbox();
+                    }
                 }
-                xSemaphoreGive(outboxMutex);
             }
             delayWithHeartbeat(lastNtpHeartbeatMs, NTP_RESYNC_INTERVAL_MS);
         } else {
@@ -275,9 +278,11 @@ void loadCounters() {
 
 void saveCounters() {
     Counters snapshot;
-    if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-        snapshot = counters;
-        xSemaphoreGive(outboxMutex);
+    {
+        MutexGuard lock(outboxMutex);
+        if (lock.locked()) {
+            snapshot = counters;
+        }
     }
 
     if (snapshot.received == lastSavedCounters.received &&
@@ -306,17 +311,21 @@ void handleMessage(const ARQ::Message& message, const uint8_t* frame) {
         return;
     }
     if (message.length != sizeof(WeatherData)) {
-        if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-            counters.framesInvalid++;
-            xSemaphoreGive(outboxMutex);
+        {
+            MutexGuard lock(outboxMutex);
+            if (lock.locked()) {
+                counters.framesInvalid++;
+            }
         }
         return;
     }
     WeatherData data;
     if (!weather::unpackWeatherData(frame, message.length, data)) {
-        if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-            counters.framesInvalid++;
-            xSemaphoreGive(outboxMutex);
+        {
+            MutexGuard lock(outboxMutex);
+            if (lock.locked()) {
+                counters.framesInvalid++;
+            }
         }
         return;
     }
@@ -330,14 +339,16 @@ void handleMessage(const ARQ::Message& message, const uint8_t* frame) {
     entry.receivedAt = clockSynced ? static_cast<uint32_t>(time(nullptr)) : 0;
     entry.receivedMs = nowMs;
 
-    if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-        bool pushed = outbox.push(entry);
-        syncRtcOutbox();
-        counters.received++;
-        if (!pushed) {
-            counters.bufferDropped++;
+    {
+        MutexGuard lock(outboxMutex);
+        if (lock.locked()) {
+            bool pushed = outbox.push(entry);
+            syncRtcOutbox();
+            counters.received++;
+            if (!pushed) {
+                counters.bufferDropped++;
+            }
         }
-        xSemaphoreGive(outboxMutex);
     }
     markHealthyBoot();
 }
@@ -370,9 +381,11 @@ void outboxSenderTask(void*) {
         }
 
         size_t available = 0;
-        if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-            available = outbox.count();
-            xSemaphoreGive(outboxMutex);
+        {
+            MutexGuard lock(outboxMutex);
+            if (lock.locked()) {
+                available = outbox.count();
+            }
         }
         if (available == 0) {
             retryIndex = 0;
@@ -383,11 +396,13 @@ void outboxSenderTask(void*) {
 
         size_t batchCount = 0;
         size_t limit = available < BATCH_FLUSH_MAX ? available : BATCH_FLUSH_MAX;
-        if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-            for (size_t i = 0; i < limit; i++) {
-                outbox.peekAt(i, batch[i]);
+        {
+            MutexGuard lock(outboxMutex);
+            if (lock.locked()) {
+                for (size_t i = 0; i < limit; i++) {
+                    outbox.peekAt(i, batch[i]);
+                }
             }
-            xSemaphoreGive(outboxMutex);
         }
         batchCount = limit;
 
@@ -401,14 +416,16 @@ void outboxSenderTask(void*) {
         if (payloadLength <= 0) {
             // Payload builder should never fail with valid inputs, drop as a
             // safety net so the outbox drains.
-            if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-                PendingReading discard;
-                for (size_t i = 0; i < batchCount; i++) {
-                    outbox.pop(discard);
+            {
+                MutexGuard lock(outboxMutex);
+                if (lock.locked()) {
+                    PendingReading discard;
+                    for (size_t i = 0; i < batchCount; i++) {
+                        outbox.pop(discard);
+                    }
+                    syncRtcOutbox();
+                    counters.dropped += batchCount;
                 }
-                syncRtcOutbox();
-                counters.dropped += batchCount;
-                xSemaphoreGive(outboxMutex);
             }
             retryIndex = 0;
             continue;
@@ -417,22 +434,26 @@ void outboxSenderTask(void*) {
         int httpCode = postToIngest(INGEST_URL, payload);
 
         if (httpCode >= 200 && httpCode < 300) {
-            if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-                PendingReading discard;
-                for (size_t i = 0; i < batchCount; i++) {
-                    outbox.pop(discard);
+            {
+                MutexGuard lock(outboxMutex);
+                if (lock.locked()) {
+                    PendingReading discard;
+                    for (size_t i = 0; i < batchCount; i++) {
+                        outbox.pop(discard);
+                    }
+                    syncRtcOutbox();
+                    counters.lastHttpCode = httpCode;
+                    counters.sent += batchCount;
                 }
-                syncRtcOutbox();
-                counters.lastHttpCode = httpCode;
-                counters.sent += batchCount;
-                xSemaphoreGive(outboxMutex);
             }
             retryIndex = 0;
             markHealthyBoot();
         } else if (isTransientFailure(httpCode)) {
-            if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-                counters.lastHttpCode = httpCode;
-                xSemaphoreGive(outboxMutex);
+            {
+                MutexGuard lock(outboxMutex);
+                if (lock.locked()) {
+                    counters.lastHttpCode = httpCode;
+                }
             }
             // Keep the batch buffered and retry with backoff.
             retryIndex++;
@@ -441,13 +462,15 @@ void outboxSenderTask(void*) {
         } else {
             // Permanent client error, the payload will never succeed. Drop the
             // oldest entry and try the rest on the next pass.
-            if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-                PendingReading discard;
-                outbox.pop(discard);
-                syncRtcOutbox();
-                counters.lastHttpCode = httpCode;
-                counters.dropped++;
-                xSemaphoreGive(outboxMutex);
+            {
+                MutexGuard lock(outboxMutex);
+                if (lock.locked()) {
+                    PendingReading discard;
+                    outbox.pop(discard);
+                    syncRtcOutbox();
+                    counters.lastHttpCode = httpCode;
+                    counters.dropped++;
+                }
             }
             retryIndex = 0;
         }
@@ -457,9 +480,11 @@ void outboxSenderTask(void*) {
 
 void reinitRadio() {
     ARQ::Status radioStatus = arq.initializeCC1101();
-    if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-        counters.radioResyncs++;
-        xSemaphoreGive(outboxMutex);
+    {
+        MutexGuard lock(outboxMutex);
+        if (lock.locked()) {
+            counters.radioResyncs++;
+        }
     }
     if (radioStatus != ARQ::STATUS_OK) {
         Serial.printf("[ERROR] Radio re-init failed, status %d\n", radioStatus);
@@ -568,10 +593,12 @@ void loop() {
         lastDiag = now;
         Counters snap;
         size_t queued = 0;
-        if (xSemaphoreTake(outboxMutex, portMAX_DELAY) == pdTRUE) {
-            snap = counters;
-            queued = outbox.count();
-            xSemaphoreGive(outboxMutex);
+        {
+            MutexGuard lock(outboxMutex);
+            if (lock.locked()) {
+                snap = counters;
+                queued = outbox.count();
+            }
         }
         Serial.printf(
             "[Diag] up=%lu boots=%lu outbox=%u rssi=%d lqi=%u state=%d resyncs=%lu http=%d | "
