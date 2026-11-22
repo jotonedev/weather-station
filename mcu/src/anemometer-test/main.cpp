@@ -279,41 +279,40 @@ float computeMagRipplePct(const RunningStat& magStat) {
     return (static_cast<float>(magStat.span()) / static_cast<float>(magStat.mean)) * 100.0f;
 }
 
-const char* evaluateVerdict(uint16_t coveredSectors, float magRipplePct) {
+const char* evaluateVerdict(uint16_t coveredSectors, float magRipplePct, uint16_t agcScale) {
     if (!stats.connected) {
-        return "FAIL: NO I2C";
+        return "FAIL: Sensor not found on I2C";
     }
     if (!stats.md) {
-        return "FAIL: NO MAGNET (missing, too far, or axial)";
+        return "FAIL: No magnet detected (missing, too far, or axial)";
     }
     if (stats.ml) {
-        return "WARN: MAGNET TOO WEAK (move closer / check diametric)";
+        return "WARN: Magnet too weak -> move magnet closer";
     }
     if (stats.mh) {
-        return "WARN: MAGNET TOO STRONG (increase air gap)";
+        return "WARN: Magnet too strong -> move magnet farther";
     }
 
-    bool agcNearRail = false;
-    if (stats.agcStat.maxVal <= 128u) {
-        agcNearRail = (stats.agc < 15u || stats.agc > 113u);
-    } else {
-        agcNearRail = (stats.agc < 25u || stats.agc > 230u);
+    uint16_t agcLow = (agcScale <= 128u) ? 15u : 25u;
+    uint16_t agcHigh = (agcScale <= 128u) ? 113u : 230u;
+    if (stats.agc > agcHigh) {
+        return "WARN: Magnet too far (AGC near max) -> move magnet closer";
     }
-    if (agcNearRail) {
-        return "WARN: AGC NEAR RAIL (adjust magnet air gap)";
+    if (stats.agc < agcLow) {
+        return "WARN: Magnet too close (AGC near min) -> move magnet farther";
     }
 
     if (stats.agcStat.count >= 20u && (stats.agcStat.span() > 20u || magRipplePct > 25.0f)) {
-        return "WARN: WOBBLE/OFF-CENTER (high AGC or Mag ripple)";
+        return "WARN: Wobble or off-center magnet (high AGC span or ripple)";
     }
     if (stats.i2cErrors > 0u || stats.mdLostCount > 0u || stats.mlHits > 0u || stats.mhHits > 0u ||
         stats.jumpCount > 0u) {
-        return "WARN: PAST FAULTS (press 'r' and re-spin)";
+        return "WARN: Past faults recorded -> press 'r' and re-spin";
     }
     if (coveredSectors < kSectorCount) {
-        return "OK: SPIN 360 DEG TO COMPLETE CHECK";
+        return "OK: Spin slowly 360 deg to complete check";
     }
-    return "OK: ASSEMBLY GOOD";
+    return "OK: Assembly looks good!";
 }
 
 void sampleSensor(uint32_t nowUs) {
@@ -442,10 +441,11 @@ void sampleSensor(uint32_t nowUs) {
 void printReport() {
     uint16_t coveredSectors = countCoveredSectors(stats.sectorMask);
     float magRipplePct = computeMagRipplePct(stats.magStat);
-    const char* verdict = evaluateVerdict(coveredSectors, magRipplePct);
+    uint16_t agcScale = (stats.agcStat.maxVal > 128u) ? 255u : 128u;
+    const char* verdict = evaluateVerdict(coveredSectors, magRipplePct, agcScale);
 
     if (!stats.connected) {
-        Serial.printf("[%s] err=%d (check SDA=GPIO%d SCL=GPIO%d 3.3V) | faults: i2c=%lu\n", verdict,
+        Serial.printf("[%s] err=%d (check SDA=GPIO%d SCL=GPIO%d 3.3V) | I2C errors: %lu\n", verdict,
                       stats.lastErr, kI2cSdaPin, kI2cSclPin,
                       static_cast<unsigned long>(stats.i2cErrors));
         return;
@@ -458,15 +458,18 @@ void printReport() {
         dirLabel = "CCW";
     }
 
-    float angleDeg = static_cast<float>(stats.rawAngle) * AS5600_RAW_TO_DEGREES;
-    float speedMs = std::fabs(stats.smoothedRpm) * ANEMOMETER_SPEED_FACTOR;
-    float revolutions =
-        static_cast<float>(stats.cumulativeCounts) / static_cast<float>(kCountsPerRev);
+    const char* magnetState = "OK";
+    if (!stats.md) {
+        magnetState = "MISSING";
+    } else if (stats.ml) {
+        magnetState = "WEAK";
+    } else if (stats.mh) {
+        magnetState = "STRONG";
+    }
 
-    uint16_t agcMin = (stats.agcStat.count > 0) ? stats.agcStat.minVal : 0;
-    uint16_t agcMax = (stats.agcStat.count > 0) ? stats.agcStat.maxVal : 0;
-    uint16_t magMin = (stats.magStat.count > 0) ? stats.magStat.minVal : 0;
-    uint16_t magMax = (stats.magStat.count > 0) ? stats.magStat.maxVal : 0;
+    float angleDeg = static_cast<float>(stats.rawAngle) * AS5600_RAW_TO_DEGREES;
+    uint32_t totalFaults =
+        stats.i2cErrors + stats.mdLostCount + stats.mlHits + stats.mhHits + stats.jumpCount;
 
     char covBar[kSectorCount + 1];
     for (uint16_t i = 0; i < kSectorCount; i++) {
@@ -474,24 +477,23 @@ void printReport() {
     }
     covBar[kSectorCount] = '\0';
 
-    Serial.printf(
-        "[%s] angle=%6.2f deg (raw=%4u filt=%4u) | rpm=%+6.1f (%s) %.2f m/s | rev=%+.2f\n", verdict,
-        angleDeg, static_cast<unsigned int>(stats.rawAngle),
-        static_cast<unsigned int>(stats.filtAngle), stats.smoothedRpm, dirLabel, speedMs,
-        revolutions);
-    Serial.printf(
-        "  status=0x%02X [MD=%u ML=%u MH=%u] | agc=%3u (min=%u max=%u span=%u sd=%.1f) | mag=%4u "
-        "(min=%u max=%u rip=%.1f%%)\n",
-        static_cast<unsigned int>(stats.status), stats.md ? 1u : 0u, stats.ml ? 1u : 0u,
-        stats.mh ? 1u : 0u, static_cast<unsigned int>(stats.agc), static_cast<unsigned int>(agcMin),
-        static_cast<unsigned int>(agcMax), static_cast<unsigned int>(stats.agcStat.span()),
-        stats.agcStat.stdDev(), static_cast<unsigned int>(stats.magnitude),
-        static_cast<unsigned int>(magMin), static_cast<unsigned int>(magMax), magRipplePct);
-    Serial.printf(
-        "  360cov=[%s] %u/12 | faults: i2c=%lu mdLoss=%lu ml=%lu mh=%lu jumps=%lu\n", covBar,
-        static_cast<unsigned int>(coveredSectors), static_cast<unsigned long>(stats.i2cErrors),
-        static_cast<unsigned long>(stats.mdLostCount), static_cast<unsigned long>(stats.mlHits),
-        static_cast<unsigned long>(stats.mhHits), static_cast<unsigned long>(stats.jumpCount));
+    Serial.printf("[%s]\n", verdict);
+    Serial.printf("  Angle: %5.1f deg | Speed: %5.1f RPM (%s) | Spin: %u/12 [%s]\n", angleDeg,
+                  std::fabs(stats.smoothedRpm), dirLabel, static_cast<unsigned int>(coveredSectors),
+                  covBar);
+    Serial.printf("  Magnet: %s | AGC: %u/%u (target 32-96, span %u) | Ripple: %.1f%% | Faults: ",
+                  magnetState, static_cast<unsigned int>(stats.agc),
+                  static_cast<unsigned int>(agcScale),
+                  static_cast<unsigned int>(stats.agcStat.span()), magRipplePct);
+    if (totalFaults == 0u) {
+        Serial.println("0");
+    } else {
+        Serial.printf(
+            "%lu (i2c=%lu lost=%lu weak=%lu strong=%lu jumps=%lu)\n",
+            static_cast<unsigned long>(totalFaults), static_cast<unsigned long>(stats.i2cErrors),
+            static_cast<unsigned long>(stats.mdLostCount), static_cast<unsigned long>(stats.mlHits),
+            static_cast<unsigned long>(stats.mhHits), static_cast<unsigned long>(stats.jumpCount));
+    }
 }
 
 void handleSerialCommands() {
