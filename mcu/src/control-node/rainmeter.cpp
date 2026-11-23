@@ -30,8 +30,7 @@ uint32_t computeRainRtcCrc(const RainRtcState& state) {
 
 } // namespace
 
-RainMeter::RainMeter(TwoWire& wire, float mmPerTip)
-    : wire(wire), as5600(&wire), logic(mmPerTip) {}
+RainMeter::RainMeter(TwoWire& wire, float mmPerTip) : wire(wire), as5600(&wire), logic(mmPerTip) {}
 
 RainMeter::~RainMeter() {
     stopTask();

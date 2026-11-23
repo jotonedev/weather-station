@@ -206,8 +206,7 @@ TEST(Sensors, WindVaneCircularWrapOffsetAndGlitches) {
     s2.i2cOk = true;
     s2.samplePeriodMs = 1000;
     vane.step(s2);
-    const float wrappedDist =
-        (vane.angle() > 180.0f) ? (360.0f - vane.angle()) : vane.angle();
+    const float wrappedDist = (vane.angle() > 180.0f) ? (360.0f - vane.angle()) : vane.angle();
     EXPECT_LT(wrappedDist, 10.0f);
 
     // Changing calibration offset re-syncs the vector filter immediately on the next sample.

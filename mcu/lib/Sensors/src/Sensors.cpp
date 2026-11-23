@@ -77,8 +77,7 @@ void AnemometerState::step(const AnemometerSample& sample) {
             delta += 4096;
         }
 
-        const uint32_t dtUs =
-            (lastValidMicros_ > 0) ? (sample.nowUs - lastValidMicros_) : 10000u;
+        const uint32_t dtUs = (lastValidMicros_ > 0) ? (sample.nowUs - lastValidMicros_) : 10000u;
         const float expectedStep =
             (filteredRpm_ * 4096.0f / 60.0f) * (static_cast<float>(dtUs) * 1e-6f);
         const float stepDiff = std::abs(static_cast<float>(std::abs(delta)) - expectedStep);
