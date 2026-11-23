@@ -188,12 +188,12 @@ void ntpSyncTask(void*) {
             continue;
         }
         if (syncClockOnce(NTP_SYNC_TIMEOUT_MS)) {
-            clockSynced = true;
             uint32_t nowEpoch = static_cast<uint32_t>(time(nullptr));
             uint32_t nowMs = millis();
             {
                 MutexGuard lock(outboxMutex);
                 if (lock.locked()) {
+                    clockSynced = true;
                     if (outbox.backfillTimestamps(nowEpoch, nowMs) > 0) {
                         syncRtcOutbox();
                     }
@@ -202,7 +202,8 @@ void ntpSyncTask(void*) {
             delayWithHeartbeat(lastNtpHeartbeatMs, NTP_RESYNC_INTERVAL_MS);
         } else {
             if (!clockSynced) {
-                Serial.println("[WARN] NTP unreachable, readings will be sent untimestamped");
+                Serial.println(
+                    "[WARN] NTP unreachable, deferring outbox delivery until clock syncs");
             } else {
                 Serial.println("[WARN] NTP re-sync failed, keeping the current clock");
             }
@@ -346,12 +347,12 @@ void handleMessage(const ARQ::Message& message, const uint8_t* frame) {
     PendingReading entry = {};
     entry.data = data;
     entry.sequence = message.sequence;
-    entry.receivedAt = clockSynced ? static_cast<uint32_t>(time(nullptr)) : 0;
     entry.receivedMs = nowMs;
 
     {
         MutexGuard lock(outboxMutex);
         if (lock.locked()) {
+            entry.receivedAt = clockSynced ? static_cast<uint32_t>(time(nullptr)) : 0;
             bool pushed = outbox.push(entry);
             syncRtcOutbox();
             counters.received++;
@@ -390,6 +391,13 @@ void outboxSenderTask(void*) {
             }
         }
 
+        if (!clockSynced) {
+            retryIndex = 0;
+            snapshotCountersIfDue();
+            delayWithHeartbeat(lastSenderHeartbeatMs, FLUSH_IDLE_DELAY_MS);
+            continue;
+        }
+
         size_t available = 0;
         {
             MutexGuard lock(outboxMutex);
@@ -409,6 +417,11 @@ void outboxSenderTask(void*) {
         {
             MutexGuard lock(outboxMutex);
             if (lock.locked()) {
+                uint32_t nowEpoch = static_cast<uint32_t>(time(nullptr));
+                if (nowEpoch >= static_cast<uint32_t>(kClockSyncedEpoch) &&
+                    outbox.backfillTimestamps(nowEpoch, millis()) > 0) {
+                    syncRtcOutbox();
+                }
                 for (size_t i = 0; i < limit; i++) {
                     outbox.peekAt(i, batch[i]);
                 }
@@ -416,9 +429,19 @@ void outboxSenderTask(void*) {
         }
         batchCount = limit;
 
+        bool allTimestamped = true;
         for (size_t i = 0; i < batchCount; i++) {
+            if (batch[i].receivedAt == 0) {
+                allTimestamped = false;
+                break;
+            }
             ingestBatch[i].data = batch[i].data;
             ingestBatch[i].epoch = batch[i].receivedAt;
+        }
+        if (!allTimestamped) {
+            snapshotCountersIfDue();
+            delayWithHeartbeat(lastSenderHeartbeatMs, FLUSH_IDLE_DELAY_MS);
+            continue;
         }
 
         int payloadLength =
