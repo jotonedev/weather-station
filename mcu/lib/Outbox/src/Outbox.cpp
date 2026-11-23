@@ -87,3 +87,28 @@ size_t Outbox::backfillTimestamps(uint32_t currentEpoch, uint32_t currentMs) {
     }
     return updated;
 }
+
+size_t Outbox::dropUntimestamped() {
+    if (count_ == 0) {
+        return 0;
+    }
+    size_t kept = 0;
+    size_t dropped = 0;
+    for (size_t i = 0; i < count_; ++i) {
+        size_t const src = (head_ + i) % capacity_;
+        if (buffer_[src].receivedAt == 0) {
+            dropped++;
+            continue;
+        }
+        size_t const dst = (head_ + kept) % capacity_;
+        if (dst != src) {
+            buffer_[dst] = buffer_[src];
+        }
+        kept++;
+    }
+    count_ = kept;
+    if (count_ == 0) {
+        head_ = 0;
+    }
+    return dropped;
+}

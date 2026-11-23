@@ -62,6 +62,11 @@ class Outbox {
     // current monotonic milliseconds. Returns the number of updated entries.
     size_t backfillTimestamps(uint32_t currentEpoch, uint32_t currentMs);
 
+    // Discard entries with receivedAt == 0 while preserving the FIFO order of
+    // timestamped entries. Used on reboot because monotonic receivedMs values
+    // from a prior boot cannot be backfilled. Returns the number dropped.
+    size_t dropUntimestamped();
+
     void reset();
 
   private:

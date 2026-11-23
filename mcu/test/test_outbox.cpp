@@ -298,3 +298,65 @@ TEST(Outbox, ResetClearsEntriesButPreservesDroppedCount) {
     ASSERT_TRUE(outbox.pop(out));
     EXPECT_EQ(out.sequence, 6u);
 }
+
+TEST(Outbox, DropUntimestampedCompactsWrappedBufferAndPreservesOrder) {
+    Outbox emptyBox(3);
+    EXPECT_EQ(emptyBox.dropUntimestamped(), 0u);
+
+    Outbox outbox(4);
+    // Advance head so entries wrap around the end of the backing array.
+    ASSERT_TRUE(outbox.push(makeEntry(100)));
+    ASSERT_TRUE(outbox.push(makeEntry(101)));
+    ASSERT_TRUE(outbox.push(makeEntry(102)));
+    PendingReading discard = {};
+    ASSERT_TRUE(outbox.pop(discard));
+    ASSERT_TRUE(outbox.pop(discard));
+    ASSERT_TRUE(outbox.pop(discard));
+    ASSERT_EQ(outbox.head(), 3u);
+
+    PendingReading e1 = makeEntry(1);
+    e1.receivedAt = 0;
+    PendingReading const e2 = makeEntry(2);
+    PendingReading e3 = makeEntry(3);
+    e3.receivedAt = 0;
+    PendingReading const e4 = makeEntry(4);
+
+    ASSERT_TRUE(outbox.push(e1));
+    ASSERT_TRUE(outbox.push(e2));
+    ASSERT_TRUE(outbox.push(e3));
+    ASSERT_TRUE(outbox.push(e4));
+
+    EXPECT_EQ(outbox.dropUntimestamped(), 2u);
+    EXPECT_EQ(outbox.count(), 2u);
+    EXPECT_EQ(outbox.dropped(), 0u);
+
+    // Pushing after compaction continues seamlessly in FIFO order.
+    ASSERT_TRUE(outbox.push(makeEntry(5)));
+    PendingReading out = {};
+    ASSERT_TRUE(outbox.pop(out));
+    EXPECT_EQ(out.sequence, 2u);
+    EXPECT_EQ(out.receivedAt, 1002u);
+    ASSERT_TRUE(outbox.pop(out));
+    EXPECT_EQ(out.sequence, 4u);
+    EXPECT_EQ(out.receivedAt, 1004u);
+    ASSERT_TRUE(outbox.pop(out));
+    EXPECT_EQ(out.sequence, 5u);
+    EXPECT_TRUE(outbox.empty());
+}
+
+TEST(Outbox, DropUntimestampedClearsBufferWhenAllUntimestamped) {
+    Outbox outbox(3);
+    PendingReading e1 = makeEntry(1);
+    e1.receivedAt = 0;
+    PendingReading e2 = makeEntry(2);
+    e2.receivedAt = 0;
+
+    ASSERT_TRUE(outbox.push(e1));
+    ASSERT_TRUE(outbox.push(e2));
+
+    EXPECT_EQ(outbox.dropUntimestamped(), 2u);
+    EXPECT_TRUE(outbox.empty());
+    EXPECT_EQ(outbox.head(), 0u);
+    EXPECT_EQ(outbox.count(), 0u);
+    EXPECT_EQ(outbox.dropUntimestamped(), 0u);
+}

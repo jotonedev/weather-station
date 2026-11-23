@@ -105,6 +105,12 @@ void initRtcOutbox() {
     if (s_rtcOutbox.magic == kOutboxRtcMagic && s_rtcOutbox.capacity == OUTBOX_CAPACITY &&
         s_rtcOutbox.crc == computeOutboxRtcCrc(s_rtcOutbox) &&
         outbox.restoreState(s_rtcOutbox.head, s_rtcOutbox.count, s_rtcOutbox.dropped)) {
+        size_t discarded = outbox.dropUntimestamped();
+        if (discarded > 0) {
+            syncRtcOutbox();
+            Serial.printf("[WARN] Dropped %u untimestamped readings from RTC SRAM after reboot\n",
+                          static_cast<unsigned>(discarded));
+        }
         Serial.printf("[OK] Restored %u buffered readings from RTC SRAM\n",
                       static_cast<unsigned>(outbox.count()));
         return;
