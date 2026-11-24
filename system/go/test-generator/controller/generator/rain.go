@@ -66,17 +66,36 @@ func (c *rainCalendar) rateAt(t time.Time) float64 {
 	return rate
 }
 
-// nearRain reports whether t falls inside a rain window extended by before and after.
-func (c *rainCalendar) nearRain(t time.Time, before, after time.Duration) bool {
+// cloudCoverAt returns a smooth [0, 1] cloud cover fraction around rain windows, ramping in over before and out over after.
+func (c *rainCalendar) cloudCoverAt(t time.Time, before, after time.Duration) float64 {
 	day := dayIndex(t)
+	cover := 0.0
 	for d := day - 1; d <= day+1; d++ {
 		for _, w := range c.windows(d) {
-			if !t.Before(w.start.Add(-before)) && t.Before(w.start.Add(w.duration+after)) {
-				return true
+			end := w.start.Add(w.duration)
+			if !t.Before(w.start) && t.Before(end) {
+				return 1.0
+			}
+			if before > 0 && !t.Before(w.start.Add(-before)) && t.Before(w.start) {
+				frac := 1.0 - float64(w.start.Sub(t))/float64(before)
+				if frac > cover {
+					cover = frac
+				}
+			}
+			if after > 0 && !t.Before(end) && t.Before(end.Add(after)) {
+				frac := 1.0 - float64(t.Sub(end))/float64(after)
+				if frac > cover {
+					cover = frac
+				}
 			}
 		}
 	}
-	return false
+	return cover
+}
+
+func dayNormal(day int64) float64 {
+	rng := rand.New(rand.NewPCG(regionSeed, uint64(day)^0xa5a5a5a5a5a5a5a5))
+	return rng.NormFloat64()
 }
 
 // generateRainWindows decides whether a day is rainy and, if so, when and how much it rains.
@@ -84,17 +103,23 @@ func generateRainWindows(day int64) []rainWindow {
 	dayStart := time.Unix(day*secondsDay, 0).UTC()
 	noon := dayStart.Add(12 * time.Hour)
 	season := seasonFactor(noon)
-	trough := clamp(-synopticWave(noon)/10.0, 0.0, 1.0)
-	probability := clamp(0.30+0.12*season+0.30*trough, 0.05, 0.85)
+	sw := synopticWave(noon)
+	logit := -1.25 + 0.80*season - 0.42*sw
+	probability := clamp(1.0/(1.0+math.Exp(-logit)), 0.02, 0.95)
 
-	rng := rand.New(rand.NewPCG(regionSeed, uint64(day)))
-	if rng.Float64() >= probability {
+	// Stateless unit-variance MA(2) Gaussian copula creates multi-day dry/wet persistence.
+	z := 0.80*dayNormal(day) + 0.48*dayNormal(day-1) + 0.36*dayNormal(day-2)
+	u := 0.5 * math.Erfc(-z/math.Sqrt2)
+	if u >= probability {
 		return nil
 	}
 
+	rng := rand.New(rand.NewPCG(regionSeed, uint64(day)))
+	trough := clamp(-sw/10.0, 0.0, 1.3)
+
 	// warm is 1 in the dry summer and 0 in the wet autumn.
 	warm := (1.0 - season) / 2.0
-	total := clamp((2.0+18.0*math.Pow(rng.Float64(), 2))*(0.7+0.6*trough), 1.0, 30.0)
+	total := clamp((2.2+13.5*math.Pow(rng.Float64(), 2))*(0.65+0.55*trough), 1.2, 28.0)
 	count := 1 + rng.IntN(3)
 	if warm > 0.6 && count > 2 {
 		count = 2
@@ -124,7 +149,9 @@ func generateRainWindows(day int64) []rainWindow {
 // synopticWave returns the deterministic pressure anomaly (hPa) from passing highs and lows.
 func synopticWave(t time.Time) float64 {
 	days := float64(t.Unix()) / secondsDay
-	return 6.0*math.Sin(2.0*math.Pi*days/4.5) + 4.0*math.Sin(2.0*math.Pi*days/7.3+1.3)
+	return 6.0*math.Sin(2.0*math.Pi*days/4.5) +
+		4.0*math.Sin(2.0*math.Pi*days/7.3+1.3) +
+		3.0*math.Sin(2.0*math.Pi*days/13.5+0.7)
 }
 
 // seasonFactor is +1 at the wettest day of the year and -1 at the driest, varying smoothly between.

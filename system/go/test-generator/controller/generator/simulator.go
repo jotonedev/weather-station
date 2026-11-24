@@ -83,10 +83,7 @@ func (s *Simulator) NextReading(nodeID string, now time.Time) ingest.ReadingPayl
 	rain24h := s.rainTotal(state, now, 24*time.Hour)
 
 	wetTarget := 1.0 - math.Exp(-baseRate/1.5)
-	cloudTarget := 0.0
-	if s.rain.nearRain(now.Add(-state.rainShift), 4*time.Hour, 2*time.Hour) {
-		cloudTarget = 1.0
-	}
+	cloudTarget := s.rain.cloudCoverAt(now.Add(-state.rainShift), 12*time.Hour, 3*time.Hour)
 	if !exists {
 		state.wet = wetTarget
 		state.cloud = cloudTarget
@@ -107,7 +104,8 @@ func (s *Simulator) NextReading(nodeID string, now time.Time) ingest.ReadingPayl
 	temperature := clamp(meanTemp+5.5*(1.0-0.6*state.cloud)*diurnal, -15.0, 42.0)
 
 	// 4. Relative humidity from temperature and dew point, rising toward saturation during rain.
-	dewPoint := meanTemp - (6.0 - 3.0*state.cloud)
+	moisture := clamp(-synopticWave(now)/12.0, -1.0, 1.0)
+	dewPoint := meanTemp - (6.5 - 3.2*state.cloud - 1.5*moisture)
 	rh := relativeHumidity(temperature, dewPoint)
 	state.humidityDrift = ou(rng, state.humidityDrift, dt, 2*time.Hour, 2.0)
 	humidity := clamp(rh+(97.0-rh)*state.wet+state.humidityDrift, 18.0, 100.0)

@@ -270,3 +270,39 @@ func TestRainCalendarYearlyStats(t *testing.T) {
 		})
 	}
 }
+
+func TestRainCalendarSynopticRegimeContrast(t *testing.T) {
+	cal := newRainCalendar()
+	first := dayIndex(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	last := dayIndex(time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	var highDays, highRainy, lowDays, lowRainy int
+	for day := first; day < last; day++ {
+		noon := time.Unix(day*secondsDay, 0).UTC().Add(12 * time.Hour)
+		sw := synopticWave(noon)
+		rainy := len(cal.windows(day)) > 0
+		if sw >= 6.0 {
+			highDays++
+			if rainy {
+				highRainy++
+			}
+		} else if sw <= -6.0 {
+			lowDays++
+			if rainy {
+				lowRainy++
+			}
+		}
+	}
+
+	if highDays == 0 || lowDays == 0 {
+		t.Fatalf("expected both high (%d) and low (%d) pressure days", highDays, lowDays)
+	}
+	highFrac := float64(highRainy) / float64(highDays)
+	lowFrac := float64(lowRainy) / float64(lowDays)
+	if highFrac >= 0.15 {
+		t.Errorf("high-pressure rainy fraction %.2f >= 0.15 (%d/%d)", highFrac, highRainy, highDays)
+	}
+	if lowFrac <= 0.70 {
+		t.Errorf("low-pressure rainy fraction %.2f <= 0.70 (%d/%d)", lowFrac, lowRainy, lowDays)
+	}
+}
