@@ -8,7 +8,7 @@ from weather.inference.v1.inference_pb2 import (
 
 MAX_MISSING_RATIO = 0.50
 HOURLY_STEP_SECONDS = 3600
-DAILY_STEP_SECONDS = 86400
+DAILY_STEP_SECONDS = 10800
 HOURLY_REQUIRED_FIELDS: tuple[str, ...] = ("temperature_c", "humidity_pct")
 DAILY_REQUIRED_FIELDS: tuple[str, ...] = (
     "min_temperature_c",
@@ -125,6 +125,7 @@ def _deduplicate_completed_history(
 def _validate_common_request(
     request: PredictHourlyWeatherRequest | PredictDailyWeatherRequest,
     step_seconds: int = HOURLY_STEP_SECONDS,
+    is_daily: bool = False,
 ) -> None:
     if not request.node_id or not request.node_id.strip():
         raise ValidationError("node_id is required")
@@ -140,7 +141,6 @@ def _validate_common_request(
         key=lambda item: (item.timestamp.seconds, item.timestamp.nanos),
     )
 
-    is_daily = step_seconds >= DAILY_STEP_SECONDS
     reference_sec = (request.issue_time.seconds // step_seconds) * step_seconds
     completed_history = _deduplicate_completed_history(sorted_history, reference_sec, step_seconds)
 
@@ -167,13 +167,13 @@ def _validate_common_request(
         validate_observation_bounds(obs, obs_index)
 
 
-def validate_hourly_request(request: PredictHourlyWeatherRequest) -> None:
+def validate_hourly_request(request: PredictHourlyWeatherRequest, max_horizon_hours: int = 240) -> None:
     """validate_hourly_request verifies incoming request headers, horizon, and historical observations."""
     if request.horizon_hours <= 0:
         raise ValidationError(f"horizon_hours must be positive: {request.horizon_hours}")
-    if request.horizon_hours > 168:
-        raise ValidationError(f"horizon_hours exceeds maximum allowed of 168: {request.horizon_hours}")
-    _validate_common_request(request, step_seconds=HOURLY_STEP_SECONDS)
+    if request.horizon_hours > max_horizon_hours:
+        raise ValidationError(f"horizon_hours exceeds maximum allowed of {max_horizon_hours}: {request.horizon_hours}")
+    _validate_common_request(request, step_seconds=HOURLY_STEP_SECONDS, is_daily=False)
 
 
 def validate_daily_request(request: PredictDailyWeatherRequest) -> None:
@@ -182,4 +182,4 @@ def validate_daily_request(request: PredictDailyWeatherRequest) -> None:
         raise ValidationError(f"horizon_days must be positive: {request.horizon_days}")
     if request.horizon_days > 30:
         raise ValidationError(f"horizon_days exceeds maximum allowed of 30: {request.horizon_days}")
-    _validate_common_request(request, step_seconds=DAILY_STEP_SECONDS)
+    _validate_common_request(request, step_seconds=DAILY_STEP_SECONDS, is_daily=True)

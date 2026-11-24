@@ -81,7 +81,7 @@ def test_prepare_daily_targets_and_past_covariates() -> None:
         )
 
     df = extract_observation_dataframe(observations, step=timedelta(days=1))
-    prepared = prepare_context_and_covariates(df, is_daily=True)
+    prepared = prepare_context_and_covariates(df, is_daily=True, steps_per_day=1)
 
     assert prepared.target_columns == [
         "min_temperature_c",
@@ -197,6 +197,7 @@ def test_rolling_rain_nan_propagation_and_density_drop() -> None:
     daily_prepared = prepare_context_and_covariates(
         extract_observation_dataframe(daily_obs, step=timedelta(days=1)),
         is_daily=True,
+        steps_per_day=1,
     )
     rain_sum_7d = daily_prepared.past_covariates["rain_sum_7d_mm"]
     assert np.isnan(rain_sum_7d[:6]).all()
@@ -272,6 +273,47 @@ def test_prepare_context_empty_and_inverted_daily() -> None:
             "max_humidity_pct": [70.0, 75.0, 80.0],
         }
     )
-    daily_prepared = prepare_context_and_covariates(inverted_daily_df, is_daily=True)
+    daily_prepared = prepare_context_and_covariates(inverted_daily_df, is_daily=True, steps_per_day=1)
     assert np.allclose(daily_prepared.past_covariates["temp_range_c"], 0.0)
     assert "dew_point_c" not in daily_prepared.past_covariates
+
+
+def test_prepare_subdaily_3h_daily_targets_and_covariates() -> None:
+    """Test_prepare_subdaily_3h_daily_targets_and_covariates builds rolling 24h targets and 3h covariates."""
+    observations = []
+    for step in range(128):
+        ts = Timestamp()
+        ts.FromSeconds(1700000000 + (step * 10800))
+        observations.append(
+            TimeSeriesObservation(
+                timestamp=ts,
+                temperature_c=10.0 + (step % 8),
+                min_temperature_c=9.0 + (step % 8),
+                max_temperature_c=11.0 + (step % 8),
+                humidity_pct=60.0,
+                min_humidity_pct=50.0,
+                max_humidity_pct=70.0,
+                pressure_hpa=1010.0 + (0.2 * step),
+                rainfall_mm=0.5 if step % 2 == 0 else 0.0,
+            )
+        )
+
+    df = extract_observation_dataframe(observations, step=timedelta(hours=3))
+    prepared = prepare_context_and_covariates(df, is_daily=True, steps_per_day=8)
+
+    assert prepared.target.shape == (6, 128)
+    min_t = prepared.target[prepared.target_columns.index("min_temperature_c")]
+    max_t = prepared.target[prepared.target_columns.index("max_temperature_c")]
+    rain_24h = prepared.target[prepared.target_columns.index("rainfall_mm")]
+
+    # First 3 steps (< min_obs=4) are NaN; once a full 8-step (24h) window completes, bounds equal daily min/max/sum
+    assert np.isnan(min_t[:3]).all()
+    assert np.isclose(float(min_t[7]), 9.0)
+    assert np.isclose(float(max_t[7]), 18.0)
+    assert np.isclose(float(rain_24h[7]), 2.0)
+
+    assert "bucket_rainfall_mm" in prepared.past_covariates
+    assert "pressure_tendency_3h_hpa" in prepared.past_covariates
+    assert "pressure_tendency_24h_hpa" in prepared.past_covariates
+    assert "rain_sum_7d_mm" in prepared.past_covariates
+    assert "rain_occurrence" in prepared.past_covariates

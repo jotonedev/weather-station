@@ -124,9 +124,38 @@ def _rolling_rain_sum(rain: pd.Series, window: int) -> np.ndarray:
     return rolled.to_numpy(dtype=np.float32)
 
 
+def _build_daily_target_series(
+    interpolated: dict[str, pd.Series],
+    col: str,
+    steps_per_day: int,
+) -> pd.Series:
+    """_build_daily_target_series converts sub-daily buckets into trailing 24-hour daily target series."""
+    series = interpolated[col]
+    if steps_per_day <= 1 or len(series) == 0:
+        return series
+    observed_total = int(series.notna().sum())
+    if observed_total == 0:
+        return series
+    min_obs = max(1, min(steps_per_day // 2, observed_total))
+
+    if col in ("min_temperature_c", "min_humidity_pct"):
+        rolled = series.rolling(window=steps_per_day, min_periods=min_obs).min()
+    elif col in ("max_temperature_c", "max_humidity_pct"):
+        rolled = series.rolling(window=steps_per_day, min_periods=min_obs).max()
+    elif col == "rainfall_mm":
+        rolled = series.rolling(window=steps_per_day, min_periods=min_obs).mean() * float(steps_per_day)
+    elif col == "pressure_hpa":
+        rolled = series.rolling(window=steps_per_day, min_periods=min_obs).mean()
+    else:
+        return series
+
+    return rolled.where(series.notna(), np.nan)
+
+
 def _build_derived_covariates(
     interpolated: dict[str, pd.Series],
     is_daily: bool,
+    steps_per_day: int = 1,
 ) -> dict[str, np.ndarray]:
     """_build_derived_covariates computes thermodynamic, barometric, and precipitation covariates."""
     derived: dict[str, np.ndarray] = {}
@@ -145,54 +174,84 @@ def _build_derived_covariates(
     if "pressure_hpa" in interpolated and _passes_density_threshold(interpolated["pressure_hpa"]):
         press_arr = interpolated["pressure_hpa"].to_numpy(dtype=float)
         if is_daily:
-            derived["pressure_tendency_24h_hpa"] = _lag_difference(press_arr, lag=1)
+            if steps_per_day >= 8:
+                derived["pressure_tendency_3h_hpa"] = _lag_difference(press_arr, lag=max(1, steps_per_day // 8))
+            derived["pressure_tendency_24h_hpa"] = _lag_difference(press_arr, lag=max(1, steps_per_day))
         else:
             derived["pressure_tendency_3h_hpa"] = _lag_difference(press_arr, lag=3)
             derived["pressure_tendency_24h_hpa"] = _lag_difference(press_arr, lag=24)
 
     if "rainfall_mm" in interpolated and _passes_density_threshold(interpolated["rainfall_mm"]):
         rain_series = interpolated["rainfall_mm"]
+        rain_arr = rain_series.to_numpy(dtype=float)
+        with np.errstate(invalid="ignore"):
+            derived["rain_occurrence"] = np.where(
+                np.isnan(rain_arr),
+                np.nan,
+                (rain_arr >= 0.2).astype(np.float32),
+            ).astype(np.float32)
         if is_daily:
-            derived["rain_sum_7d_mm"] = _rolling_rain_sum(rain_series, window=7)
+            derived["rain_sum_7d_mm"] = _rolling_rain_sum(rain_series, window=7 * max(1, steps_per_day))
         else:
             derived["rain_sum_24h_mm"] = _rolling_rain_sum(rain_series, window=24)
 
     return derived
 
 
+def _collect_past_covariates(
+    interpolated: dict[str, pd.Series],
+    is_daily: bool,
+    steps_per_day: int,
+) -> dict[str, np.ndarray]:
+    """_collect_past_covariates gathers sensor and derived past-only covariates meeting density rules."""
+    sensor_covariates = DAILY_SENSOR_PAST_COVARIATES if is_daily else HOURLY_SENSOR_PAST_COVARIATES
+    past_covariates: dict[str, np.ndarray] = {}
+    for col in sensor_covariates:
+        if col in interpolated and _passes_density_threshold(interpolated[col]):
+            past_covariates[col] = interpolated[col].to_numpy(dtype=np.float32)
+
+    if is_daily and steps_per_day > 1:
+        for col in ("min_temperature_c", "max_temperature_c", "rainfall_mm", "pressure_hpa"):
+            if col in interpolated and _passes_density_threshold(interpolated[col]):
+                past_covariates[f"bucket_{col}"] = interpolated[col].to_numpy(dtype=np.float32)
+
+    derived = _build_derived_covariates(interpolated, is_daily=is_daily, steps_per_day=steps_per_day)
+    for name, arr in derived.items():
+        if _passes_density_threshold(pd.Series(arr)):
+            past_covariates[name] = arr
+
+    return past_covariates
+
+
 def prepare_context_and_covariates(
     df: pd.DataFrame,
     is_daily: bool = False,
+    steps_per_day: int | None = None,
     short_gap_limit: int = SHORT_GAP_LIMIT,
 ) -> PreparedContext:
     """prepare_context_and_covariates builds target matrix and past covariates with short-gap interpolation."""
+    effective_steps_per_day = (8 if is_daily else 1) if steps_per_day is None else steps_per_day
     required_targets = DAILY_REQUIRED_TARGETS if is_daily else HOURLY_REQUIRED_TARGETS
     optional_targets = DAILY_OPTIONAL_TARGETS if is_daily else HOURLY_OPTIONAL_TARGETS
-    sensor_covariates = DAILY_SENSOR_PAST_COVARIATES if is_daily else HOURLY_SENSOR_PAST_COVARIATES
 
-    interpolated: dict[str, pd.Series] = {}
-    for col in df.columns:
-        if col == "timestamp":
-            continue
-        interpolated[col] = _interpolate_short_gaps(df[col], col, max_gap=short_gap_limit)
+    interpolated = {
+        col: _interpolate_short_gaps(df[col], col, max_gap=short_gap_limit) for col in df.columns if col != "timestamp"
+    }
 
     target_columns: list[str] = [col for col in required_targets if col in interpolated]
     for col in optional_targets:
         if col in interpolated and _passes_density_threshold(interpolated[col]):
             target_columns.append(col)
 
-    target_rows = [interpolated[col].to_numpy(dtype=np.float32) for col in target_columns]
+    if is_daily and effective_steps_per_day > 1:
+        target_rows = [
+            _build_daily_target_series(interpolated, col, effective_steps_per_day).to_numpy(dtype=np.float32)
+            for col in target_columns
+        ]
+    else:
+        target_rows = [interpolated[col].to_numpy(dtype=np.float32) for col in target_columns]
     target_matrix = np.stack(target_rows, axis=0) if target_rows else np.empty((0, len(df)), dtype=np.float32)
-
-    past_covariates: dict[str, np.ndarray] = {}
-    for col in sensor_covariates:
-        if col in interpolated and _passes_density_threshold(interpolated[col]):
-            past_covariates[col] = interpolated[col].to_numpy(dtype=np.float32)
-
-    derived = _build_derived_covariates(interpolated, is_daily=is_daily)
-    for name, arr in derived.items():
-        if _passes_density_threshold(pd.Series(arr)):
-            past_covariates[name] = arr
+    past_covariates = _collect_past_covariates(interpolated, is_daily=is_daily, steps_per_day=effective_steps_per_day)
 
     return PreparedContext(
         target=target_matrix,

@@ -131,14 +131,15 @@ def _build_daily_request(
     longitude: float | None = 9.2,
     elevation_m: float | None = 120.0,
 ) -> inference_pb2.PredictDailyWeatherRequest:
-    """_build_daily_request constructs a valid daily weather gRPC request."""
+    """_build_daily_request constructs a valid 3h-bucket daily weather gRPC request."""
     issue_time = Timestamp()
-    issue_time.FromSeconds(1700000000)
+    # 1699999200 = 2023-11-14 22:00:00 UTC (floored to 21:00 UTC 3h boundary -> 7 completed 3h buckets today)
+    issue_time.FromSeconds(1699999200)
 
     observations = []
-    for step_index in range(16):
+    for step_index in range(64):
         timestamp = Timestamp()
-        timestamp.FromSeconds(1700000000 - ((16 - step_index) * 86400))
+        timestamp.FromSeconds(1699995600 - ((63 - step_index) * 10800))
         obs = inference_pb2.TimeSeriesObservation(
             timestamp=timestamp,
             temperature_c=18.0,
@@ -303,8 +304,8 @@ def test_grpc_predict_daily_weather_success(grpc_service: inference_pb2_grpc.Inf
     assert len(response.predictions) == 10
     assert response.predictions[0].horizon_days == 0
     assert response.predictions[-1].horizon_days == 9
-    # issue_time floored to 00:00:00 UTC (1700000000 // 86400 * 86400 == 1699920000)
-    assert response.predictions[0].issue_time.seconds == 1699920000
+    # issue_time floored to top of the hour (1699999200 = 2023-11-14 22:00:00 UTC)
+    assert response.predictions[0].issue_time.seconds == 1699999200
     assert response.predictions[0].HasField("pressure_hpa")
 
 
@@ -415,7 +416,15 @@ def test_grpc_predict_daily_partial_and_missing_location(
 
     assert len(response.predictions) == 10
     assert all(np.isfinite(pred.min_temperature_c) for pred in response.predictions)
-    for key in ("clear_sky_radiation_mj", "daylight_hours", "doy_sin", "doy_cos"):
+    assert active_backend.captured_calls[-1]["prediction_length"] == 73
+    for key in (
+        "clear_sky_irradiance_wm2",
+        "solar_hour_sin",
+        "solar_hour_cos",
+        "daylight_hours",
+        "doy_sin",
+        "doy_cos",
+    ):
         assert key in captured_future
         assert np.isfinite(captured_future[key]).all()
 

@@ -7,6 +7,9 @@ from weather.inference.v1.inference_pb2 import TimeSeriesObservation
 
 from inference.validator import DAILY_REQUIRED_FIELDS, HOURLY_REQUIRED_FIELDS, trim_early_outage
 
+DAILY_BUCKET_STEP = timedelta(hours=3)
+DAILY_BUCKETS_PER_DAY = 8
+
 
 def floor_to_hour(dt: datetime) -> datetime:
     """floor_to_hour rounds a datetime down to the top of the hour in UTC."""
@@ -16,6 +19,13 @@ def floor_to_hour(dt: datetime) -> datetime:
 def floor_to_day(dt: datetime) -> datetime:
     """floor_to_day rounds a datetime down to 00:00:00 UTC."""
     return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def floor_to_step(dt: datetime, step: timedelta) -> datetime:
+    """floor_to_step rounds a UTC datetime down to the nearest step boundary."""
+    step_sec = int(step.total_seconds())
+    floored_sec = (int(dt.timestamp()) // step_sec) * step_sec
+    return datetime.fromtimestamp(floored_sec, tz=UTC)
 
 
 def sort_observations(observations: Sequence[TimeSeriesObservation]) -> list[TimeSeriesObservation]:
@@ -34,8 +44,8 @@ def _filter_and_trim_history(
     if issue_time is None:
         return sorted_obs
     step_seconds = int(step.total_seconds())
-    is_daily = step >= timedelta(days=1)
-    floored_issue = floor_to_day(issue_time) if is_daily else floor_to_hour(issue_time)
+    is_daily = step > timedelta(hours=1)
+    floored_issue = floor_to_step(issue_time, step)
     floored_issue_sec = int(floored_issue.timestamp())
     completed = [obs for obs in sorted_obs if obs.timestamp.seconds < floored_issue_sec]
     if not completed:
@@ -49,12 +59,11 @@ def _compute_grid_bounds(
     issue_time: datetime | None,
     step: timedelta,
 ) -> tuple[datetime, datetime]:
-    is_daily = step >= timedelta(days=1)
     first_dt = sorted_obs[0].timestamp.ToDatetime().replace(tzinfo=UTC)
     if issue_time is not None:
-        first_dt = floor_to_day(first_dt) if is_daily else floor_to_hour(first_dt)
+        first_dt = floor_to_step(first_dt, step)
         last_obs_dt = sorted_obs[-1].timestamp.ToDatetime().replace(tzinfo=UTC)
-        floored_issue = floor_to_day(issue_time) if is_daily else floor_to_hour(issue_time)
+        floored_issue = floor_to_step(issue_time, step)
         expected_last_dt = floored_issue - step
         grid_end = max(last_obs_dt, expected_last_dt)
     else:
@@ -178,3 +187,30 @@ def generate_daily_future_timestamps(issue_time: datetime, horizon_days: int) ->
     """generate_daily_future_timestamps builds future daily bucket start timestamps from 00:00 UTC."""
     floored = floor_to_day(issue_time)
     return [floored + timedelta(days=step) for step in range(horizon_days)]
+
+
+def generate_step_future_timestamps(
+    issue_time: datetime,
+    prediction_length: int,
+    step: timedelta,
+) -> list[datetime]:
+    """generate_step_future_timestamps builds future bucket start timestamps aligned to step."""
+    floored = floor_to_step(issue_time, step)
+    return [floored + (idx * step) for idx in range(prediction_length)]
+
+
+def compute_daily_substep_plan(
+    issue_time: datetime,
+    horizon_days: int,
+    step: timedelta = DAILY_BUCKET_STEP,
+) -> tuple[datetime, int, list[int]]:
+    """compute_daily_substep_plan returns (grid_issue_dt, prediction_length, eod_step_indices)."""
+    steps_per_day = int(timedelta(days=1) // step)
+    grid_issue_dt = floor_to_step(issue_time, step)
+    day_zero_dt = floor_to_day(issue_time)
+    completed_today = int((grid_issue_dt - day_zero_dt) // step)
+    prediction_length = (steps_per_day * horizon_days) - completed_today
+    eod_step_indices = [
+        (steps_per_day - completed_today - 1) + (steps_per_day * day_idx) for day_idx in range(horizon_days)
+    ]
+    return grid_issue_dt, prediction_length, eod_step_indices

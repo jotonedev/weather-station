@@ -49,8 +49,9 @@ def hourly_known_covariates(
     latitude: float | None = None,
     longitude: float | None = None,
     elevation_m: float | None = None,
+    step: timedelta = timedelta(hours=1),
 ) -> dict[str, np.ndarray]:
-    """hourly_known_covariates computes known solar and seasonal covariates at hourly bucket midpoints."""
+    """hourly_known_covariates computes known solar and seasonal covariates at sub-daily bucket midpoints."""
     if not timestamps:
         return {}
 
@@ -58,7 +59,7 @@ def hourly_known_covariates(
     lon_deg = 0.0 if longitude is None or not np.isfinite(longitude) else float(longitude)
     elev = 0.0 if elevation_m is None or not np.isfinite(elevation_m) else max(0.0, float(elevation_m))
 
-    doy, utc_hours = _day_of_year_fraction(timestamps, timedelta(minutes=30))
+    doy, utc_hours = _day_of_year_fraction(timestamps, step / 2)
     doy_angle, inv_dist_sq, declination, omega_s, lat_rad = _solar_angles(doy, lat_deg)
 
     eot_hours = _equation_of_time_hours(doy)

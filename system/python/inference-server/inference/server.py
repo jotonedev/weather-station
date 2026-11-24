@@ -13,15 +13,17 @@ from inference.backends.base import ForecastBackend
 from inference.config import Config
 from inference.covariates import prepare_context_and_covariates
 from inference.features import (
+    DAILY_BUCKET_STEP,
+    DAILY_BUCKETS_PER_DAY,
+    compute_daily_substep_plan,
     extract_observation_dataframe,
-    floor_to_day,
     floor_to_hour,
-    generate_daily_future_timestamps,
     generate_hourly_future_timestamps,
+    generate_step_future_timestamps,
     sort_observations,
 )
 from inference.formatter import format_daily_predictions, format_hourly_predictions
-from inference.solar import daily_known_covariates, hourly_known_covariates
+from inference.solar import hourly_known_covariates
 from inference.validator import (
     ValidationError,
     validate_daily_request,
@@ -67,7 +69,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
     ) -> inference_pb2.PredictHourlyWeatherResponse:
         """PredictHourlyWeather runs ingress validation, feature transformations, and hourly forecasting."""
         try:
-            validate_hourly_request(request)
+            validate_hourly_request(request, max_horizon_hours=self.config.max_horizon_hours)
         except ValidationError as validation_err:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(validation_err))
@@ -149,31 +151,54 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             context.set_details(str(validation_err))
             return inference_pb2.PredictDailyWeatherResponse()
 
-        prediction_length = request.horizon_days
-        issue_time_dt = floor_to_day(request.issue_time.ToDatetime().replace(tzinfo=UTC))
+        issue_time_dt = floor_to_hour(request.issue_time.ToDatetime().replace(tzinfo=UTC))
         aligned_issue_time = Timestamp()
         aligned_issue_time.FromDatetime(issue_time_dt)
+
+        grid_issue_dt, prediction_length, eod_step_indices = compute_daily_substep_plan(
+            issue_time_dt,
+            request.horizon_days,
+            DAILY_BUCKET_STEP,
+        )
 
         sorted_observations = sort_observations(request.history)
         observation_df = extract_observation_dataframe(
             sorted_observations,
-            step=timedelta(days=1),
-            issue_time=issue_time_dt,
+            step=DAILY_BUCKET_STEP,
+            issue_time=grid_issue_dt,
         )
 
-        prepared = prepare_context_and_covariates(observation_df, is_daily=True)
+        prepared = prepare_context_and_covariates(
+            observation_df,
+            is_daily=True,
+            steps_per_day=DAILY_BUCKETS_PER_DAY,
+        )
         past_timestamps = observation_df["timestamp"].tolist()
-        future_timestamps = generate_daily_future_timestamps(issue_time_dt, prediction_length)
-        lat, _, elev = _extract_location(request)
+        future_timestamps = generate_step_future_timestamps(grid_issue_dt, prediction_length, DAILY_BUCKET_STEP)
+        lat, lon, elev = _extract_location(request)
 
-        known_past = daily_known_covariates(past_timestamps, latitude=lat, elevation_m=elev)
-        known_future = daily_known_covariates(future_timestamps, latitude=lat, elevation_m=elev)
+        known_past = hourly_known_covariates(
+            past_timestamps,
+            latitude=lat,
+            longitude=lon,
+            elevation_m=elev,
+            step=DAILY_BUCKET_STEP,
+        )
+        known_future = hourly_known_covariates(
+            future_timestamps,
+            latitude=lat,
+            longitude=lon,
+            elevation_m=elev,
+            step=DAILY_BUCKET_STEP,
+        )
         past_covariates = {**prepared.past_covariates, **known_past}
 
         logger.info(
-            "daily forecast node=%s context_steps=%d horizon=%d targets=%s past_covariates=%s known_covariates=%s",
+            "daily forecast node=%s context_steps=%d horizon_days=%d substep_horizon=%d "
+            "targets=%s past_covariates=%s known_covariates=%s",
             request.node_id,
             len(past_timestamps),
+            request.horizon_days,
             prediction_length,
             prepared.target_columns,
             list(prepared.past_covariates.keys()),
@@ -194,11 +219,14 @@ class InferenceServicer(inference_pb2_grpc.InferenceServiceServicer):
             context.set_details(f"inference execution failed: {inference_err}")
             return inference_pb2.PredictDailyWeatherResponse()
 
+        valid_eod = [idx for idx in eod_step_indices if idx < quantiles.shape[1]]
+        daily_quantiles = quantiles[:, valid_eod, :]
+
         predictions = format_daily_predictions(
             node_id=request.node_id,
             issue_time=aligned_issue_time,
-            horizon_days=prediction_length,
-            quantiles=quantiles,
+            horizon_days=request.horizon_days,
+            quantiles=daily_quantiles,
             target_columns=prepared.target_columns,
             quantile_levels=quantile_levels,
         )

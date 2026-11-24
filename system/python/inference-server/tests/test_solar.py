@@ -60,6 +60,19 @@ def test_hourly_known_covariates_longitude_shifts_solar_noon() -> None:
     assert west_90["clear_sky_irradiance_wm2"][0] > greenwich["clear_sky_irradiance_wm2"][0]
 
 
+def test_hourly_known_covariates_3h_midpoint() -> None:
+    """Test_hourly_known_covariates_3h_midpoint uses bucket midpoint (+90m) for 3h steps."""
+    bucket_start = [datetime(2026, 6, 21, 9, 0, tzinfo=UTC)]
+    covs_3h = hourly_known_covariates(bucket_start, latitude=45.0, longitude=0.0, step=timedelta(hours=3))
+    covs_1h_mid = hourly_known_covariates(
+        [datetime(2026, 6, 21, 10, 0, tzinfo=UTC)],
+        latitude=45.0,
+        longitude=0.0,
+        step=timedelta(hours=1),
+    )
+    assert np.isclose(float(covs_3h["solar_elevation_sin"][0]), float(covs_1h_mid["solar_elevation_sin"][0]))
+
+
 def test_daily_known_covariates_summer_vs_winter() -> None:
     """Test_daily_known_covariates_summer_vs_winter verifies higher northern summer radiation."""
     dates = [

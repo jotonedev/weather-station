@@ -7,11 +7,15 @@ from weather.inference.v1.inference_pb2 import TimeSeriesObservation
 
 from inference.covariates import prepare_context_and_covariates
 from inference.features import (
+    DAILY_BUCKET_STEP,
+    compute_daily_substep_plan,
     extract_observation_dataframe,
     floor_to_day,
     floor_to_hour,
+    floor_to_step,
     generate_daily_future_timestamps,
     generate_hourly_future_timestamps,
+    generate_step_future_timestamps,
     sort_observations,
 )
 
@@ -135,6 +139,42 @@ def test_generate_future_timestamps_contiguous_with_past() -> None:
     assert len(daily_steps) == 10
     assert daily_steps[0] == datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
     assert daily_steps[-1] == datetime(2026, 1, 10, 0, 0, tzinfo=UTC)
+
+    assert floor_to_step(datetime(2026, 1, 1, 8, 45, tzinfo=UTC), DAILY_BUCKET_STEP) == datetime(
+        2026, 1, 1, 6, 0, tzinfo=UTC
+    )
+    step_future = generate_step_future_timestamps(datetime(2026, 1, 1, 8, 45, tzinfo=UTC), 3, DAILY_BUCKET_STEP)
+    assert step_future == [
+        datetime(2026, 1, 1, 6, 0, tzinfo=UTC),
+        datetime(2026, 1, 1, 9, 0, tzinfo=UTC),
+        datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("hour_utc", "expected_grid_hour", "expected_len", "expected_first_eod", "expected_last_eod"),
+    [
+        (0, 0, 80, 7, 79),
+        (8, 6, 78, 5, 77),
+        (22, 21, 73, 0, 72),
+    ],
+)
+def test_compute_daily_substep_plan(
+    hour_utc: int,
+    expected_grid_hour: int,
+    expected_len: int,
+    expected_first_eod: int,
+    expected_last_eod: int,
+) -> None:
+    """Test_compute_daily_substep_plan aligns 3h grid issue time and end-of-day indices."""
+    issue_time = datetime(2026, 11, 24, hour_utc, 15, tzinfo=UTC)
+    grid_issue, pred_len, eod_indices = compute_daily_substep_plan(issue_time, horizon_days=10, step=DAILY_BUCKET_STEP)
+
+    assert grid_issue == datetime(2026, 11, 24, expected_grid_hour, 0, tzinfo=UTC)
+    assert pred_len == expected_len
+    assert len(eod_indices) == 10
+    assert eod_indices[0] == expected_first_eod
+    assert eod_indices[-1] == expected_last_eod
 
 
 def test_extract_observation_dataframe_reindexes_interior_gaps() -> None:

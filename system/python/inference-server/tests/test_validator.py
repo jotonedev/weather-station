@@ -47,9 +47,9 @@ def create_valid_daily_request() -> PredictDailyWeatherRequest:
     issue_time.FromSeconds(1700000000)
 
     observations = []
-    for step_index in range(10):
+    for step_index in range(16):
         timestamp = Timestamp()
-        timestamp.FromSeconds(1700000000 - ((10 - step_index) * 86400))
+        timestamp.FromSeconds(1700000000 - ((16 - step_index) * 10800))
         observation = TimeSeriesObservation(
             timestamp=timestamp,
             temperature_c=21.5,
@@ -98,8 +98,11 @@ def test_validate_hourly_request_invalid_horizon() -> None:
         validate_hourly_request(request)
 
     request.horizon_hours = 200
-    with pytest.raises(ValidationError, match="horizon_hours exceeds maximum allowed of 168"):
-        validate_hourly_request(request)
+    validate_hourly_request(request, max_horizon_hours=240)
+
+    request.horizon_hours = 241
+    with pytest.raises(ValidationError, match="horizon_hours exceeds maximum allowed of 240"):
+        validate_hourly_request(request, max_horizon_hours=240)
 
 
 def test_validate_daily_request_invalid_horizon() -> None:
@@ -286,7 +289,7 @@ def test_validate_request_deduplicates_same_bucket_timestamps() -> None:
 def test_validate_daily_request_checks_min_max_sparsity(field_name: str) -> None:
     """Test_validate_daily_request_checks_min_max_sparsity rejects >50% missing daily min/max targets."""
     request = create_valid_daily_request()
-    for index in range(6):
+    for index in range(9):
         request.history[index].ClearField(field_name)
 
     with pytest.raises(ValidationError, match=f"{field_name} exceeds maximum allowed missing ratio"):
