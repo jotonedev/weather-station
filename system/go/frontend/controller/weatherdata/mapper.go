@@ -87,16 +87,32 @@ func classifyWeatherCondition(rainfallMm *float32) (string, string) {
 	return "wi-day-cloudy", "Clear Sky"
 }
 
-// classifyForecastCondition determines a Weather Icons class name and label for a forecast item.
-func classifyForecastCondition(rainfallMm, rainProb *float32) (string, string) {
-	isRainy := (rainProb != nil && *rainProb >= 0.4) || (rainfallMm != nil && *rainfallMm >= 0.2)
+const (
+	hourlyLightRainMm         = 0.2
+	hourlyHeavyRainMm         = 4.0
+	dailyLightRainMm          = 1.0
+	dailyHeavyRainMm          = 10.0
+	forecastRainProbThreshold = 0.4
+)
+
+// classifyForecastConditionWithThresholds determines a Weather Icons class name and label using explicit rainfall bounds.
+func classifyForecastConditionWithThresholds(rainfallMm, rainProb *float32, lightRainMm, heavyRainMm float32) (string, string) {
+	isRainy := (rainProb != nil && *rainProb >= forecastRainProbThreshold) || (rainfallMm != nil && *rainfallMm >= lightRainMm)
 	if !isRainy {
 		return "wi-day-cloudy", "Clear Sky"
 	}
-	if rainfallMm != nil && *rainfallMm >= 4.0 {
+	if rainfallMm != nil && *rainfallMm >= heavyRainMm {
 		return "wi-rain", "Heavy Rain"
 	}
 	return "wi-showers", "Light Rain"
+}
+
+func classifyHourlyForecastCondition(rainfallMm, rainProb *float32) (string, string) {
+	return classifyForecastConditionWithThresholds(rainfallMm, rainProb, hourlyLightRainMm, hourlyHeavyRainMm)
+}
+
+func classifyDailyForecastCondition(rainfallMm, rainProb *float32) (string, string) {
+	return classifyForecastConditionWithThresholds(rainfallMm, rainProb, dailyLightRainMm, dailyHeavyRainMm)
 }
 
 func scorePollutant(val *int32, thresholds [5]int32) int {
@@ -221,7 +237,7 @@ func pbHourlyToView(pred *protodatabasev1.HourlyPrediction) ForecastItemView {
 	}
 
 	horizonLabel, subLabel, targetTimeISO := formatHourlyHorizonLabel(issueTime, pred.HorizonHours)
-	condIcon, condLabel := classifyForecastCondition(pred.RainfallMm, pred.RainProbability)
+	condIcon, condLabel := classifyHourlyForecastCondition(pred.RainfallMm, pred.RainProbability)
 	probText, probPct := formatProbability(pred.RainProbability)
 
 	return ForecastItemView{
@@ -250,7 +266,7 @@ func pbDailyToView(pred *protodatabasev1.DailyPrediction) ForecastItemView {
 	}
 
 	horizonLabel, subLabel, targetTimeISO := formatDailyHorizonLabel(issueTime, pred.HorizonDays)
-	condIcon, condLabel := classifyForecastCondition(pred.RainfallMm, pred.RainProbability)
+	condIcon, condLabel := classifyDailyForecastCondition(pred.RainfallMm, pred.RainProbability)
 	probText, probPct := formatProbability(pred.RainProbability)
 
 	var minTemp, maxTemp string

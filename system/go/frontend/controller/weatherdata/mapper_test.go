@@ -164,23 +164,33 @@ func TestClassifyForecastCondition(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		isDaily   bool
 		rainfall  *float32
 		rainProb  *float32
 		wantIcon  string
 		wantLabel string
 	}{
-		{"dry low prob", f32(0.0), f32(0.25), "wi-day-cloudy", "Clear Sky"},
-		{"moderate prob triggers showers", f32(0.0), f32(0.45), "wi-showers", "Light Rain"},
-		{"rainfall >= 0.2 triggers showers even with low prob", f32(0.3), f32(0.2), "wi-showers", "Light Rain"},
-		{"heavy rain", f32(4.5), f32(0.9), "wi-rain", "Heavy Rain"},
-		{"nil prob uses rainfall", f32(0.2), nil, "wi-showers", "Light Rain"},
+		{"hourly dry low prob", false, f32(0.0), f32(0.25), "wi-day-cloudy", "Clear Sky"},
+		{"hourly moderate prob triggers showers", false, f32(0.0), f32(0.45), "wi-showers", "Light Rain"},
+		{"hourly rainfall >= 0.2 triggers showers even with low prob", false, f32(0.3), f32(0.2), "wi-showers", "Light Rain"},
+		{"hourly heavy rain", false, f32(4.5), f32(0.9), "wi-rain", "Heavy Rain"},
+		{"hourly nil prob uses rainfall", false, f32(0.2), nil, "wi-showers", "Light Rain"},
+		{"daily sub-1mm drizzle with low prob stays clear sky", true, f32(0.4), f32(0.36), "wi-day-cloudy", "Clear Sky"},
+		{"daily rainfall >= 1.0 triggers light rain", true, f32(2.5), f32(0.35), "wi-showers", "Light Rain"},
+		{"daily rainfall >= 10.0 triggers heavy rain", true, f32(12.0), f32(0.90), "wi-rain", "Heavy Rain"},
+		{"daily moderate rain >= 4.0 stays light rain below 10.0", true, f32(5.0), f32(0.80), "wi-showers", "Light Rain"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			icon, label := classifyForecastCondition(tt.rainfall, tt.rainProb)
+			var icon, label string
+			if tt.isDaily {
+				icon, label = classifyDailyForecastCondition(tt.rainfall, tt.rainProb)
+			} else {
+				icon, label = classifyHourlyForecastCondition(tt.rainfall, tt.rainProb)
+			}
 			if icon != tt.wantIcon || label != tt.wantLabel {
-				t.Errorf("classifyForecastCondition() = (%q, %q), want (%q, %q)", icon, label, tt.wantIcon, tt.wantLabel)
+				t.Errorf("classify condition(daily=%v) = (%q, %q), want (%q, %q)", tt.isDaily, icon, label, tt.wantIcon, tt.wantLabel)
 			}
 		})
 	}
