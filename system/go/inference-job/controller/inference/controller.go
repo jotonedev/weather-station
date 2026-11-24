@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -39,12 +40,28 @@ type InferenceGateway interface {
 	PredictDailyWeather(ctx context.Context, req *protoinferencev1.PredictDailyWeatherRequest) (*protoinferencev1.PredictDailyWeatherResponse, error)
 }
 
+const (
+	hourlyHistoryDuration = 40 * 24 * time.Hour
+	hourlyBucketSeconds   = uint32(3600)
+	dailyHistoryDuration  = 400 * 24 * time.Hour
+	dailyBucketSeconds    = uint32(10800)
+	dailyBucketDuration   = 3 * time.Hour
+)
+
+type intradaySnapshot struct {
+	issueTime   time.Time
+	todayActual []*protodatabasev1.ClimateAggregate
+	hourlyPreds []*protodatabasev1.HourlyPrediction
+}
+
 // Controller coordinates fetching history, generating forecasts, and storing predictions.
 type Controller struct {
 	log        *zap.Logger
 	dbGateway  DatabaseGateway
 	infGateway InferenceGateway
 	nowFunc    func() time.Time
+	mu         sync.Mutex
+	intraday   map[string]intradaySnapshot
 }
 
 // ControllerParams defines dependencies for Controller.
@@ -83,6 +100,7 @@ func New(params ControllerParams) (*Controller, error) {
 		dbGateway:  dbGateway,
 		infGateway: infGateway,
 		nowFunc:    time.Now,
+		intraday:   make(map[string]intradaySnapshot),
 	}, nil
 }
 
@@ -125,13 +143,10 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 	}
 
 	nodeID := node.GetNodeId()
-	historyDuration := 40 * 24 * time.Hour
-	bucketSeconds := uint32(3600)
-
 	issueTime := c.nowFunc().UTC().Truncate(time.Hour)
-	startTime := issueTime.Add(-historyDuration)
+	startTime := issueTime.Add(-hourlyHistoryDuration)
 
-	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, issueTime, bucketSeconds)
+	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, issueTime, hourlyBucketSeconds)
 	if err != nil {
 		return fmt.Errorf("query climate aggregates for node %q: %w", nodeID, err)
 	}
@@ -171,6 +186,24 @@ func (c *Controller) RunHourlyForecastForNodeWithCoord(ctx context.Context, node
 			return fmt.Errorf("store hourly predictions for node %q: %w", nodeID, err)
 		}
 	}
+
+	dayStart := issueTime.Truncate(24 * time.Hour)
+	var todayActual []*protodatabasev1.ClimateAggregate
+	for _, agg := range completedAggregates {
+		if !agg.GetBucketStart().AsTime().Before(dayStart) {
+			todayActual = append(todayActual, agg)
+		}
+	}
+	c.mu.Lock()
+	if c.intraday == nil {
+		c.intraday = make(map[string]intradaySnapshot)
+	}
+	c.intraday[nodeID] = intradaySnapshot{
+		issueTime:   issueTime,
+		todayActual: todayActual,
+		hourlyPreds: hourlyPredictions,
+	}
+	c.mu.Unlock()
 
 	c.log.Info("hourly forecast successfully processed",
 		zap.String("node_id", nodeID),
@@ -220,20 +253,18 @@ func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node 
 	}
 
 	nodeID := node.GetNodeId()
-	historyDuration := 365 * 24 * time.Hour
-	bucketSeconds := uint32(86400)
+	issueTime := c.nowFunc().UTC().Truncate(time.Hour)
+	gridEnd := issueTime.Truncate(dailyBucketDuration)
+	startTime := gridEnd.Add(-dailyHistoryDuration)
 
-	issueTime := c.nowFunc().UTC().Truncate(24 * time.Hour)
-	startTime := issueTime.Add(-historyDuration)
-
-	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, issueTime, bucketSeconds)
+	aggregates, err := c.dbGateway.GetClimateAggregates(ctx, nodeID, startTime, gridEnd, dailyBucketSeconds)
 	if err != nil {
 		return fmt.Errorf("query climate aggregates for node %q: %w", nodeID, err)
 	}
 
 	var completedAggregates []*protodatabasev1.ClimateAggregate
 	for _, agg := range aggregates {
-		if agg.GetBucketStart().AsTime().Before(issueTime) {
+		if agg.GetBucketStart().AsTime().Before(gridEnd) {
 			completedAggregates = append(completedAggregates, agg)
 		}
 	}
@@ -261,6 +292,20 @@ func (c *Controller) RunDailyForecastForNodeWithCoord(ctx context.Context, node 
 	}
 
 	dailyPredictions := res.GetPredictions()
+	issueTs := timestamppb.New(issueTime)
+	for _, pred := range dailyPredictions {
+		if pred != nil {
+			pred.IssueTime = issueTs
+		}
+	}
+
+	c.mu.Lock()
+	snap, hasSnap := c.intraday[nodeID]
+	c.mu.Unlock()
+	if hasSnap && snap.issueTime.Equal(issueTime) {
+		BlendTodayPrediction(dailyPredictions, issueTime, snap.todayActual, snap.hourlyPreds)
+	}
+
 	if len(dailyPredictions) > 0 {
 		if err := c.dbGateway.StoreDailyPredictions(ctx, dailyPredictions); err != nil {
 			return fmt.Errorf("store daily predictions for node %q: %w", nodeID, err)

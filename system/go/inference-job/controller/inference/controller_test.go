@@ -257,7 +257,7 @@ func TestRunHourlyForecastForNode(t *testing.T) {
 func TestRunDailyForecastForNode(t *testing.T) {
 	logger := zap.NewNop()
 	fixedTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
-	fixedDay := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	fixedGridEnd := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	errDB := errors.New("db failed")
 	errInf := errors.New("inference failed")
 	errStore := errors.New("store failed")
@@ -286,7 +286,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			horizonDays: 10,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 				mockDB.EXPECT().
-					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+					GetClimateAggregates(gomock.Any(), "node-1", fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 					Return(nil, errDB)
 			},
 			wantErr:   true,
@@ -298,7 +298,7 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			horizonDays: 10,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 				mockDB.EXPECT().
-					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+					GetClimateAggregates(gomock.Any(), "node-1", fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 					Return([]*protodatabasev1.ClimateAggregate{}, nil)
 			},
 			wantErr: false,
@@ -309,9 +309,9 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			horizonDays: 10,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 				mockDB.EXPECT().
-					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+					GetClimateAggregates(gomock.Any(), "node-1", fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 					Return([]*protodatabasev1.ClimateAggregate{
-						{BucketStart: timestamppb.New(fixedDay.Add(-24 * time.Hour))},
+						{BucketStart: timestamppb.New(fixedGridEnd.Add(-3 * time.Hour))},
 					}, nil)
 				mockInf.EXPECT().
 					PredictDailyWeather(gomock.Any(), gomock.Any()).
@@ -326,9 +326,9 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			horizonDays: 10,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 				mockDB.EXPECT().
-					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+					GetClimateAggregates(gomock.Any(), "node-1", fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 					Return([]*protodatabasev1.ClimateAggregate{
-						{BucketStart: timestamppb.New(fixedDay.Add(-24 * time.Hour))},
+						{BucketStart: timestamppb.New(fixedGridEnd.Add(-3 * time.Hour))},
 					}, nil)
 				mockInf.EXPECT().
 					PredictDailyWeather(gomock.Any(), gomock.Any()).
@@ -350,9 +350,9 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			horizonDays: 10,
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
 				mockDB.EXPECT().
-					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+					GetClimateAggregates(gomock.Any(), "node-1", fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 					Return([]*protodatabasev1.ClimateAggregate{
-						{BucketStart: timestamppb.New(fixedDay.Add(-24 * time.Hour))},
+						{BucketStart: timestamppb.New(fixedGridEnd.Add(-3 * time.Hour))},
 					}, nil)
 				mockInf.EXPECT().
 					PredictDailyWeather(gomock.Any(), gomock.AssignableToTypeOf(&protoinferencev1.PredictDailyWeatherRequest{})).
@@ -368,25 +368,26 @@ func TestRunDailyForecastForNode(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:        "daily forecast truncates issueTime to 00:00 UTC and excludes unfinished today bucket",
+			name:        "daily forecast aligns gridEnd to 3h boundary and issueTime to 1h boundary",
 			nodeID:      "node-1",
 			horizonDays: 10,
 			now:         time.Date(2026, 10, 10, 14, 45, 24, 0, time.FixedZone("CEST", 7200)),
 			setup: func(mockDB *mocks.MockDatabaseGateway, mockInf *mocks.MockInferenceGateway) {
+				// 14:45:24 CEST = 12:45:24 UTC -> issueTime 12:00 UTC, gridEnd 12:00 UTC
 				mockDB.EXPECT().
-					GetClimateAggregates(gomock.Any(), "node-1", fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+					GetClimateAggregates(gomock.Any(), "node-1", fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 					Return([]*protodatabasev1.ClimateAggregate{
-						{BucketStart: timestamppb.New(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC))},
-						{BucketStart: timestamppb.New(time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))},
+						{BucketStart: timestamppb.New(time.Date(2026, 10, 10, 9, 0, 0, 0, time.UTC))},
+						{BucketStart: timestamppb.New(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))},
 					}, nil)
 				mockInf.EXPECT().
 					PredictDailyWeather(gomock.Any(), gomock.AssignableToTypeOf(&protoinferencev1.PredictDailyWeatherRequest{})).
 					DoAndReturn(func(_ context.Context, req *protoinferencev1.PredictDailyWeatherRequest) (*protoinferencev1.PredictDailyWeatherResponse, error) {
-						if !req.IssueTime.AsTime().Equal(fixedDay) {
-							t.Fatalf("expected IssueTime %v, got %v", fixedDay, req.IssueTime.AsTime())
+						if !req.IssueTime.AsTime().Equal(fixedTime) {
+							t.Fatalf("expected IssueTime %v, got %v", fixedTime, req.IssueTime.AsTime())
 						}
 						if len(req.History) != 1 {
-							t.Fatalf("expected 1 history item excluding today's unfinished bucket, got %d", len(req.History))
+							t.Fatalf("expected 1 history item excluding unfinished 3h bucket, got %d", len(req.History))
 						}
 						return &protoinferencev1.PredictDailyWeatherResponse{
 							Predictions: []*protodatabasev1.DailyPrediction{
@@ -511,7 +512,7 @@ func TestRunHourlyForecast(t *testing.T) {
 func TestRunDailyForecast(t *testing.T) {
 	logger := zap.NewNop()
 	fixedTime := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
-	fixedDay := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	fixedGridEnd := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	errList := errors.New("list error")
 
 	tests := []struct {
@@ -540,9 +541,9 @@ func TestRunDailyForecast(t *testing.T) {
 
 				for _, id := range []string{"node-1", "node-2"} {
 					mockDB.EXPECT().
-						GetClimateAggregates(gomock.Any(), id, fixedDay.Add(-365*24*time.Hour), fixedDay, uint32(86400)).
+						GetClimateAggregates(gomock.Any(), id, fixedGridEnd.Add(-400*24*time.Hour), fixedGridEnd, uint32(10800)).
 						Return([]*protodatabasev1.ClimateAggregate{
-							{BucketStart: timestamppb.New(fixedDay.Add(-24 * time.Hour))},
+							{BucketStart: timestamppb.New(fixedGridEnd.Add(-3 * time.Hour))},
 						}, nil)
 					mockInf.EXPECT().
 						PredictDailyWeather(gomock.Any(), gomock.Any()).
@@ -582,5 +583,83 @@ func TestRunDailyForecast(t *testing.T) {
 				t.Errorf("RunDailyForecast() error = %v, want %v", err, errList)
 			}
 		})
+	}
+}
+
+func TestRunHourlyThenDailyBlendsTodayAndKeepsUniformIssueTime(t *testing.T) {
+	logger := zap.NewNop()
+	fixedTime := time.Date(2026, 10, 10, 8, 25, 0, 0, time.UTC)
+	expectedIssue := time.Date(2026, 10, 10, 8, 0, 0, 0, time.UTC)
+	expectedGridEnd := time.Date(2026, 10, 10, 6, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+	mockDB := mocks.NewMockDatabaseGateway(ctrl)
+	mockInf := mocks.NewMockInferenceGateway(ctrl)
+
+	rain2mm := float32(2.0)
+	temp6 := float32(6.0)
+	temp14 := float32(14.0)
+	probLow := float32(0.45)
+
+	mockDB.EXPECT().
+		GetClimateAggregates(gomock.Any(), "node-1", expectedIssue.Add(-40*24*time.Hour), expectedIssue, uint32(3600)).
+		Return([]*protodatabasev1.ClimateAggregate{
+			{
+				BucketStart:     timestamppb.New(time.Date(2026, 10, 10, 5, 0, 0, 0, time.UTC)),
+				MinTemperatureC: &temp6,
+				MaxTemperatureC: &temp6,
+				TotalRainfallMm: &rain2mm,
+			},
+		}, nil)
+	mockInf.EXPECT().
+		PredictHourlyWeather(gomock.Any(), gomock.Any()).
+		Return(&protoinferencev1.PredictHourlyWeatherResponse{
+			Predictions: []*protodatabasev1.HourlyPrediction{
+				{NodeId: "node-1", HorizonHours: 1, TemperatureC: &temp14},
+			},
+		}, nil)
+	mockDB.EXPECT().StoreHourlyPredictions(gomock.Any(), gomock.Len(1)).Return(nil)
+
+	mockDB.EXPECT().
+		GetClimateAggregates(gomock.Any(), "node-1", expectedGridEnd.Add(-400*24*time.Hour), expectedGridEnd, uint32(10800)).
+		Return([]*protodatabasev1.ClimateAggregate{
+			{BucketStart: timestamppb.New(expectedGridEnd.Add(-3 * time.Hour))},
+		}, nil)
+	mockInf.EXPECT().
+		PredictDailyWeather(gomock.Any(), gomock.Any()).
+		Return(&protoinferencev1.PredictDailyWeatherResponse{
+			Predictions: []*protodatabasev1.DailyPrediction{
+				{NodeId: "node-1", HorizonDays: 0, RainProbability: &probLow},
+				{NodeId: "node-1", HorizonDays: 1, RainProbability: &probLow},
+			},
+		}, nil)
+	mockDB.EXPECT().
+		StoreDailyPredictions(gomock.Any(), gomock.Len(2)).
+		DoAndReturn(func(_ context.Context, preds []*protodatabasev1.DailyPrediction) error {
+			if preds[0].GetRainProbability() != 1.0 {
+				t.Fatalf("Today RainProbability = %v, want 1.0", preds[0].GetRainProbability())
+			}
+			if preds[0].GetMinTemperatureC() != 6.0 || preds[0].GetMaxTemperatureC() != 14.0 {
+				t.Fatalf("Today temps = (%v, %v), want (6, 14)", preds[0].GetMinTemperatureC(), preds[0].GetMaxTemperatureC())
+			}
+			if !preds[0].GetIssueTime().AsTime().Equal(expectedIssue) || !preds[1].GetIssueTime().AsTime().Equal(expectedIssue) {
+				t.Fatalf("IssueTimes not uniform at %v", expectedIssue)
+			}
+			return nil
+		})
+
+	c := &Controller{
+		log:        logger,
+		dbGateway:  mockDB,
+		infGateway: mockInf,
+		nowFunc:    func() time.Time { return fixedTime },
+		intraday:   make(map[string]intradaySnapshot),
+	}
+
+	if err := c.RunHourlyForecastForNode(context.Background(), "node-1", 24); err != nil {
+		t.Fatalf("RunHourlyForecastForNode() error = %v", err)
+	}
+	if err := c.RunDailyForecastForNode(context.Background(), "node-1", 10); err != nil {
+		t.Fatalf("RunDailyForecastForNode() error = %v", err)
 	}
 }
