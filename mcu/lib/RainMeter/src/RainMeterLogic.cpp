@@ -154,7 +154,7 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
         stillCount_ = 0;
     }
     uint32_t stillThreshold = (sample.samplePeriodMs > 0) ? (250u / sample.samplePeriodMs) : 8u;
-    stillThreshold = std::max(stillThreshold, 4u);
+    stillThreshold = std::max<uint32_t>(stillThreshold, 4u);
     const bool isStill = (stillCount_ >= stillThreshold);
 
     if (!calibrated_) {

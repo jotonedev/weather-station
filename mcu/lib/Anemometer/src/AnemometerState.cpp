@@ -72,7 +72,7 @@ void AnemometerState::step(const AnemometerSample& sample) {
 
         const uint32_t elapsedGapUs = sample.nowUs - dropoutStartMicros_;
         uint32_t coastDtUs = (lastStepMicros_ > 0) ? (sample.nowUs - lastStepMicros_) : 10000u;
-        coastDtUs = std::min(coastDtUs, 200000u);
+        coastDtUs = std::min<uint32_t>(coastDtUs, 200000u);
         const float coastDtSec = static_cast<float>(coastDtUs) * 1e-6f;
 
         // Inertial coasting: bridge blind spots up to 1.5 seconds (down to 10 RPM).
