@@ -4,9 +4,9 @@ This file extends the root `AGENTS.md` with rules specific to `mcu/`.
 
 ## Build and test boundaries
 
-- Verify changes in `mcu/` with `pio test -e native` and `pio run -e control-node -e base-station -e anemometer-test`
+ - Verify changes in `mcu/` with `pio test -e native` and `pio run -e control-node -e base-station -e anemometer-test -e windvane-test`
 - Verify `control-node` also compiles with `PLATFORMIO_BUILD_FLAGS='-DCALIBRATION_MODE=0'` when editing production sampling or radio code
-- All three PlatformIO environments compile with `-std=gnu++23`
+- All PlatformIO environments compile with `-std=gnu++23`
 - Never upload firmware (`-t upload`) or open a serial monitor unless the user explicitly asks
 
 ## Formatting and linting
