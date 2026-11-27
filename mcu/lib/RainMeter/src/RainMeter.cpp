@@ -1,10 +1,11 @@
-#include <Arduino.h>
+#ifdef ARDUINO
+
+#include "RainMeter.h"
+
 #include <Preferences.h>
 #include <cstring>
 #include <esp_attr.h>
 #include <esp_rom_crc.h>
-
-#include "rainmeter.h"
 
 namespace {
 
@@ -30,224 +31,206 @@ uint32_t computeRainRtcCrc(const RainRtcState& state) {
 
 } // namespace
 
-RainMeter::RainMeter(TwoWire& wire, float mmPerTip) : wire(wire), as5600(&wire), logic(mmPerTip) {}
+RainMeter::RainMeter(TwoWire& wire, float mmPerTip)
+    : device_(wire, 0x000Eu, false), logic_(mmPerTip) {}
 
 RainMeter::~RainMeter() {
     stopTask();
 }
 
 void RainMeter::initialize(uint8_t directionPin, uint8_t direction) {
-    as5600.begin(directionPin);
-    as5600.setDirection(direction);
-    // 3 LSB hysteresis to suppress angle jitter at rest
-    as5600.setHysteresis(AS5600_HYST_LSB3);
-    // Slow filter 16x for maximum noise rejection
-    as5600.setSlowFilter(AS5600_SLOW_FILT_16X);
-    // Disable fast filter so noise spikes do not bypass slow filter
-    as5600.setFastFilter(AS5600_FAST_FILT_NONE);
-    // 20 ms internal polling (LPM2) to provide fresh samples for the 30 ms task
-    as5600.setPowerMode(AS5600_POWERMODE_LOW2);
-    as5600.setWatchDog(AS5600_WATCHDOG_ON);
+    device_.initialize(directionPin, direction);
 
     sensors::RainCalibration cal;
     const bool hasCal = loadNvsCalibration(cal);
 
     const uint32_t nowMs = millis();
-    CriticalSection lock(spinlock);
-    lastDiagMs = 0;
+    CriticalSection lock(spinlock_);
     if (hasCal) {
-        logic.applyCalibration(cal);
+        logic_.applyCalibration(cal);
     }
-    logic.reset(nowMs);
+    logic_.reset(nowMs);
     loadRtcRollingBins();
 }
 
 bool RainMeter::ready() {
-    if (taskHandle != nullptr) {
-        CriticalSection lock(spinlock);
-        return logic.ready();
+    if (taskHandle_ != nullptr) {
+        CriticalSection lock(spinlock_);
+        return logic_.ready();
     }
-    return as5600.isConnected() && as5600.magnetDetected() && !as5600.magnetTooStrong() &&
-           !as5600.magnetTooWeak();
+    return device_.probeReady();
 }
 
 bool RainMeter::isConnected() {
-    return as5600.isConnected();
+    return device_.isConnected();
 }
 
 bool RainMeter::magnetDetected() {
-    return as5600.magnetDetected();
+    return device_.magnetDetected();
 }
 
 bool RainMeter::magnetTooStrong() {
-    return as5600.magnetTooStrong();
+    return device_.magnetTooStrong();
 }
 
 bool RainMeter::magnetTooWeak() {
-    return as5600.magnetTooWeak();
+    return device_.magnetTooWeak();
 }
 
 int RainMeter::getLastError() {
-    return as5600.lastError();
+    return device_.lastError();
 }
 
 void RainMeter::taskTrampoline(void* arg) {
     auto* self = static_cast<RainMeter*>(arg);
-    self->taskLoop(self->samplePeriodMs);
+    self->taskLoop(self->samplePeriodMs_);
 }
 
 bool RainMeter::startTask(uint32_t samplePeriodMs, UBaseType_t priority, BaseType_t core) {
-    if (taskHandle != nullptr) {
+    if (taskHandle_ != nullptr) {
         return true;
     }
-    this->samplePeriodMs = samplePeriodMs;
-    BaseType_t res = xTaskCreatePinnedToCore(taskTrampoline, "RainMeterTask", 4096, this, priority,
-                                             &taskHandle, core);
+    samplePeriodMs_ = samplePeriodMs;
+    currentPeriodMs_ = (samplePeriodMs > 0) ? samplePeriodMs : 30;
+    const BaseType_t res = xTaskCreatePinnedToCore(taskTrampoline, "RainMeterTask", 4096, this,
+                                                   priority, &taskHandle_, core);
     return res == pdPASS;
 }
 
 void RainMeter::stopTask() {
-    if (taskHandle != nullptr) {
-        vTaskDelete(taskHandle);
-        taskHandle = nullptr;
+    if (taskHandle_ != nullptr) {
+        vTaskDelete(taskHandle_);
+        taskHandle_ = nullptr;
     }
 }
 
 void RainMeter::taskLoop(uint32_t samplePeriodMs) {
     constexpr uint32_t kRestPeriodMs = 100;
     const uint32_t activePeriodMs = (samplePeriodMs > 0) ? samplePeriodMs : 30;
+    currentPeriodMs_ = activePeriodMs;
     while (true) {
         update();
         bool resting = false;
         {
-            CriticalSection lock(spinlock);
-            resting = logic.isResting();
+            CriticalSection lock(spinlock_);
+            resting = logic_.isResting();
         }
         const uint32_t delayMs = resting ? kRestPeriodMs : activePeriodMs;
         vTaskDelay(pdMS_TO_TICKS(delayMs));
+        currentPeriodMs_ = delayMs;
     }
 }
 
 void RainMeter::update() {
-    const uint32_t nowMs = millis();
+    const As5600Reading reading = device_.poll();
     sensors::RainMeterSample sample;
-    sample.nowMs = nowMs;
-    sample.samplePeriodMs = samplePeriodMs;
-    sample.rawAngle = as5600.readAngle();
-    sample.i2cOk = (as5600.lastError() == AS5600_OK);
+    sample.nowMs = reading.nowMs;
+    sample.rawAngle = reading.rawAngle;
+    sample.i2cOk = reading.i2cOk;
+    sample.hasDiag = reading.hasDiag;
+    sample.diagStatus = reading.diagStatus;
+    sample.diagAgc = reading.diagAgc;
+    sample.diagMagnitude = reading.diagMagnitude;
+    sample.samplePeriodMs = currentPeriodMs_;
 
-    if (sample.i2cOk) {
-        sample.hasDiag = (lastDiagMs == 0) || (nowMs - lastDiagMs >= 5000uL);
-        if (sample.hasDiag) {
-            lastDiagMs = nowMs;
-            sample.diagStatus = as5600.readStatus();
-            sample.diagAgc = as5600.readAGC();
-        }
-    }
-
-    sensors::RainMeterStepResult result;
+    sensors::RainMeterStepResult stepResult;
     {
-        CriticalSection lock(spinlock);
-        result = logic.step(sample);
-        if (result.saveRtcBins) {
+        CriticalSection lock(spinlock_);
+        stepResult = logic_.step(sample);
+        if (stepResult.saveRtcBins) {
             saveRtcRollingBins();
         }
     }
 
-    if (result.saveCalibration) {
-        saveNvsCalibration(result.calibration);
+    if (stepResult.saveCalibration) {
+        saveNvsCalibration(stepResult.calibration);
     }
 }
 
 float RainMeter::getRainfall1h() {
-    CriticalSection lock(spinlock);
-    return logic.rainfall1h();
+    CriticalSection lock(spinlock_);
+    return logic_.rainfall1h();
 }
 
 float RainMeter::getRainfall24h() {
-    CriticalSection lock(spinlock);
-    return logic.rainfall24h();
+    CriticalSection lock(spinlock_);
+    return logic_.rainfall24h();
 }
 
 float RainMeter::getRainRate() {
-    CriticalSection lock(spinlock);
-    return logic.rainRate();
+    CriticalSection lock(spinlock_);
+    return logic_.rainRate();
 }
 
 RainData RainMeter::getRainData() {
-    CriticalSection lock(spinlock);
-    return logic.rainData();
+    CriticalSection lock(spinlock_);
+    return logic_.rainData();
 }
 
 RainMeterState RainMeter::getState() {
-    CriticalSection lock(spinlock);
-    return logic.state();
+    CriticalSection lock(spinlock_);
+    return logic_.state();
 }
 
 bool RainMeter::isCalibrated() {
-    CriticalSection lock(spinlock);
-    return logic.isCalibrated();
+    CriticalSection lock(spinlock_);
+    return logic_.isCalibrated();
 }
 
 bool RainMeter::isJammed() {
-    CriticalSection lock(spinlock);
-    return logic.isJammed();
-}
-
-bool RainMeter::isTiltWarning() {
-    CriticalSection lock(spinlock);
-    return logic.isTiltWarning();
-}
-
-float RainMeter::getTiltDegrees() {
-    CriticalSection lock(spinlock);
-    return logic.tiltDegrees();
+    CriticalSection lock(spinlock_);
+    return logic_.isJammed();
 }
 
 float RainMeter::getCurrentAngleDegrees() {
-    CriticalSection lock(spinlock);
-    return logic.currentAngleDegrees();
+    CriticalSection lock(spinlock_);
+    return logic_.currentAngleDegrees();
 }
 
 float RainMeter::getTipTravelDegrees() {
-    CriticalSection lock(spinlock);
-    return logic.tipTravelDegrees();
+    CriticalSection lock(spinlock_);
+    return logic_.tipTravelDegrees();
 }
 
 uint8_t RainMeter::getLastStatus() {
-    CriticalSection lock(spinlock);
-    return logic.lastStatus();
+    CriticalSection lock(spinlock_);
+    return logic_.lastStatus();
 }
 
 uint8_t RainMeter::getLastAGC() {
-    CriticalSection lock(spinlock);
-    return logic.lastAgc();
+    CriticalSection lock(spinlock_);
+    return logic_.lastAgc();
+}
+
+uint16_t RainMeter::getLastMagnitude() {
+    CriticalSection lock(spinlock_);
+    return logic_.lastMagnitude();
 }
 
 uint16_t RainMeter::getAGCVariance() {
-    CriticalSection lock(spinlock);
-    return logic.agcVariance();
+    CriticalSection lock(spinlock_);
+    return logic_.agcVariance();
 }
 
 uint32_t RainMeter::getGlitchCount() {
-    CriticalSection lock(spinlock);
-    return logic.glitchCount();
+    CriticalSection lock(spinlock_);
+    return logic_.glitchCount();
 }
 
 uint32_t RainMeter::getLastHeartbeatMs() {
-    CriticalSection lock(spinlock);
-    return logic.lastHeartbeatMs();
+    CriticalSection lock(spinlock_);
+    return logic_.lastHeartbeatMs();
 }
 
 void RainMeter::resetStats() {
-    CriticalSection lock(spinlock);
-    logic.resetStats();
+    CriticalSection lock(spinlock_);
+    logic_.resetStats();
 }
 
 void RainMeter::clearCalibration() {
     {
-        CriticalSection lock(spinlock);
-        logic.clearCalibration();
+        CriticalSection lock(spinlock_);
+        logic_.clearCalibration();
     }
 
     Preferences prefs;
@@ -257,13 +240,13 @@ void RainMeter::clearCalibration() {
 }
 
 void RainMeter::setMmPerTip(float mm) {
-    CriticalSection lock(spinlock);
-    logic.setMmPerTip(mm);
+    CriticalSection lock(spinlock_);
+    logic_.setMmPerTip(mm);
 }
 
 float RainMeter::getMmPerTip() const {
-    CriticalSection lock(spinlock);
-    return logic.mmPerTip();
+    CriticalSection lock(spinlock_);
+    return logic_.mmPerTip();
 }
 
 bool RainMeter::loadNvsCalibration(sensors::RainCalibration& out) {
@@ -299,16 +282,16 @@ void RainMeter::loadRtcRollingBins() {
         bins.currentMinuteIdx = s_rtcRainState.currentMinuteIdx;
         bins.currentHourIdx = s_rtcRainState.currentHourIdx;
         bins.currentRainRate = s_rtcRainState.currentRainRate;
-        logic.loadRollingBins(bins);
+        logic_.loadRollingBins(bins);
         return;
     }
 
-    logic.clearRollingBins();
+    logic_.clearRollingBins();
     saveRtcRollingBins();
 }
 
 void RainMeter::saveRtcRollingBins() {
-    const sensors::RainRollingBins bins = logic.exportRollingBins();
+    const sensors::RainRollingBins bins = logic_.exportRollingBins();
     s_rtcRainState.magic = kRainRtcMagic;
     std::memcpy(s_rtcRainState.minuteBins, bins.minuteBins, sizeof(s_rtcRainState.minuteBins));
     std::memcpy(s_rtcRainState.hourBins, bins.hourBins, sizeof(s_rtcRainState.hourBins));
@@ -317,3 +300,5 @@ void RainMeter::saveRtcRollingBins() {
     s_rtcRainState.currentRainRate = bins.currentRainRate;
     s_rtcRainState.crc = computeRainRtcCrc(s_rtcRainState);
 }
+
+#endif // ARDUINO

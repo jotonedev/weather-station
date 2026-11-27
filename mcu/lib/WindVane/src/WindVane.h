@@ -1,18 +1,20 @@
-#ifndef WINDVANE_H
-#define WINDVANE_H
+#ifndef WIND_VANE_H
+#define WIND_VANE_H
 
-#include <AS5600.h>
+#ifdef ARDUINO
+
 #include <Arduino.h>
-#include <Sensors.h>
+#include <As5600Device.h>
 #include <Sync.h>
-#include <Weather.h>
+#include <WindVaneState.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 class WindVane {
   public:
-    WindVane(TwoWire& wire, float calibrationOffset = 0.0f);
+    explicit WindVane(TwoWire& wire, float calibrationOffset = 0.0f);
     ~WindVane();
 
     void initialize(uint8_t directionPin = AS5600_SW_DIRECTION_PIN,
@@ -45,6 +47,7 @@ class WindVane {
     // Diagnostic & sensor health telemetry
     uint8_t getLastStatus();
     uint8_t getLastAGC();
+    uint16_t getLastMagnitude();
     uint16_t getAGCVariance();
     uint32_t getGlitchCount();
     uint32_t getLastHeartbeatMs();
@@ -53,18 +56,17 @@ class WindVane {
     float readAngle();
 
   private:
-    TwoWire& wire;
-    AS5600 as5600;
-    uint32_t samplePeriodMs = 1000;
+    As5600Device device_;
+    uint32_t samplePeriodMs_ = 1000;
 
-    TaskHandle_t taskHandle = nullptr;
+    TaskHandle_t taskHandle_ = nullptr;
     static void taskTrampoline(void* arg);
     void taskLoop(uint32_t samplePeriodMs);
 
-    mutable portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
-
-    uint32_t lastDiagMs = 0;
-    sensors::WindVaneState state;
+    mutable portMUX_TYPE spinlock_ = portMUX_INITIALIZER_UNLOCKED;
+    sensors::WindVaneState state_;
 };
 
-#endif // WINDVANE_H
+#endif // ARDUINO
+
+#endif // WIND_VANE_H

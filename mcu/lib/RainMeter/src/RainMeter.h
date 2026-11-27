@@ -1,14 +1,16 @@
 #ifndef RAIN_METER_H
 #define RAIN_METER_H
 
-#include "constants.h"
-#include <AS5600.h>
+#ifdef ARDUINO
+
 #include <Arduino.h>
-#include <Sensors.h>
+#include <As5600Device.h>
+#include <RainMeterLogic.h>
 #include <Sync.h>
 #include <Weather.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 using sensors::RainMeterState;
@@ -21,7 +23,7 @@ class RainMeter {
      * @param mmPerTip Rain volume per tip in mm (default calculated from funnel r=55mm, V=18ml:
      * ~1.894 mm/tip).
      */
-    RainMeter(TwoWire& wire, float mmPerTip = RAIN_METER_CALIBRATION_MM_PER_TIP);
+    explicit RainMeter(TwoWire& wire, float mmPerTip = 1.894075f);
     ~RainMeter();
 
     void initialize(uint8_t directionPin = AS5600_SW_DIRECTION_PIN,
@@ -50,12 +52,11 @@ class RainMeter {
     // Diagnostic & Health Telemetry
     bool isCalibrated();
     bool isJammed();
-    bool isTiltWarning();
-    float getTiltDegrees();
     float getCurrentAngleDegrees();
     float getTipTravelDegrees();
     uint8_t getLastStatus();
     uint8_t getLastAGC();
+    uint16_t getLastMagnitude();
     uint16_t getAGCVariance();
     uint32_t getGlitchCount();
     uint32_t getLastHeartbeatMs();
@@ -67,23 +68,23 @@ class RainMeter {
     float getMmPerTip() const;
 
   private:
-    TwoWire& wire;
-    AS5600 as5600;
-    uint32_t samplePeriodMs = 30;
+    As5600Device device_;
+    uint32_t samplePeriodMs_ = 30;
+    uint32_t currentPeriodMs_ = 30;
 
-    TaskHandle_t taskHandle = nullptr;
+    TaskHandle_t taskHandle_ = nullptr;
     static void taskTrampoline(void* arg);
     void taskLoop(uint32_t samplePeriodMs);
 
-    mutable portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
-
-    uint32_t lastDiagMs = 0;
-    sensors::RainMeterLogic logic;
+    mutable portMUX_TYPE spinlock_ = portMUX_INITIALIZER_UNLOCKED;
+    sensors::RainMeterLogic logic_;
 
     bool loadNvsCalibration(sensors::RainCalibration& out);
     void saveNvsCalibration(const sensors::RainCalibration& cal);
     void loadRtcRollingBins();
     void saveRtcRollingBins();
 };
+
+#endif // ARDUINO
 
 #endif // RAIN_METER_H

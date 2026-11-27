@@ -1,278 +1,10 @@
-#include "Sensors.h"
+#include "RainMeterLogic.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
 namespace sensors {
-
-void MagnetDiagnostics::reset() {
-    lastStatus = 0;
-    lastAgc = 0;
-    sensorReady = false;
-    resetStats();
-}
-
-void MagnetDiagnostics::resetStats() {
-    agcCount = 0;
-    agcMean = 0.0;
-    agcM2 = 0.0;
-}
-
-void MagnetDiagnostics::update(bool i2cOk, uint8_t status, uint8_t agc) {
-    // AS5600 status bits: 0x20 = magnet detected, 0x10 = magnet weak, 0x08 = magnet strong.
-    const bool hwMagnetOk = i2cOk && ((status & 0x20) != 0) && ((status & 0x10) == 0);
-    const bool fullReady = hwMagnetOk && ((status & 0x08) == 0);
-
-    lastStatus = status;
-    lastAgc = agc;
-    sensorReady = fullReady;
-    if (i2cOk && ((status & 0x20) != 0)) {
-        agcCount++;
-        const double deltaAgc = static_cast<double>(agc) - agcMean;
-        agcMean += deltaAgc / agcCount;
-        const double deltaAgc2 = static_cast<double>(agc) - agcMean;
-        agcM2 += deltaAgc * deltaAgc2;
-    }
-}
-
-uint16_t MagnetDiagnostics::agcVariance() const {
-    return (agcCount > 1) ? static_cast<uint16_t>(agcM2 / (agcCount - 1)) : 0;
-}
-
-void AnemometerState::reset(uint32_t nowMs) {
-    diag_.reset();
-    lastHeartbeatMs_ = nowMs;
-    lastRawAngle_ = -1;
-    lastValidMicros_ = 0;
-    cumulativeCounts_ = 0;
-    consecutiveGlitches_ = 0;
-    inDropout_ = false;
-    dropoutStartMicros_ = 0;
-    rotationDirection_ = 1;
-    historyIdx_ = 0;
-    historyCount_ = 0;
-    filteredRpm_ = 0.0f;
-    glitchCount_ = 0;
-    standstillTracking_ = false;
-    standstillSinceMs_ = 0;
-    isStandstill_ = false;
-}
-
-void AnemometerState::step(const AnemometerSample& sample) {
-    if (sample.hasDiag) {
-        diag_.update(sample.i2cOk, sample.diagStatus, sample.diagAgc);
-    }
-
-    lastHeartbeatMs_ = sample.nowMs;
-    bool isGlitch = !sample.i2cOk || !diag_.sensorReady;
-    int32_t delta = 0;
-
-    // Kinematic outlier rejection: even if status did not flag ML, reject impossible jumps.
-    if (!isGlitch && lastRawAngle_ >= 0) {
-        delta = static_cast<int32_t>(sample.rawAngle) - lastRawAngle_;
-        if (delta > 2048) {
-            delta -= 4096;
-        } else if (delta < -2048) {
-            delta += 4096;
-        }
-
-        const uint32_t dtUs = (lastValidMicros_ > 0) ? (sample.nowUs - lastValidMicros_) : 10000u;
-        const float expectedStep =
-            (filteredRpm_ * 4096.0f / 60.0f) * (static_cast<float>(dtUs) * 1e-6f);
-        const float stepDiff = std::abs(static_cast<float>(std::abs(delta)) - expectedStep);
-
-        if (std::abs(delta) > 350 || stepDiff > 250.0f) {
-            isGlitch = true;
-        }
-    }
-
-    if (isGlitch) {
-        glitchCount_++;
-        consecutiveGlitches_++;
-
-        if (!inDropout_) {
-            inDropout_ = true;
-            dropoutStartMicros_ =
-                (lastValidMicros_ > 0) ? lastValidMicros_ : (sample.nowUs - 10000u);
-        }
-
-        const uint32_t elapsedGapUs = sample.nowUs - dropoutStartMicros_;
-
-        // Inertial coasting: bridge blind spots up to 1.5 seconds (down to 10 RPM).
-        if (elapsedGapUs < 1500000u && filteredRpm_ > 0.5f && lastRawAngle_ >= 0) {
-            filteredRpm_ *= 0.999f;
-            const int32_t projectedStep =
-                rotationDirection_ *
-                static_cast<int32_t>((filteredRpm_ * 4096.0f / 60.0f) * 0.010f);
-            cumulativeCounts_ += projectedStep;
-
-            history_[historyIdx_] = {cumulativeCounts_, sample.nowUs};
-            historyIdx_ = (historyIdx_ + 1) % kWindowSize;
-            if (historyCount_ < kWindowSize) {
-                historyCount_++;
-            }
-        } else if (elapsedGapUs >= 1500000u) {
-            filteredRpm_ *= 0.85f;
-            if (filteredRpm_ < 0.2f) {
-                filteredRpm_ = 0.0f;
-            }
-            lastRawAngle_ = -1;
-        }
-        standstillTracking_ = false;
-        isStandstill_ = false;
-        return;
-    }
-
-    consecutiveGlitches_ = 0;
-
-    // Re-anchor cleanly after a dropout without introducing a velocity spike.
-    if (inDropout_) {
-        inDropout_ = false;
-        lastRawAngle_ = sample.rawAngle;
-        lastValidMicros_ = sample.nowUs;
-        standstillTracking_ = false;
-        isStandstill_ = false;
-        return;
-    }
-
-    lastValidMicros_ = sample.nowUs;
-
-    if (lastRawAngle_ < 0) {
-        lastRawAngle_ = sample.rawAngle;
-        cumulativeCounts_ = 0;
-        historyIdx_ = 0;
-        historyCount_ = 1;
-        history_[0] = {cumulativeCounts_, sample.nowUs};
-        standstillTracking_ = false;
-        isStandstill_ = false;
-        return;
-    }
-
-    if (delta > 2) {
-        rotationDirection_ = 1;
-    } else if (delta < -2) {
-        rotationDirection_ = -1;
-    }
-
-    cumulativeCounts_ += delta;
-    lastRawAngle_ = sample.rawAngle;
-
-    history_[historyIdx_] = {cumulativeCounts_, sample.nowUs};
-    historyIdx_ = (historyIdx_ + 1) % kWindowSize;
-    if (historyCount_ < kWindowSize) {
-        historyCount_++;
-    }
-
-    const size_t oldestIdx = (historyCount_ < kWindowSize) ? 0 : historyIdx_;
-    const int64_t dCounts = cumulativeCounts_ - history_[oldestIdx].counts;
-    const uint32_t dtUs = sample.nowUs - history_[oldestIdx].timeUs;
-
-    float rawRpm = 0.0f;
-    if (dtUs > 0) {
-        if (std::abs(dCounts) <= 3) {
-            rawRpm = 0.0f;
-        } else {
-            rawRpm = (static_cast<float>(std::abs(dCounts)) * 60.0f * 1e6f) /
-                     (static_cast<float>(dtUs) * 4096.0f);
-        }
-    }
-
-    if (rawRpm == 0.0f && filteredRpm_ < 0.5f) {
-        filteredRpm_ = 0.0f;
-    } else {
-        filteredRpm_ = 0.20f * rawRpm + 0.80f * filteredRpm_;
-        if (filteredRpm_ < 0.1f) {
-            filteredRpm_ = 0.0f;
-        }
-    }
-
-    if (filteredRpm_ == 0.0f && std::abs(delta) <= 3) {
-        if (!standstillTracking_) {
-            standstillTracking_ = true;
-            standstillSinceMs_ = sample.nowMs;
-        }
-        isStandstill_ = (sample.nowMs - standstillSinceMs_) >= kStandstillHoldMs;
-    } else {
-        standstillTracking_ = false;
-        isStandstill_ = false;
-    }
-}
-
-float AnemometerState::windSpeed() const {
-    if (filteredRpm_ <= 0.0f) {
-        return 0.0f;
-    }
-    return filteredRpm_ * speedFactor_ + windOffset_;
-}
-
-void WindVaneState::reset(uint32_t nowMs) {
-    diag_.reset();
-    lastHeartbeatMs_ = nowMs;
-    currentAngle_ = 0.0f;
-    rawAngleDegrees_ = 0.0f;
-    vecX_ = 1.0f;
-    vecY_ = 0.0f;
-    hasFirstSample_ = false;
-    glitchCount_ = 0;
-}
-
-void WindVaneState::setCalibrationOffset(float offset) {
-    calibrationOffset_ = offset;
-    hasFirstSample_ = false;
-}
-
-void WindVaneState::step(const WindVaneSample& sample) {
-    lastHeartbeatMs_ = sample.nowMs;
-    if (!sample.i2cOk) {
-        diag_.sensorReady = false;
-        glitchCount_++;
-        return;
-    }
-
-    if (sample.hasDiag) {
-        diag_.update(true, sample.diagStatus, sample.diagAgc);
-    }
-
-    if (!diag_.sensorReady) {
-        glitchCount_++;
-        return;
-    }
-
-    const float deg = static_cast<float>(sample.rawAngle) * kRawToDegrees;
-    rawAngleDegrees_ = deg;
-
-    float calibratedDeg = deg + calibrationOffset_;
-    while (calibratedDeg < 0.0f) {
-        calibratedDeg += 360.0f;
-    }
-    while (calibratedDeg >= 360.0f) {
-        calibratedDeg -= 360.0f;
-    }
-
-    const float dtSec = static_cast<float>(sample.samplePeriodMs) * 0.001f;
-    const float alpha = std::min(std::max(dtSec / (3.0f + dtSec), 0.10f), 0.80f);
-
-    const float rad = calibratedDeg * (kPi / 180.0f);
-    const float cosVal = std::cos(rad);
-    const float sinVal = std::sin(rad);
-
-    if (!hasFirstSample_) {
-        vecX_ = cosVal;
-        vecY_ = sinVal;
-        hasFirstSample_ = true;
-    } else {
-        vecX_ = alpha * cosVal + (1.0f - alpha) * vecX_;
-        vecY_ = alpha * sinVal + (1.0f - alpha) * vecY_;
-    }
-
-    const float filteredRad = std::atan2(vecY_, vecX_);
-    float filteredDeg = filteredRad * (180.0f / kPi);
-    if (filteredDeg < 0.0f) {
-        filteredDeg += 360.0f;
-    }
-    currentAngle_ = filteredDeg;
-}
 
 int32_t RainMeterLogic::shortestAngleDiff(uint16_t current, uint16_t reference) {
     int32_t diff = static_cast<int32_t>(current) - static_cast<int32_t>(reference);
@@ -296,8 +28,11 @@ void RainMeterLogic::applyCalibration(const RainCalibration& cal) {
 void RainMeterLogic::reset(uint32_t nowMs) {
     diag_.reset();
     lastHeartbeatMs_ = nowMs;
+    hasInitialSample_ = false;
     currentPos_ = 0;
     prevPos_ = 0;
+    pendingJumpPos_ = 0;
+    pendingJumpCount_ = 0;
     filteredPos_ = 0.0f;
     stillCount_ = 0;
     currentState_ = calibrated_ ? RainMeterState::REST_LEFT : RainMeterState::CALIBRATING;
@@ -344,7 +79,7 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
     lastHeartbeatMs_ = sample.nowMs;
 
     if (!sample.i2cOk) {
-        diag_.sensorReady = false;
+        diag_.markI2cError();
         glitchCount_++;
         consecutiveGlitches_++;
         result.saveRtcBins = updateRollingWindows(sample.nowMs);
@@ -352,7 +87,7 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
     }
 
     if (sample.hasDiag) {
-        diag_.update(true, sample.diagStatus, sample.diagAgc);
+        diag_.update(true, sample.diagStatus, sample.diagAgc, sample.diagMagnitude);
     }
 
     if (!diag_.sensorReady) {
@@ -363,25 +98,53 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
     }
     consecutiveGlitches_ = 0;
 
+    const uint16_t angle = sample.rawAngle & 0x0FFFu;
     if (!hasReference_) {
-        rawReference_ = sample.rawAngle;
+        rawReference_ = angle;
         hasReference_ = true;
+        hasInitialSample_ = true;
         currentPos_ = 0;
         prevPos_ = 0;
         filteredPos_ = 0.0f;
+    } else if (calibrated_ && !hasInitialSample_) {
+        currentPos_ = shortestAngleDiff(angle, rawReference_);
+        prevPos_ = currentPos_;
+        filteredPos_ = static_cast<float>(currentPos_);
+        hasInitialSample_ = true;
+        currentState_ = (std::abs(currentPos_ - restLeft_) <= std::abs(currentPos_ - restRight_))
+                            ? RainMeterState::REST_LEFT
+                            : RainMeterState::REST_RIGHT;
     } else {
-        currentPos_ = shortestAngleDiff(sample.rawAngle, rawReference_);
+        currentPos_ = shortestAngleDiff(angle, rawReference_);
     }
 
     // Kinematic outlier rejection: impossible mechanical jump (> 350 counts / sample).
+    // A real fast tip confirms on the 2nd consecutive sample near the new position.
     const int32_t stepDelta = currentPos_ - prevPos_;
     if (std::abs(stepDelta) > 350) {
-        glitchCount_++;
-        return result;
+        if (pendingJumpCount_ > 0 && std::abs(currentPos_ - pendingJumpPos_) <= 50) {
+            prevPos_ = currentPos_;
+            pendingJumpCount_ = 0;
+            stillCount_ = 0;
+            if (std::abs(static_cast<float>(currentPos_) - filteredPos_) > 50.0f) {
+                filteredPos_ = static_cast<float>(currentPos_);
+            }
+        } else {
+            glitchCount_++;
+            pendingJumpPos_ = currentPos_;
+            pendingJumpCount_ = 1;
+            stillCount_ = 0;
+            if (updateRollingWindows(sample.nowMs)) {
+                result.saveRtcBins = true;
+            }
+            return result;
+        }
+    } else {
+        pendingJumpCount_ = 0;
+        prevPos_ = currentPos_;
     }
-    prevPos_ = currentPos_;
 
-    filteredPos_ = 0.35f * static_cast<float>(currentPos_) + 0.65f * filteredPos_;
+    filteredPos_ = (0.35f * static_cast<float>(currentPos_)) + (0.65f * filteredPos_);
 
     if (std::abs(stepDelta) <= 2) {
         if (stillCount_ < 1000) {
@@ -391,9 +154,7 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
         stillCount_ = 0;
     }
     uint32_t stillThreshold = (sample.samplePeriodMs > 0) ? (250u / sample.samplePeriodMs) : 8u;
-    if (stillThreshold < 4u) {
-        stillThreshold = 4u;
-    }
+    stillThreshold = std::max(stillThreshold, 4u);
     const bool isStill = (stillCount_ >= stillThreshold);
 
     if (!calibrated_) {
@@ -421,8 +182,8 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
                             ? RainMeterState::REST_LEFT
                             : RainMeterState::REST_RIGHT;
                 } else {
-                    clusterA_ = static_cast<int32_t>(0.90f * static_cast<float>(clusterA_) +
-                                                     0.10f * static_cast<float>(currentPos_));
+                    clusterA_ = static_cast<int32_t>((0.90f * static_cast<float>(clusterA_)) +
+                                                     (0.10f * static_cast<float>(currentPos_)));
                 }
             }
         }
@@ -431,8 +192,8 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
         case RainMeterState::REST_LEFT:
             if (isStill &&
                 static_cast<float>(std::abs(currentPos_ - restLeft_)) < travelSpan_ * 0.30f) {
-                restLeft_ = static_cast<int32_t>(0.99f * static_cast<float>(restLeft_) +
-                                                 0.01f * static_cast<float>(currentPos_));
+                restLeft_ = static_cast<int32_t>((0.99f * static_cast<float>(restLeft_)) +
+                                                 (0.01f * static_cast<float>(currentPos_)));
                 recomputeGeometry();
             }
             if (filteredPos_ > (centerPoint_ + hysteresis_)) {
@@ -442,7 +203,7 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
             break;
 
         case RainMeterState::TRANSIT_TO_RIGHT:
-            if (filteredPos_ >= (static_cast<float>(restRight_) - travelSpan_ * 0.25f)) {
+            if (filteredPos_ >= (static_cast<float>(restRight_) - (travelSpan_ * 0.25f))) {
                 recordTip(sample.nowMs);
                 result.saveRtcBins = true;
                 currentState_ = RainMeterState::REST_RIGHT;
@@ -458,8 +219,8 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
         case RainMeterState::REST_RIGHT:
             if (isStill &&
                 static_cast<float>(std::abs(currentPos_ - restRight_)) < travelSpan_ * 0.30f) {
-                restRight_ = static_cast<int32_t>(0.99f * static_cast<float>(restRight_) +
-                                                  0.01f * static_cast<float>(currentPos_));
+                restRight_ = static_cast<int32_t>((0.99f * static_cast<float>(restRight_)) +
+                                                  (0.01f * static_cast<float>(currentPos_)));
                 recomputeGeometry();
             }
             if (filteredPos_ < (centerPoint_ - hysteresis_)) {
@@ -469,7 +230,7 @@ RainMeterStepResult RainMeterLogic::step(const RainMeterSample& sample) {
             break;
 
         case RainMeterState::TRANSIT_TO_LEFT:
-            if (filteredPos_ <= (static_cast<float>(restLeft_) + travelSpan_ * 0.25f)) {
+            if (filteredPos_ <= (static_cast<float>(restLeft_) + (travelSpan_ * 0.25f))) {
                 recordTip(sample.nowMs);
                 result.saveRtcBins = true;
                 currentState_ = RainMeterState::REST_LEFT;
@@ -532,12 +293,9 @@ float RainMeterLogic::rainfall24h() const {
 
 RainData RainMeterLogic::rainData() const {
     RainData data = {};
-    const float r1h = rainfall1h();
-    const float r24h = rainfall24h();
-
-    data.rainfall_1h = static_cast<uint16_t>(r1h * 100.0f);
-    data.rainfall_24h = static_cast<uint16_t>(r24h * 100.0f);
-    data.rainRate = static_cast<uint16_t>(currentRainRate_ * 10.0f);
+    data.rainfall_1h = weather::encodeRainAccumulation(rainfall1h());
+    data.rainfall_24h = weather::encodeRainAccumulation(rainfall24h());
+    data.rainRate = weather::encodeRainRate(currentRainRate_);
     data.magnetStatus.status = diag_.lastStatus;
     data.magnetStatus.agc = diag_.lastAgc;
     data.magnetStatus.agcVariance = diag_.agcVariance();
@@ -561,7 +319,7 @@ void RainMeterLogic::recordTip(uint32_t nowMs) {
         const float dtSeconds = static_cast<float>(nowMs - lastTipMs_) / 1000.0f;
         if (dtSeconds > 0.1f && dtSeconds < 3600.0f) {
             const float rawRate = (3600.0f / dtSeconds) * mmPerTip_;
-            currentRainRate_ = 0.30f * rawRate + 0.70f * currentRainRate_;
+            currentRainRate_ = (0.30f * rawRate) + (0.70f * currentRainRate_);
         }
     } else {
         currentRainRate_ = mmPerTip_;
@@ -621,18 +379,6 @@ void RainMeterLogic::recomputeGeometry() {
     travelSpan_ = static_cast<float>(restRight_ - restLeft_);
     centerPoint_ = static_cast<float>(restLeft_ + restRight_) / 2.0f;
     hysteresis_ = std::max(travelSpan_ * 0.20f, 6.0f);
-
-    if (travelSpan_ > 15.0f) {
-        const float leftTravel = centerPoint_ - static_cast<float>(restLeft_);
-        const float rightTravel = static_cast<float>(restRight_) - centerPoint_;
-        const float asymmetry = std::abs(rightTravel - leftTravel) / travelSpan_;
-
-        tiltWarning_ = (asymmetry > 0.15f);
-        tiltDegrees_ = asymmetry * (travelSpan_ * kRawToDegrees);
-    } else {
-        tiltWarning_ = false;
-        tiltDegrees_ = 0.0f;
-    }
 }
 
 } // namespace sensors

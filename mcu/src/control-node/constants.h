@@ -20,19 +20,17 @@
 
 // --- I2C Bus 1 (Hardware Wire) ---
 // Shared: Anemometer AS5600 (@ 0x36) + Environmental: AHT20 (@ 0x38), BMP180 (@ 0x77)
+// All AS5600 DIR pins are tied to GND in hardware.
 #define I2C_1_SDA_PIN 4
 #define I2C_1_SCL_PIN 5
 
 #define SENSOR_I2C_SDA_PIN I2C_1_SDA_PIN
 #define SENSOR_I2C_SCL_PIN I2C_1_SCL_PIN
 
-#define ANEMOMETER_DIRECTION_PIN 6
-
 // --- I2C Bus 2 (Hardware Wire1) ---
 // Dedicated: Rain Meter AS5600 (@ 0x36)
 #define RAIN_METER_SDA_PIN 8
 #define RAIN_METER_SCL_PIN 9
-#define RAIN_METER_DIRECTION_PIN 1
 
 // Funnel radius r = 55 mm -> Area A = π * r² = 9503.3178 mm²
 // Bucket volume V = 18 ml = 18,000 mm³
@@ -45,13 +43,14 @@
 // Dedicated: Wind Vane AS5600 (@ 0x36)
 #define WIND_VANE_SDA_PIN 15
 #define WIND_VANE_SCL_PIN 16
-#define WIND_VANE_DIRECTION_PIN 7
 #define WIND_VANE_CALIBRATION_OFFSET 0.0f
 
 // --- Calibration settings ---
 // Set to 1 to disable radio transmissions and stream live sensor telemetry to Serial.
 // Set to 0 for normal production operation.
+#ifndef CALIBRATION_MODE
 #define CALIBRATION_MODE 1
+#endif
 
 // Speed factor for anemometer: m/s per RPM (calculated from cup geometry R=100mm, cup factor f=3.0)
 #define ANEMOMETER_SPEED_FACTOR 0.032f
@@ -67,9 +66,9 @@
 // How often a reading is sampled and scheduled for the radio link.
 #define REPORT_INTERVAL_MS 60000uL
 // How long a send waits for an ACK before ARQ retransmits.
-#define TX_ACK_TIMEOUT_MS 1000uL
+#define TX_ACK_TIMEOUT_MS 1200uL
 // Attempts per reading before it is dropped.
-#define TX_MAX_ATTEMPTS 3
+#define TX_MAX_ATTEMPTS 1
 // Delay before retrying a busy or failed send attempt.
 #define TX_BACKOFF_MS 2000uL
 // Upper bound for one attempt to settle, forces a radio re-sync when exceeded.
@@ -81,11 +80,15 @@
 // Hardware and software I2C transaction timeout to recover from bus glitches.
 #define I2C_TIMEOUT_MS 20u
 #define I2C_CLOCK_HZ 100000uL
+#define I2C_RECOVERY_FAIL_THRESHOLD 3u
 
 // PMS7003 duty-cycling policy: wake for 30s every 15 minutes to preserve laser and fan lifespan.
+#define PMS_BAUD_RATE 9600uL
 #define PMS_SAMPLE_INTERVAL_MS 900000uL
 #define PMS_WARMUP_MS 30000uL
 #define PMS_READ_TIMEOUT_MS 10000uL
+#define PMS_REPORT_EXPIRY_MS 300000uL
+#define PMS_SLEEP_RETRY_MS 5000uL
 
 // NVS keys for the boot counter and last failure tag.
 #define NVS_NAMESPACE "control"

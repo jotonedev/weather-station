@@ -1,183 +1,69 @@
 #include <Arduino.h>
-#include <Preferences.h>
 #include <WiFi.h>
 #include <Wire.h>
-#include <esp_pm.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include <ARQ.h>
-#include <AS5600.h>
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP085.h>
+#include <Anemometer.h>
 #include <PMS.h>
 #include <RadioAdapter.h>
+#include <RainMeter.h>
 #include <Sync.h>
+#include <TxLink.h>
 #include <Weather.h>
+#include <WindVane.h>
 #include <cc1101.h>
 
 #include "SoftTwoWire.h"
-#include "anemometer.h"
+#include "boot_watchdog.h"
 #include "constants.h"
-#include "rainmeter.h"
-#include "windvane.h"
-
-constexpr ARQ::address_t CONTROL_NODE_ADDR = 1;
-constexpr ARQ::address_t BASE_STATION_ADDR = 2;
+#include "sensor_sampler.h"
 
 CC1101::Radio radio(RADIO_CS_PIN, SCK_PIN, MISO_PIN, MOSI_PIN, RADIO_GDO0_PIN);
 CC1101RadioAdapter radioAdapter(radio);
-ARQ::ARQ arq(radioAdapter, CONTROL_NODE_ADDR);
+ARQ::ARQ arq(radioAdapter, weather::kControlNodeAddr);
+ARQ::TxLinkController txLink(arq, weather::kBaseStationAddr,
+                             {TX_ACK_TIMEOUT_MS, TX_MAX_ATTEMPTS, 2, TX_BACKOFF_MS,
+                              TX_HARD_TIMEOUT_MS, RADIO_REINIT_THRESHOLD});
 
 Adafruit_AHTX0 aht;
-Adafruit_BMP085 bmp180;
-PMS pms(Serial2);
+Adafruit_BMP085 bmpSensor;
+Pms7003Driver pms(Serial2);
 
 Anemometer anemometer(Wire);
 RainMeter rainMeter(Wire1);
 SoftTwoWire softWireWindVane(WIND_VANE_SDA_PIN, WIND_VANE_SCL_PIN);
 WindVane windVane(softWireWindVane, WIND_VANE_CALIBRATION_OFFSET);
 
-// Mutex protecting the shared Wire bus between AnemometerTask (Core 0) and loop (Core 1).
 static SemaphoreHandle_t wireMutex = nullptr;
-
-// Sensor initialization states, allowing hot-plug recovery on transient failures.
-static bool ahtOk = false;
-static bool bmpOk = false;
-
-// PMS7003 15-minute duty cycle state machine to preserve fan and laser lifespan.
-enum class PmsState : uint8_t {
-    Sleeping,
-    WarmingUp,
-    Reading,
-};
-
-static PmsState pmsState = PmsState::WarmingUp;
-static uint32_t pmsCycleStartMs = 0;
-static uint32_t pmsStateStartMs = 0;
-static PMS::DATA latestPms = {};
-static bool pmsPendingReport = false;
-
-// Boot counter kept in NVS to spot crash loops on a hard to reach node.
-static Preferences prefs;
-static uint32_t bootCount = 0;
-
-// State of the reading delivery pipeline toward the base station.
-enum class SendPhase : uint8_t {
-    Idle,
-    Transmitting,
-    RetryDelay,
-    Dropped,
-};
-
-struct LinkState {
-    SendPhase phase = SendPhase::Idle;
-    uint8_t attempt = 0;
-    uint32_t phaseStartMs = 0;
-    uint32_t timeoutSnapshot = 0;
-    uint8_t consecutiveDrops = 0;
-    uint32_t sentOk = 0;
-    uint32_t sentDropped = 0;
-    uint32_t radioResyncs = 0;
-};
-
-static LinkState linkState;
-
-// The newest unsent reading. A failed send drops it, the next sample wins.
-static bool newReadingPending = false;
-static WeatherData pendingReading = {};
-
+static TaskHandle_t mainLoopTaskHandle = nullptr;
+static bool pendingHasPms = false;
 static uint32_t lastReadingMs = 0;
 static uint32_t lastDiagMs = 0;
 
-void setupPowerManagement() {
-    esp_pm_config_t pmConfig = {
-        .max_freq_mhz = 80,
-        .min_freq_mhz = 80,
-        .light_sleep_enable = true,
-    };
-    esp_err_t pmErr = esp_pm_configure(&pmConfig);
-    if (pmErr == ESP_OK) {
-        Serial.println("[OK] Automatic light sleep configured");
-    } else if (pmErr != ESP_ERR_NOT_SUPPORTED) {
-        Serial.printf("[WARN] Power management config returned %d\n", pmErr);
+void IRAM_ATTR onRadioPacketIsr() {
+    if (mainLoopTaskHandle != nullptr) {
+        BaseType_t higherPriorityWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(mainLoopTaskHandle, &higherPriorityWoken);
+        portYIELD_FROM_ISR(higherPriorityWoken);
     }
 }
 
-void setupWatchdog() {
-    esp_task_wdt_config_t config = {};
-    config.timeout_ms = WATCHDOG_TIMEOUT_MS;
-    config.idle_core_mask = 0;
-    config.trigger_panic = true;
-    esp_err_t initResult = esp_task_wdt_init(&config);
-    esp_err_t addResult = esp_task_wdt_add(NULL);
-    if (initResult != ESP_OK || addResult != ESP_OK) {
-        Serial.printf("[WARN] Watchdog setup init=%d add=%d\n", initResult, addResult);
-    }
-}
-
-void loadBootCounter() {
-    if (!prefs.begin(NVS_NAMESPACE, false)) {
-        return;
-    }
-    bootCount = prefs.getUInt(NVS_KEY_BOOTS, 0) + 1;
-    prefs.putUInt(NVS_KEY_BOOTS, bootCount);
-    prefs.end();
-    if (bootCount > BOOT_CRASH_THRESHOLD) {
-        Serial.printf("[WARN] Boot counter %lu, possible crash loop\n",
-                      static_cast<unsigned long>(bootCount));
-    }
-}
-
-void markHealthyBoot() {
-    if (prefs.begin(NVS_NAMESPACE, false)) {
-        prefs.putUInt(NVS_KEY_BOOTS, 0);
-        prefs.end();
-    }
-}
-
-void storeLastError(const char* tag) {
-    if (prefs.begin(NVS_NAMESPACE, false)) {
-        prefs.putString(NVS_KEY_LAST_ERR, tag);
-        prefs.end();
-    }
-}
-
-void updatePms(uint32_t nowMs) {
-    switch (pmsState) {
-    case PmsState::Sleeping:
-        if (nowMs - pmsCycleStartMs >= (PMS_SAMPLE_INTERVAL_MS - PMS_WARMUP_MS)) {
-            pmsCycleStartMs = nowMs;
-            pmsStateStartMs = nowMs;
-            pms.wakeUp();
-            pmsState = PmsState::WarmingUp;
-        }
-        break;
-
-    case PmsState::WarmingUp: {
-        // Drain frames emitted while fan and laser stabilize.
-        PMS::DATA discard;
-        pms.read(discard);
-        if (nowMs - pmsStateStartMs >= PMS_WARMUP_MS) {
-            pmsStateStartMs = nowMs;
-            pmsState = PmsState::Reading;
-        }
-        break;
-    }
-
-    case PmsState::Reading:
-        if (pms.read(latestPms)) {
-            pmsPendingReport = true;
-            pms.sleep();
-            pmsState = PmsState::Sleeping;
-        } else if (nowMs - pmsStateStartMs >= PMS_READ_TIMEOUT_MS) {
-            Serial.println("[WARN] PMS7003 read timed out, returning to sleep");
-            pms.sleep();
-            pmsState = PmsState::Sleeping;
-        }
-        break;
+void reinitRadio() {
+    arq.setPacketInterruptCallback(onRadioPacketIsr);
+    ARQ::Status radioStatus = arq.initializeCC1101();
+    txLink.noteRadioResync();
+    if (radioStatus != ARQ::STATUS_OK) {
+        Serial.printf("[ERROR] Radio re-init failed, status %d\n", radioStatus);
+        storeLastError("radio_reinit");
+    } else {
+        Serial.println("[OK] Radio re-initialized");
+        arq.sleep();
     }
 }
 
@@ -188,31 +74,29 @@ void setup() {
     Serial.println("  Control Node Starting");
     Serial.println("==================================");
 
-    // Power down unused WiFi and Bluetooth radios to cut idle draw and self-heating.
     WiFi.mode(WIFI_OFF);
     btStop();
+#ifdef RGB_BUILTIN
+    rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
+#endif
 
     setupPowerManagement();
     setupWatchdog();
     loadBootCounter();
 
     wireMutex = xSemaphoreCreateMutex();
+    recoverI2cBusPins(SENSOR_I2C_SDA_PIN, SENSOR_I2C_SCL_PIN, true);
     Wire.begin(SENSOR_I2C_SDA_PIN, SENSOR_I2C_SCL_PIN, I2C_CLOCK_HZ);
     Wire.setTimeOut(I2C_TIMEOUT_MS);
+    recoverI2cBusPins(RAIN_METER_SDA_PIN, RAIN_METER_SCL_PIN, true);
     Wire1.begin(RAIN_METER_SDA_PIN, RAIN_METER_SCL_PIN, I2C_CLOCK_HZ);
     Wire1.setTimeOut(I2C_TIMEOUT_MS);
-    Serial2.begin(PMS::BAUD_RATE, SERIAL_8N1, PMS_RX_PIN, PMS_TX_PIN);
+    Serial2.begin(PMS_BAUD_RATE, SERIAL_8N1, PMS_RX_PIN, PMS_TX_PIN);
     softWireWindVane.beginSoftwareI2C();
 
-    pms.activeMode();
-    pms.wakeUp();
-    uint32_t nowMs = millis();
-    pmsCycleStartMs = nowMs;
-    pmsStateStartMs = nowMs;
-    pmsState = PmsState::WarmingUp;
-
-    ahtOk = aht.begin(&Wire);
-    bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
+    pms.begin(millis());
+    aht.begin(&Wire, wireMutex);
+    bmpSensor.begin(BMP085_ULTRAHIGHRES, &Wire, wireMutex);
 
     anemometer.setBusMutex(wireMutex);
     anemometer.initialize();
@@ -220,10 +104,12 @@ void setup() {
     windVane.initialize();
     rainMeter.initialize();
 
-    // Background sampling tasks keep bursty sensors fresh without blocking.
-    anemometer.startTask(10, 1, 0);
+    anemometer.startTask(10, 2, 0);
     windVane.startTask(3000, 1, 0);
     rainMeter.startTask(30, 1, 0);
+
+    mainLoopTaskHandle = xTaskGetCurrentTaskHandle();
+    arq.setPacketInterruptCallback(onRadioPacketIsr);
 
     ARQ::Status radioStatus = arq.initializeCC1101();
     if (radioStatus != ARQ::STATUS_OK) {
@@ -235,237 +121,24 @@ void setup() {
     }
 }
 
-// Sample every sensor into a reading, marking failed sensors as absent.
-WeatherData sampleSensors() {
-    WeatherData reading = {};
-    reading.windData.windSpeed = weather::kInvalidUint16;
-    reading.windData.windAngle = weather::kInvalidUint16;
-    reading.windData.anemometerMagnetStatus = {weather::kInvalidMagnetStatus, 0, 0};
-    reading.windData.windVaneMagnetStatus = {weather::kInvalidMagnetStatus, 0, 0};
-    reading.airData.temperature = weather::kInvalidTemperature;
-    reading.airData.humidity = weather::kInvalidUint16;
-    reading.airData.pressure = weather::kInvalidUint16;
-    reading.rainData.rainfall_1h = weather::kInvalidUint16;
-    reading.rainData.rainfall_24h = weather::kInvalidUint16;
-    reading.rainData.rainRate = weather::kInvalidUint16;
-    reading.rainData.magnetStatus = {weather::kInvalidMagnetStatus, 0, 0};
-    reading.airQualityData.pm1_0 = weather::kInvalidUint16;
-    reading.airQualityData.pm2_5 = weather::kInvalidUint16;
-    reading.airQualityData.pm10_0 = weather::kInvalidUint16;
-
-    if (anemometer.ready()) {
-        reading.windData.windSpeed = weather::encodeWindSpeed(anemometer.getWindSpeed());
-        reading.windData.anemometerMagnetStatus.status = anemometer.getLastStatus();
-        reading.windData.anemometerMagnetStatus.agc = anemometer.getLastAGC();
-        reading.windData.anemometerMagnetStatus.agcVariance =
-            static_cast<uint16_t>(anemometer.getAGCVariance());
-    }
-
-    if (windVane.ready()) {
-        reading.windData.windAngle = weather::encodeWindAngle(windVane.getAngle());
-        reading.windData.windVaneMagnetStatus.status = windVane.getLastStatus();
-        reading.windData.windVaneMagnetStatus.agc = windVane.getLastAGC();
-        reading.windData.windVaneMagnetStatus.agcVariance =
-            static_cast<uint16_t>(windVane.getAGCVariance());
-    }
-
-    {
-        MutexGuard wireLock(wireMutex);
-        if (wireLock.locked()) {
-            if (!ahtOk) {
-                ahtOk = aht.begin(&Wire);
-            }
-            if (ahtOk) {
-                sensors_event_t humidityEvent;
-                sensors_event_t temperatureEvent;
-                if (aht.getEvent(&humidityEvent, &temperatureEvent)) {
-                    reading.airData.temperature =
-                        weather::encodeTemperature(temperatureEvent.temperature);
-                    reading.airData.humidity =
-                        weather::encodeHumidity(humidityEvent.relative_humidity);
-                } else {
-                    ahtOk = false;
-                }
-            }
-
-            if (!bmpOk) {
-                bmpOk = bmp180.begin(BMP085_ULTRAHIGHRES, &Wire);
-            }
-            if (bmpOk) {
-                int32_t pascal = bmp180.readPressure();
-                if (pascal > 0) {
-                    reading.airData.pressure =
-                        weather::encodePressure(static_cast<float>(pascal) / 100.0f);
-                } else {
-                    bmpOk = false;
-                }
-            }
-        }
-    }
-
-    if (rainMeter.ready()) {
-        RainData rain = rainMeter.getRainData();
-        reading.rainData.rainfall_1h = rain.rainfall_1h;
-        reading.rainData.rainfall_24h = rain.rainfall_24h;
-        reading.rainData.rainRate = rain.rainRate;
-        reading.rainData.magnetStatus = rain.magnetStatus;
-    }
-
-    if (pmsPendingReport) {
-        reading.airQualityData.pm1_0 = latestPms.PM_SP_UG_1_0;
-        reading.airQualityData.pm2_5 = latestPms.PM_SP_UG_2_5;
-        reading.airQualityData.pm10_0 = latestPms.PM_SP_UG_10_0;
-        pmsPendingReport = false;
-    }
-
-    return reading;
-}
-
-void reinitRadio() {
-    ARQ::Status radioStatus = arq.initializeCC1101();
-    linkState.radioResyncs++;
-    if (radioStatus != ARQ::STATUS_OK) {
-        Serial.printf("[ERROR] Radio re-init failed, status %d\n", radioStatus);
-        storeLastError("radio_reinit");
-    } else {
-        Serial.println("[OK] Radio re-initialized");
-    }
-}
-
-void dropReading(const char* reason) {
-    linkState.sentDropped++;
-    linkState.consecutiveDrops++;
-    linkState.phase = SendPhase::Dropped;
-    linkState.attempt = 0;
-    Serial.printf("[WARN] Reading dropped: %s\n", reason);
-    if (linkState.consecutiveDrops >= RADIO_REINIT_THRESHOLD) {
-        reinitRadio();
-        linkState.consecutiveDrops = 0;
-    }
-    arq.sleep();
-}
-
-void sendAttempt() {
-    uint8_t wire[sizeof(WeatherData)];
-    if (!weather::packWeatherData(pendingReading, wire, sizeof(wire))) {
-        dropReading("pack_failed");
-        return;
-    }
-
-    linkState.timeoutSnapshot = arq.getTxTimeoutCount();
-    ARQ::Status status = arq.startSendData(wire, sizeof(wire), BASE_STATION_ADDR);
-    switch (status) {
-    case ARQ::STATUS_OK:
-        linkState.phase = SendPhase::Transmitting;
-        linkState.phaseStartMs = millis();
-        break;
-    case ARQ::STATUS_CHANNEL_BUSY:
-    case ARQ::STATUS_BUSY:
-        linkState.phase = SendPhase::RetryDelay;
-        linkState.phaseStartMs = millis();
-        break;
-    case ARQ::STATUS_INVALID_SIZE:
-        dropReading("oversize_frame");
-        break;
-    default:
-        dropReading("radio_error");
-        break;
-    }
-}
-
-void completeAttempt(bool successful) {
-    if (successful) {
-        linkState.sentOk++;
-        linkState.consecutiveDrops = 0;
-        linkState.attempt = 0;
-        linkState.phase = SendPhase::Idle;
-        markHealthyBoot();
-        arq.sleep();
-        return;
-    }
-
-    linkState.attempt++;
-    if (linkState.attempt < TX_MAX_ATTEMPTS) {
-        linkState.phase = SendPhase::RetryDelay;
-        linkState.phaseStartMs = millis();
-        return;
-    }
-    dropReading("no_ack");
-}
-
-void handleTx() {
-    switch (linkState.phase) {
-    case SendPhase::Idle:
-        if (newReadingPending) {
-            newReadingPending = false;
-            linkState.attempt = 0;
-            sendAttempt();
-        } else if (arq.getState() == ARQ::RadioState::IDLE) {
-            arq.sleep();
-        }
-        break;
-
-    case SendPhase::Transmitting:
-        arq.poll(TX_ACK_TIMEOUT_MS);
-        if (arq.getState() == ARQ::RadioState::IDLE) {
-            bool timedOut = arq.getTxTimeoutCount() != linkState.timeoutSnapshot;
-            completeAttempt(!timedOut);
-        } else if (millis() - linkState.phaseStartMs > TX_HARD_TIMEOUT_MS) {
-            Serial.println("[WARN] Send stalled, re-syncing radio");
-            dropReading("stalled");
-            reinitRadio();
-        }
-        break;
-
-    case SendPhase::RetryDelay:
-        if (millis() - linkState.phaseStartMs >= TX_BACKOFF_MS) {
-            sendAttempt();
-        }
-        break;
-
-    case SendPhase::Dropped:
-        // Wait for the next sample before trying again.
-        linkState.phase = SendPhase::Idle;
-        break;
-    }
-}
-
 void printDiagnostics(uint32_t nowMs) {
     Serial.printf("[Diag] up=%lu boots=%lu txok=%lu txdrop=%lu resyncs=%lu state=%d rssi=%d\n",
-                  nowMs / 1000uL, bootCount, linkState.sentOk, linkState.sentDropped,
-                  linkState.radioResyncs, static_cast<int>(arq.getState()), arq.getLastRSSI());
+                  nowMs / 1000uL, getBootCount(), txLink.sentOk(), txLink.sentDropped(),
+                  txLink.radioResyncs(), static_cast<int>(arq.getState()), arq.getLastRSSI());
     Serial.printf("[Diag] anemo=%d vane=%d rain=%d aht=%d bmp=%d pmsState=%d\n",
                   anemometer.ready() ? 1 : 0, windVane.ready() ? 1 : 0, rainMeter.ready() ? 1 : 0,
-                  ahtOk ? 1 : 0, bmpOk ? 1 : 0, static_cast<int>(pmsState));
-}
-
-bool tasksHealthy(uint32_t nowMs) {
-    if (nowMs - anemometer.getLastHeartbeatMs() > WATCHDOG_TIMEOUT_MS) {
-        Serial.println("[ERROR] Anemometer task stalled");
-        storeLastError("anemo_wdt");
-        return false;
-    }
-    if (nowMs - windVane.getLastHeartbeatMs() > WATCHDOG_TIMEOUT_MS) {
-        Serial.println("[ERROR] WindVane task stalled");
-        storeLastError("vane_wdt");
-        return false;
-    }
-    if (nowMs - rainMeter.getLastHeartbeatMs() > WATCHDOG_TIMEOUT_MS) {
-        Serial.println("[ERROR] RainMeter task stalled");
-        storeLastError("rain_wdt");
-        return false;
-    }
-    return true;
+                  aht.isOk() ? 1 : 0, bmpSensor.isOk() ? 1 : 0, static_cast<int>(pms.state()));
 }
 
 void loop() {
     uint32_t nowMs = millis();
 
-    if (tasksHealthy(nowMs)) {
+    if (tasksHealthy(anemometer.getLastHeartbeatMs(), windVane.getLastHeartbeatMs(),
+                     rainMeter.getLastHeartbeatMs())) {
         esp_task_wdt_reset();
     }
 
-    updatePms(nowMs);
+    pms.poll(nowMs);
 
 #if CALIBRATION_MODE
     if (nowMs - lastReadingMs >= 1000uL) {
@@ -475,13 +148,34 @@ void loop() {
                       anemometer.getWindSpeed());
     }
 #else
-    handleTx();
+    ARQ::TxLinkStepResult txResult = txLink.poll(nowMs);
+    if (txResult.delivered) {
+        if (pendingHasPms) {
+            pms.markReportDelivered();
+            pendingHasPms = false;
+        }
+        markHealthyBoot();
+    } else if (txResult.dropped) {
+        pendingHasPms = false;
+        Serial.printf("[WARN] Reading dropped: %s\n",
+                      txResult.dropReason != nullptr ? txResult.dropReason : "unknown");
+        if (txResult.requestReinit || txResult.requestStallResync) {
+            reinitRadio();
+        }
+    }
 
     if (nowMs - lastReadingMs >= REPORT_INTERVAL_MS) {
         lastReadingMs = nowMs;
-        pendingReading = sampleSensors();
-        newReadingPending = true;
-        Serial.println("[INFO] Reading sampled");
+        bool sampledHasPms = false;
+        WeatherData reading =
+            sampleAllSensors(nowMs, anemometer, windVane, rainMeter, aht, bmpSensor, pms, wireMutex,
+                             arq, txLink, sampledHasPms);
+        uint8_t wire[sizeof(WeatherData)];
+        if (weather::packWeatherData(reading, wire, sizeof(wire)) &&
+            txLink.submit(wire, sizeof(wire))) {
+            pendingHasPms = sampledHasPms;
+            Serial.println("[INFO] Reading sampled");
+        }
     }
 #endif
 
@@ -490,14 +184,16 @@ void loop() {
         printDiagnostics(nowMs);
     }
 
-    // Pace the main loop so Core 1 enters light idle between events while staying
-    // responsive during active radio ACK polling.
+#if !CALIBRATION_MODE
+    if (txLink.phase() == ARQ::SendPhase::Transmitting) {
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));
+        return;
+    }
+#endif
     uint32_t delayMs = 10u;
 #if !CALIBRATION_MODE
-    if (linkState.phase == SendPhase::Transmitting) {
-        delayMs = 1u;
-    } else if (linkState.phase == SendPhase::Idle && !newReadingPending &&
-               pmsState == PmsState::Sleeping) {
+    if (txLink.phase() == ARQ::SendPhase::Idle && !txLink.hasPending() &&
+        pms.state() == pms7003::PmsState::Sleeping) {
         delayMs = 500u;
     }
 #endif
