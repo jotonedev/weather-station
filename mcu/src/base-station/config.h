@@ -9,13 +9,14 @@
 #define WIFI_SSID "your-ssid"
 #define WIFI_PASSWORD "your-password"
 
-// Ingest endpoint. Use http for a LAN deployment, https for the field. The
-// https client trusts the Arduino core certificate bundle.
+// Ingest endpoint. Use http for a LAN deployment, https for the field.
+// INGEST_HTTPS 1 enables TLS with certificate verification disabled
+// (WiFiClientSecure::setInsecure()) until a root CA/certificate is pinned.
 #define INGEST_URL "http://192.168.1.50:8081/readings"
 // #define INGEST_URL "https://ingest.example.com/readings"
 
-// Scheme of INGEST_URL. 1 enables the TLS client that trusts the Arduino core
-// certificate bundle, 0 uses plain http. Keep it consistent with the URL scheme.
+// Scheme of INGEST_URL. 1 enables TLS (currently with setInsecure(), no cert
+// verification), 0 uses plain http. Keep it consistent with the URL scheme.
 #define INGEST_HTTPS 0
 
 // HTTP Basic Auth credentials for the ingest endpoint. Set before flashing.
@@ -45,9 +46,6 @@
 #define SCK_PIN 12
 #define MISO_PIN 13
 #define MOSI_PIN 11
-
-constexpr uint8_t CONTROL_NODE_ADDR = 1;
-constexpr uint8_t BASE_STATION_ADDR = 2;
 
 // =============================================================================
 // Delivery policy
