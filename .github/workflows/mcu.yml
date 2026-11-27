@@ -139,3 +139,6 @@ jobs:
 
       - name: Build anemometer test
         run: pio run -e anemometer-test
+
+      - name: Build windvane test
+        run: pio run -e windvane-test
