@@ -32,7 +32,9 @@ jobs:
         run: |
           CF=$(command -v clang-format)
           find src lib test -type f \( -name '*.cpp' -o -name '*.h' \) \
-            ! -path 'lib/CC1101/*' \
+            ! -path 'lib/CC1101/*' ! -path 'lib/AS5600/src/AS5600.*' \
+            ! -path 'lib/Aht20/src/Adafruit_AHTX0.*' ! -path 'lib/Bmp180/src/Adafruit_BMP085.*' \
+            ! -path 'lib/Pms7003/src/PMS.*' \
             -exec "$CF" --dry-run --Werror {} +
 
       - name: Check RAII lock guards
@@ -79,12 +81,19 @@ jobs:
         run: |
           set -o pipefail
           clang-tidy --config-file=.clang-tidy \
-            lib/ARQ/src/ARQ.cpp lib/Weather/src/Weather.cpp lib/Ingest/src/Ingest.cpp \
-            lib/Outbox/src/Outbox.cpp lib/Sensors/src/Sensors.cpp \
+            lib/ARQ/src/ARQ.cpp lib/ARQ/src/TxLink.cpp lib/Weather/src/Weather.cpp \
+            lib/Ingest/src/Ingest.cpp lib/Outbox/src/Outbox.cpp \
+            lib/AS5600/src/MagnetDiagnostics.cpp lib/Anemometer/src/AnemometerState.cpp \
+            lib/WindVane/src/WindVaneState.cpp lib/RainMeter/src/RainMeterLogic.cpp \
+            lib/Pms7003/src/PmsDutyCycle.cpp \
             test/test_arq.cpp test/test_weather.cpp test/test_outbox.cpp test/test_ingest.cpp \
-            test/test_sensors.cpp test/main.cpp \
+            test/test_as5600.cpp test/test_anemometer.cpp test/test_wind_vane.cpp \
+            test/test_rain_meter.cpp test/test_aht20.cpp test/test_bmp180.cpp \
+            test/test_pms7003.cpp test/main.cpp \
             -- -std=gnu++17 \
-            -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src -Ilib/Sensors/src \
+            -Ilib/ARQ/src -Ilib/Weather/src -Ilib/Ingest/src -Ilib/Outbox/src \
+            -Ilib/AS5600/src -Ilib/Anemometer/src -Ilib/WindVane/src -Ilib/RainMeter/src \
+            -Ilib/Aht20/src -Ilib/Bmp180/src -Ilib/Pms7003/src \
             -I.pio/libdeps/native/googletest/googletest/include \
             -I.pio/libdeps/native/googletest/googlemock/include \
             2>&1 | tee tidy.log
@@ -122,5 +131,11 @@ jobs:
       - name: Build control node
         run: pio run -e control-node
 
+      - name: Build control node (production mode)
+        run: PLATFORMIO_BUILD_FLAGS='-DCALIBRATION_MODE=0' pio run -e control-node
+
       - name: Build base station
         run: pio run -e base-station
+
+      - name: Build anemometer test
+        run: pio run -e anemometer-test
