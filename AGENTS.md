@@ -42,10 +42,10 @@
 
 ## MCU firmware
 
-- Located in `mcu/` and built with PlatformIO
+- Located in `mcu/` and built with PlatformIO, with detailed subsystem rules in `mcu/AGENTS.md`
 - Follow `mcu/.clang-format` for all C++ changes (4-space indent, 100-column limit, braces on every `if` and loop, no single-line `if`)
-- Do not reformat `mcu/lib/CC1101/`
-- Run native unit tests with `pio test -e native` in `mcu/`
+- Do not reformat vendored third-party files listed in `mcu/AGENTS.md`
+- Run `pio test -e native`, `clang-format`, and `clang-tidy` in WSL using `clang` since Windows lacks host C++ linters
 
 ## Protobuf contracts
 
