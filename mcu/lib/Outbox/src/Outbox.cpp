@@ -14,7 +14,10 @@ Outbox::~Outbox() {
     }
 }
 
-bool Outbox::push(const PendingReading& entry) {
+bool Outbox::push(const PendingReading& entry, bool* evicted) {
+    if (evicted != nullptr) {
+        *evicted = false;
+    }
     if (capacity_ == 0) {
         dropped_++;
         return false;
@@ -24,6 +27,9 @@ bool Outbox::push(const PendingReading& entry) {
         head_ = (head_ + 1) % capacity_;
         count_--;
         dropped_++;
+        if (evicted != nullptr) {
+            *evicted = true;
+        }
     }
     size_t const tail = (head_ + count_) % capacity_;
     buffer_[tail] = entry;

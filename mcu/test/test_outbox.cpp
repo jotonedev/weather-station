@@ -360,3 +360,22 @@ TEST(Outbox, DropUntimestampedClearsBufferWhenAllUntimestamped) {
     EXPECT_EQ(outbox.count(), 0u);
     EXPECT_EQ(outbox.dropUntimestamped(), 0u);
 }
+
+TEST(Outbox, PushReportsEvictionState) {
+    Outbox outbox(2);
+    bool evicted = true;
+    EXPECT_TRUE(outbox.push(makeEntry(1), &evicted));
+    EXPECT_FALSE(evicted);
+
+    evicted = true;
+    EXPECT_TRUE(outbox.push(makeEntry(2), &evicted));
+    EXPECT_FALSE(evicted);
+
+    EXPECT_TRUE(outbox.push(makeEntry(3), &evicted));
+    EXPECT_TRUE(evicted);
+
+    Outbox zeroBox(0);
+    evicted = true;
+    EXPECT_FALSE(zeroBox.push(makeEntry(1), &evicted));
+    EXPECT_FALSE(evicted);
+}

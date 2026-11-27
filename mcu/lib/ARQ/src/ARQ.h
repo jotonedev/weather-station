@@ -63,8 +63,10 @@ struct __attribute__((packed)) Message {
  */
 class ARQ {
   public:
-    explicit ARQ(RadioInterface& radio, address_t localAddress = 0)
-        : radio(radio), localAddress(localAddress) {}
+    using ClockFn = uint32_t (*)();
+
+    explicit ARQ(RadioInterface& radio, address_t localAddress = 0, ClockFn clock = nullptr)
+        : radio(radio), localAddress(localAddress), clockFn(clock) {}
     ~ARQ();
 
     ARQ(const ARQ&) = delete;
@@ -154,7 +156,9 @@ class ARQ {
     static ARQ* instance;
     static void isrHandler();
     void handleInterrupt();
+    uint32_t currentMillis() const;
     InterruptCallback packetInterruptCallback = nullptr;
+    ClockFn clockFn = nullptr;
 };
 
 } // namespace ARQ

@@ -36,11 +36,20 @@ struct __attribute__((packed)) AirQualityData {
     uint16_t pm10_0;
 };
 
+struct __attribute__((packed)) SystemHealthData {
+    uint8_t flags;
+    uint8_t resetReason;
+    uint16_t bootCount;
+    int8_t lastAckRssi;
+    uint8_t lastAckLqi;
+};
+
 struct __attribute__((packed)) WeatherData {
     WindData windData;
     AirData airData;
     RainData rainData;
     AirQualityData airQualityData;
+    SystemHealthData health;
 };
 
 // The wire format shared by the control node and the base station.
@@ -49,6 +58,9 @@ struct __attribute__((packed)) WeatherData {
 // single CC1101 packet. The scales live in this single place so both nodes
 // interpret the packed fields identically.
 namespace weather {
+
+constexpr uint8_t kControlNodeAddr = 1;
+constexpr uint8_t kBaseStationAddr = 2;
 
 // One LSB is 0.1 deg C.
 constexpr float kTemperatureScale = 10.0f;
@@ -70,6 +82,16 @@ constexpr float kRainRateScale = 10.0f;
 constexpr int16_t kInvalidTemperature = static_cast<int16_t>(0x8000);
 constexpr uint16_t kInvalidUint16 = 0xFFFF;
 constexpr uint8_t kInvalidMagnetStatus = 0xFF;
+constexpr uint8_t kMagnetStatusI2cError = 0x80;
+
+// Health bitmask flags and LQI sentinel carried in SystemHealthData.
+constexpr uint8_t kHealthFlagAhtOk = 1u << 0;
+constexpr uint8_t kHealthFlagBmpOk = 1u << 1;
+constexpr uint8_t kHealthFlagRainCalibrated = 1u << 2;
+constexpr uint8_t kHealthFlagRainJammed = 1u << 3;
+constexpr uint8_t kHealthFlagPmsTimeout = 1u << 4;
+constexpr uint8_t kHealthFlagPmsError = 1u << 5;
+constexpr uint8_t kInvalidLqi = 0xFF;
 
 // Largest payload the ARQ link accepts. ARQ initializes the CC1101 with a
 // fixed packet length of 48 bytes, 1 of which is the address byte, and 7 of
@@ -82,6 +104,8 @@ uint16_t encodeHumidity(float percent);
 uint16_t encodePressure(float hectopascal);
 uint16_t encodeWindSpeed(float metersPerSecond);
 uint16_t encodeWindAngle(float degrees);
+uint16_t encodeRainAccumulation(float millimeters);
+uint16_t encodeRainRate(float millimetersPerHour);
 
 // Convert a fixed-point field back to the sensor float.
 float decodeTemperature(int16_t raw);

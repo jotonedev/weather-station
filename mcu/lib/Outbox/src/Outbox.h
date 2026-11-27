@@ -31,9 +31,10 @@ class Outbox {
     Outbox(const Outbox&) = delete;
     Outbox& operator=(const Outbox&) = delete;
 
-    // Add an entry, dropping the oldest entry when full. Returns false when
-    // the entry is dropped because the buffer is full.
-    bool push(const PendingReading& entry);
+    // Add an entry, overwriting the oldest entry when full. Returns false only
+    // when capacity == 0. Sets *evicted to true (if non-null) when the oldest
+    // entry was overwritten because the buffer was full.
+    bool push(const PendingReading& entry, bool* evicted = nullptr);
 
     // Remove and return the oldest entry. Returns false when empty.
     bool pop(PendingReading& out);

@@ -947,16 +947,22 @@ void Radio::wakeUp() {
   SPI.beginTransaction(spiSettings);
   chipSelect();
   delay(2);  // Wait for crystal oscillator to power on and stabilize
-  saveStatus(SPI.transfer(CC1101_CMD_IDLE));
+  uint8_t status = SPI.transfer(CC1101_CMD_IDLE);
+  unsigned long start = millis();
+  while ((status & 0x80) != 0 && (millis() - start) < 5) {
+    delayMicroseconds(200);
+    status = SPI.transfer(CC1101_CMD_IDLE);
+  }
+  saveStatus(status);
   chipDeselect();
   SPI.endTransaction();
   delayMicroseconds(500);
 }
 
 void Radio::setState(State state) {
-  // If the chip is in SLEEP mode (MARCSTATE == 0x00), it MUST be woken up to IDLE first
+  // If the chip is in SLEEP mode (MARCSTATE == 0x00 or 0x1F), it MUST be woken up to IDLE first
   uint8_t marc = readReg(CC1101_REG_MARCSTATE) & 0x1F;
-  if (marc == 0x00) {
+  if (marc == 0x00 || marc == 0x1F) {
     wakeUp();
   }
 

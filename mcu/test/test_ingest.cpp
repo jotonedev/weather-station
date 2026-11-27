@@ -288,3 +288,48 @@ TEST(Ingest, SinglePayloadRejectsSmallBuffer) {
     char payload[16];
     EXPECT_EQ(buildSinglePayload(reading, "n1", payload, sizeof(payload)), 0);
 }
+
+TEST(Ingest, SinglePayloadMagnetStatusVariants) {
+    // MD=0 (0x00), ML (0x30), MH (0x28) emit all 3 magnet fields.
+    WeatherData data = sentinelReading();
+    data.windData.anemometerMagnetStatus = {0x00, 100, 3};
+    data.windData.windVaneMagnetStatus = {0x30, 110, 4};
+    data.rainData.magnetStatus = {0x28, 120, 5};
+    IngestReading const readingAll = {data, 0};
+
+    char payload[512];
+    int len = buildSinglePayload(readingAll, "n1", payload, sizeof(payload));
+    ASSERT_GT(len, 0);
+    EXPECT_STREQ(payload, "{\"node_id\":\"n1\",\"anemo_status\":0,\"anemo_agc\":100,"
+                          "\"anemo_agc_variance\":3,\"vane_status\":48,\"vane_agc\":110,"
+                          "\"vane_agc_variance\":4,\"rain_status\":40,\"rain_agc\":120,"
+                          "\"rain_agc_variance\":5}");
+
+    // I2C error (0x80) emits only *_status: 128 without *_agc or *_agc_variance,
+    // and 0xFF omits all 3.
+    WeatherData errData = sentinelReading();
+    errData.windData.anemometerMagnetStatus = {weather::kMagnetStatusI2cError, 99, 7};
+    errData.windData.windVaneMagnetStatus = {weather::kInvalidMagnetStatus, 88, 6};
+    IngestReading const readingErr = {errData, 0};
+
+    len = buildSinglePayload(readingErr, "n1", payload, sizeof(payload));
+    ASSERT_GT(len, 0);
+    EXPECT_STREQ(payload, "{\"node_id\":\"n1\",\"anemo_status\":128}");
+}
+
+TEST(Ingest, IsTransientHttpStatus) {
+    EXPECT_TRUE(isTransientHttpStatus(-1));
+    EXPECT_TRUE(isTransientHttpStatus(-11));
+    EXPECT_TRUE(isTransientHttpStatus(408));
+    EXPECT_TRUE(isTransientHttpStatus(429));
+    EXPECT_TRUE(isTransientHttpStatus(500));
+    EXPECT_TRUE(isTransientHttpStatus(502));
+    EXPECT_TRUE(isTransientHttpStatus(503));
+
+    EXPECT_FALSE(isTransientHttpStatus(200));
+    EXPECT_FALSE(isTransientHttpStatus(204));
+    EXPECT_FALSE(isTransientHttpStatus(400));
+    EXPECT_FALSE(isTransientHttpStatus(401));
+    EXPECT_FALSE(isTransientHttpStatus(404));
+    EXPECT_FALSE(isTransientHttpStatus(422));
+}

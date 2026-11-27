@@ -78,6 +78,9 @@ void appendMagnetStatus(BufferWriter& writer, bool& first, const char* prefix,
     char fieldName[24];
     snprintf(fieldName, sizeof(fieldName), "%s_status", prefix);
     appendInt(writer, first, fieldName, status.status);
+    if (status.status == weather::kMagnetStatusI2cError) {
+        return;
+    }
     snprintf(fieldName, sizeof(fieldName), "%s_agc", prefix);
     appendInt(writer, first, fieldName, status.agc);
     snprintf(fieldName, sizeof(fieldName), "%s_agc_variance", prefix);
@@ -269,4 +272,14 @@ uint32_t backoffDelayMs(const BackoffPolicy& policy, uint8_t retryIndex) {
 
 bool shouldRetry(const BackoffPolicy& policy, uint8_t retryIndex) {
     return policy.maxAttempts == 0 || retryIndex < policy.maxAttempts;
+}
+
+bool isTransientHttpStatus(int httpCode) {
+    if (httpCode < 0) {
+        return true;
+    }
+    if (httpCode >= 500) {
+        return true;
+    }
+    return httpCode == 408 || httpCode == 429;
 }

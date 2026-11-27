@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "ARQ.h"
+#include "TxLink.h"
 
 using ::testing::_; // NOLINT(bugprone-reserved-identifier)/gtest matcher convention
 using ::testing::Invoke;
@@ -130,10 +131,12 @@ TEST(Arq, SendReportsChannelBusy) {
     ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
 
     EXPECT_CALL(mock, transmitWithCca(_, _, _, _)).WillOnce(Return(ARQ::RadioStatus::ChannelBusy));
-    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(_)).Times(0);
+    EXPECT_CALL(mock, idle()).Times(1);
 
     uint8_t payload[4] = {1, 2, 3, 4};
     EXPECT_EQ(arq.startSendData(payload, 4, 2), ARQ::STATUS_CHANNEL_BUSY);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::IDLE);
 }
 
 TEST(Arq, SendRejectsOversizePayload) {
@@ -315,9 +318,9 @@ TEST(Arq, StartSendDataBusyInWaitingAckAndPreemptsReceiving) {
     NiceMock<MockRadio> busyMock;
     ARQ::ARQ busyArq(busyMock, 1);
     ASSERT_EQ(busyArq.initializeCC1101(), ARQ::STATUS_OK);
-    EXPECT_CALL(busyMock, startReceive(1)).Times(2).WillRepeatedly(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(busyMock, startReceive(1)).Times(1).WillOnce(Return(ARQ::RadioStatus::Ok));
     ASSERT_EQ(busyArq.startReceiveData(1), ARQ::STATUS_OK);
-    EXPECT_CALL(busyMock, idle()).Times(1);
+    EXPECT_CALL(busyMock, idle()).Times(2);
     EXPECT_CALL(busyMock, transmitWithCca(_, 47, 2, 5))
         .WillOnce(Return(ARQ::RadioStatus::ChannelBusy));
     EXPECT_EQ(busyArq.startSendData(payload, 4, 2), ARQ::STATUS_CHANNEL_BUSY);
@@ -719,4 +722,293 @@ TEST(Arq, PacketInterruptCallbackFiresOnIsr) {
 
     EXPECT_EQ(arq.poll(), ARQ::STATUS_OK);
     EXPECT_TRUE(arq.available());
+}
+
+namespace {
+
+uint32_t gFakeMillis = 0;
+
+uint32_t fakeClock() {
+    return gFakeMillis;
+}
+
+} // namespace
+
+TEST(Arq, AckReceiptCapturesRssiAndLqi) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 1000;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 5)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillOnce(Return(48));
+    EXPECT_CALL(mock, readData(_, _, _))
+        .WillOnce(Invoke([](uint8_t* data, size_t length, size_t* read) {
+            (void)length;
+            fillFrame(data, read, 2, ARQ::ACK, 1, 0);
+            return ARQ::RadioStatus::Ok;
+        }));
+    EXPECT_CALL(mock, getRssi()).WillOnce(Return(-52));
+    EXPECT_CALL(mock, getLqi()).WillOnce(Return(41));
+    EXPECT_CALL(mock, idle()).Times(1);
+
+    uint8_t payload[4] = {1, 2, 3, 4};
+    ASSERT_EQ(arq.startSendData(payload, 4, 2), ARQ::STATUS_OK);
+    gFakeMillis = 1045;
+    EXPECT_EQ(arq.poll(1000), ARQ::STATUS_OK);
+    EXPECT_EQ(arq.getLastRSSI(), -52);
+    EXPECT_EQ(arq.getLastLQI(), 41);
+    EXPECT_EQ(arq.getLastRTT(), 45u);
+}
+
+TEST(Arq, WaitingAckChannelBusyRefreshesTimeoutBeforeNextRetry) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 500;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    ON_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillByDefault(Return(0));
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 5)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+
+    uint8_t payload[4] = {1, 2, 3, 4};
+    ASSERT_EQ(arq.startSendData(payload, 4, 2), ARQ::STATUS_OK);
+    ::testing::Mock::VerifyAndClearExpectations(&mock);
+
+    // First timeout at t=1500 triggers retry 1, which hits ChannelBusy.
+    gFakeMillis = 1500;
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 3)).WillOnce(Return(ARQ::RadioStatus::ChannelBusy));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_EQ(arq.poll(1000), ARQ::STATUS_BUSY);
+    EXPECT_EQ(arq.getTxRetryCount(), 1u);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::WAITING_ACK);
+    ::testing::Mock::VerifyAndClearExpectations(&mock);
+
+    // Polls before t=2500 must NOT retransmit because opStartTime was refreshed to 1500.
+    EXPECT_CALL(mock, transmitWithCca(_, _, _, _)).Times(0);
+    gFakeMillis = 2000;
+    EXPECT_EQ(arq.poll(1000), ARQ::STATUS_BUSY);
+    gFakeMillis = 2499;
+    EXPECT_EQ(arq.poll(1000), ARQ::STATUS_BUSY);
+    EXPECT_EQ(arq.getTxRetryCount(), 1u);
+    ::testing::Mock::VerifyAndClearExpectations(&mock);
+
+    // Once full 1000 ms elapses (t=2500), retry 2 fires cleanly.
+    gFakeMillis = 2500;
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 3)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_EQ(arq.poll(1000), ARQ::STATUS_BUSY);
+    EXPECT_EQ(arq.getTxRetryCount(), 2u);
+    EXPECT_EQ(arq.getState(), ARQ::RadioState::WAITING_ACK);
+}
+
+TEST(Arq, EnterRxModeRestoresIocfg0AfterStartReceive) {
+    NiceMock<MockRadio> mock;
+    ARQ::ARQ arq(mock, 1);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    {
+        const ::testing::InSequence seq;
+        EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 5)).WillOnce(Return(ARQ::RadioStatus::Ok));
+        EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+        EXPECT_CALL(mock, writeReg(ARQ::kRegIocfg0, 0x07)).Times(1);
+    }
+    uint8_t payload[4] = {1, 2, 3, 4};
+    EXPECT_EQ(arq.startSendData(payload, 4, 2), ARQ::STATUS_OK);
+
+    NiceMock<MockRadio> rxMock;
+    ARQ::ARQ rxArq(rxMock, 2);
+    ASSERT_EQ(rxArq.initializeCC1101(), ARQ::STATUS_OK);
+
+    {
+        const ::testing::InSequence seq;
+        EXPECT_CALL(rxMock, startReceive(2)).WillOnce(Return(ARQ::RadioStatus::Ok));
+        EXPECT_CALL(rxMock, writeReg(ARQ::kRegIocfg0, 0x07)).Times(1);
+    }
+    EXPECT_EQ(rxArq.startReceiveData(2), ARQ::STATUS_OK);
+}
+
+TEST(TxLink, SubmitSuccessDeliversAndSleeps) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 1000;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    ARQ::TxLinkController link(arq, 2);
+    const uint8_t payload[4] = {10, 20, 30, 40};
+    EXPECT_TRUE(link.submit(payload, sizeof(payload)));
+    EXPECT_TRUE(link.hasPending());
+
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 5)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+
+    ARQ::TxLinkStepResult step = link.poll(1000);
+    EXPECT_FALSE(step.delivered);
+    EXPECT_FALSE(step.dropped);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Transmitting);
+    EXPECT_FALSE(link.hasPending());
+
+    // Simulate ACK received for seq 1.
+    ARQ::byte ackFrame[7] = {
+        ARQ::PROTOCOL_VERSION, 2, ARQ::ACK, 1, 0, 0, 0,
+    };
+    EXPECT_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillOnce(Return(48));
+    EXPECT_CALL(mock, readData(_, 47, _))
+        .WillOnce(Invoke([&](uint8_t* data, size_t length, size_t* read) {
+            (void)length;
+            std::memcpy(data, ackFrame, sizeof(ackFrame));
+            *read = sizeof(ackFrame);
+            return ARQ::RadioStatus::Ok;
+        }));
+    EXPECT_CALL(mock, sleep()).Times(1);
+
+    step = link.poll(1100);
+    EXPECT_TRUE(step.delivered);
+    EXPECT_FALSE(step.dropped);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Idle);
+    EXPECT_EQ(link.sentOk(), 1u);
+    EXPECT_EQ(link.sentDropped(), 0u);
+}
+
+TEST(TxLink, NoAckDropsAfterTimeout) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 1000;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    ARQ::TxLinkConfig cfg;
+    cfg.ackTimeoutMs = 500;
+    cfg.maxAttempts = 1;
+    ARQ::TxLinkController link(arq, 2, cfg);
+
+    const uint8_t payload[4] = {1, 2, 3, 4};
+    ASSERT_TRUE(link.submit(payload, sizeof(payload)));
+
+    ON_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillByDefault(Return(0));
+    ON_CALL(mock, transmitWithCca(_, _, _, _)).WillByDefault(Return(ARQ::RadioStatus::Ok));
+    ON_CALL(mock, startReceive(1)).WillByDefault(Return(ARQ::RadioStatus::Ok));
+
+    link.poll(1000);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Transmitting);
+
+    // Exhaust ARQ's internal retries (MAX_RETRIES=3 -> 3 timeouts) to return ARQ to IDLE.
+
+    ARQ::TxLinkStepResult step;
+    for (int i = 1; i <= 3; ++i) {
+        gFakeMillis = 1000 + (static_cast<uint32_t>(i) * 500);
+        step = link.poll(gFakeMillis);
+    }
+
+    EXPECT_TRUE(step.dropped);
+    EXPECT_STREQ(step.dropReason, "no_ack");
+    EXPECT_FALSE(step.requestReinit);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Dropped);
+    EXPECT_EQ(link.sentDropped(), 1u);
+
+    // Next poll transitions Dropped -> Idle.
+    step = link.poll(gFakeMillis + 1);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Idle);
+}
+
+TEST(TxLink, ChannelBusyRetriesTwiceThenDrops) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 100;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    ARQ::TxLinkConfig cfg;
+    cfg.maxBusyRetries = 2;
+    cfg.backoffMs = 2000;
+    ARQ::TxLinkController link(arq, 2, cfg);
+
+    const uint8_t payload[2] = {0xAA, 0xBB};
+    ASSERT_TRUE(link.submit(payload, sizeof(payload)));
+
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 5))
+        .Times(3)
+        .WillRepeatedly(Return(ARQ::RadioStatus::ChannelBusy));
+
+    // Attempt 1 -> RetryDelay.
+    ARQ::TxLinkStepResult step = link.poll(100);
+    EXPECT_FALSE(step.dropped);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::RetryDelay);
+
+    // Before backoffMs elapses, stays in RetryDelay.
+    step = link.poll(2099);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::RetryDelay);
+
+    // Attempt 2 -> RetryDelay.
+    step = link.poll(2100);
+    EXPECT_FALSE(step.dropped);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::RetryDelay);
+
+    // Attempt 3 -> exceeds maxBusyRetries (2), drops as channel_busy.
+    step = link.poll(4100);
+    EXPECT_TRUE(step.dropped);
+    EXPECT_STREQ(step.dropReason, "channel_busy");
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Dropped);
+    EXPECT_EQ(link.sentDropped(), 1u);
+}
+
+TEST(TxLink, ConsecutiveDropsTriggerRequestReinit) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 100;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    ARQ::TxLinkConfig cfg;
+    cfg.maxBusyRetries = 0;
+    cfg.reinitThreshold = 3;
+    ARQ::TxLinkController link(arq, 2, cfg);
+
+    ON_CALL(mock, transmitWithCca(_, _, _, _)).WillByDefault(Return(ARQ::RadioStatus::ChannelBusy));
+
+    const uint8_t payload[2] = {1, 2};
+    for (int i = 0; i < 2; ++i) {
+        ASSERT_TRUE(link.submit(payload, sizeof(payload)));
+        const ARQ::TxLinkStepResult step = link.poll(100 + (static_cast<uint32_t>(i) * 10));
+        EXPECT_TRUE(step.dropped);
+        EXPECT_FALSE(step.requestReinit);
+        link.poll(101 + (static_cast<uint32_t>(i) * 10));
+        EXPECT_EQ(link.phase(), ARQ::SendPhase::Idle);
+    }
+
+    ASSERT_TRUE(link.submit(payload, sizeof(payload)));
+    const ARQ::TxLinkStepResult step = link.poll(200);
+    EXPECT_TRUE(step.dropped);
+    EXPECT_TRUE(step.requestReinit);
+    EXPECT_EQ(link.sentDropped(), 3u);
+}
+
+TEST(TxLink, HardTimeoutStallTriggersRequestStallResync) {
+    NiceMock<MockRadio> mock;
+    gFakeMillis = 1000;
+    ARQ::ARQ arq(mock, 1, fakeClock);
+    ASSERT_EQ(arq.initializeCC1101(), ARQ::STATUS_OK);
+
+    ARQ::TxLinkConfig cfg;
+    cfg.ackTimeoutMs = 50000;
+    cfg.hardTimeoutMs = 12000;
+    cfg.reinitThreshold = 3;
+    ARQ::TxLinkController link(arq, 2, cfg);
+
+    const uint8_t payload[2] = {5, 6};
+    ASSERT_TRUE(link.submit(payload, sizeof(payload)));
+
+    EXPECT_CALL(mock, transmitWithCca(_, 47, 2, 5)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    EXPECT_CALL(mock, startReceive(1)).WillOnce(Return(ARQ::RadioStatus::Ok));
+    ON_CALL(mock, readRegField(ARQ::kRegRxBytes, 6, 0)).WillByDefault(Return(0));
+
+    ARQ::TxLinkStepResult step = link.poll(1000);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Transmitting);
+
+    // Advance past hardTimeoutMs while ARQ is still WAITING_ACK.
+    gFakeMillis = 13001;
+    step = link.poll(13001);
+    EXPECT_TRUE(step.dropped);
+    EXPECT_STREQ(step.dropReason, "stalled");
+    EXPECT_FALSE(step.requestReinit);
+    EXPECT_TRUE(step.requestStallResync);
+    EXPECT_EQ(link.phase(), ARQ::SendPhase::Dropped);
 }

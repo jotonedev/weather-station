@@ -8,6 +8,9 @@
 namespace weather {
 
 int16_t encodeTemperature(float celsius) {
+    if (!std::isfinite(celsius)) {
+        return kInvalidTemperature;
+    }
     long rounded = std::lroundf(celsius * kTemperatureScale);
     rounded = std::clamp(rounded, static_cast<long>(std::numeric_limits<int16_t>::min()) + 1L,
                          static_cast<long>(std::numeric_limits<int16_t>::max()));
@@ -15,6 +18,9 @@ int16_t encodeTemperature(float celsius) {
 }
 
 uint16_t encodeUnsigned(float value, float scale) {
+    if (!std::isfinite(value)) {
+        return kInvalidUint16;
+    }
     long rounded = std::lroundf(value * scale);
     rounded = std::clamp(rounded, 0L, static_cast<long>(kInvalidUint16 - 1));
     return static_cast<uint16_t>(rounded);
@@ -34,6 +40,14 @@ uint16_t encodeWindSpeed(float metersPerSecond) {
 
 uint16_t encodeWindAngle(float degrees) {
     return encodeUnsigned(degrees, kWindAngleScale);
+}
+
+uint16_t encodeRainAccumulation(float millimeters) {
+    return encodeUnsigned(millimeters, kRainAccumulationScale);
+}
+
+uint16_t encodeRainRate(float millimetersPerHour) {
+    return encodeUnsigned(millimetersPerHour, kRainRateScale);
 }
 
 float decodeTemperature(int16_t raw) {

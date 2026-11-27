@@ -52,4 +52,7 @@ uint32_t backoffDelayMs(const BackoffPolicy& policy, uint8_t retryIndex);
 // Whether another attempt is allowed after retryIndex failures.
 bool shouldRetry(const BackoffPolicy& policy, uint8_t retryIndex);
 
+// Whether an HTTP status code represents a transient failure worth retrying.
+bool isTransientHttpStatus(int httpCode);
+
 #endif // INGEST_H

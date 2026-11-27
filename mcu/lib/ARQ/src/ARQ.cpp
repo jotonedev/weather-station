@@ -27,6 +27,10 @@ uint32_t nowMillis() {
 
 ARQ* ARQ::instance = nullptr;
 
+uint32_t ARQ::currentMillis() const {
+    return (clockFn != nullptr) ? clockFn() : nowMillis();
+}
+
 ARQ::~ARQ() {
     if (instance == this) {
         instance = nullptr;
@@ -136,7 +140,7 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
     }
 
     currentTxSeq++;
-    txStartTime = nowMillis();
+    txStartTime = currentMillis();
     Message message{
         .version = PROTOCOL_VERSION,
         .source = this->localAddress,
@@ -151,7 +155,11 @@ Status ARQ::startSendData(const byte* data, length_t length, address_t target) {
 Status ARQ::enterRxMode() {
     packetDone = false;
     auto const status = radio.startReceive(this->localAddress);
-    return (status == RadioStatus::Ok) ? STATUS_OK : STATUS_ERROR;
+    if (status != RadioStatus::Ok) {
+        return STATUS_ERROR;
+    }
+    radio.writeReg(kRegIocfg0, 0x07);
+    return STATUS_OK;
 }
 
 Status ARQ::startReceiveData(address_t localAddress) {
@@ -172,7 +180,7 @@ Status ARQ::startReceiveData() {
     }
 
     packetDone = false;
-    opStartTime = nowMillis();
+    opStartTime = currentMillis();
 
     radio.setReceiveAction(isrHandler, GdoPin::Gdo0);
     auto const status = enterRxMode();
@@ -231,7 +239,9 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
 
             if (ver == PROTOCOL_VERSION && type == ACK && src == currentTarget &&
                 seq == currentTxSeq) {
-                lastRTT = nowMillis() - txStartTime;
+                lastRssi = radio.getRssi();
+                lastLqi = radio.getLqi();
+                lastRTT = currentMillis() - txStartTime;
                 txSuccessCount++;
                 radio.idle();
                 currentState = RadioState::IDLE;
@@ -244,7 +254,7 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
     }
 
     // Check if timeout for this attempt expired
-    if (nowMillis() - opStartTime >= ackTimeoutMs) {
+    if (currentMillis() - opStartTime >= ackTimeoutMs) {
         retryCount++;
         totalRetries++;
         if (retryCount < MAX_RETRIES) {
@@ -255,19 +265,18 @@ Status ARQ::handleStateWaitingAck(uint32_t ackTimeoutMs) {
             } else {
                 status = radio.transmit(txBuffer, this->packetLength, currentTarget);
             }
-            if (status != RadioStatus::Ok) {
-                if (status == RadioStatus::ChannelBusy) {
-                    enterRxMode();
-                    currentState = RadioState::WAITING_ACK;
-                    return STATUS_BUSY;
-                }
+            if (status != RadioStatus::Ok && status != RadioStatus::ChannelBusy) {
                 radio.idle();
                 currentState = RadioState::IDLE;
                 return STATUS_ERROR;
             }
             packetDone = false;
-            opStartTime = nowMillis();
-            enterRxMode();
+            opStartTime = currentMillis();
+            if (enterRxMode() != STATUS_OK) {
+                radio.idle();
+                currentState = RadioState::IDLE;
+                return STATUS_ERROR;
+            }
             currentState = RadioState::WAITING_ACK;
             return STATUS_BUSY;
         }
@@ -404,7 +413,7 @@ Status ARQ::sendMessage(Message& message, address_t target) {
     }
 
     packetDone = false;
-    opStartTime = nowMillis();
+    opStartTime = currentMillis();
     currentTxType = message.type;
     currentTarget = target;
 
@@ -437,7 +446,8 @@ Status ARQ::sendMessage(Message& message, address_t target) {
 
     if (status != RadioStatus::Ok) {
         if (status == RadioStatus::ChannelBusy) {
-            enterRxMode();
+            radio.idle();
+            currentState = RadioState::IDLE;
             return STATUS_CHANNEL_BUSY;
         }
         radio.idle();
@@ -452,7 +462,7 @@ Status ARQ::sendMessage(Message& message, address_t target) {
         return STATUS_OK;
     }
     packetDone = false;
-    opStartTime = nowMillis();
+    opStartTime = currentMillis();
     auto const rxStatus = enterRxMode();
     if (rxStatus != STATUS_OK) {
         radio.idle();

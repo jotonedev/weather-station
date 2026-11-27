@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <limits>
 
 #include "Weather.h"
 
@@ -56,6 +57,9 @@ TEST(Weather, EncodeClampsToRange) {
 }
 
 TEST(Weather, PackAndUnpackRoundTrip) {
+    static_assert(sizeof(WeatherData) == weather::kMaxWirePayload,
+                  "WeatherData should use the full 40-byte wire payload");
+
     WeatherData data = {};
     data.windData.windSpeed = weather::encodeWindSpeed(3.25f);
     data.windData.windAngle = weather::encodeWindAngle(90.5f);
@@ -63,6 +67,11 @@ TEST(Weather, PackAndUnpackRoundTrip) {
     data.airData.humidity = weather::encodeHumidity(61.0f);
     data.rainData.rainfall_1h = 25;
     data.airQualityData.pm2_5 = 14;
+    data.health.flags = weather::kHealthFlagAhtOk | weather::kHealthFlagRainCalibrated;
+    data.health.resetReason = 1;
+    data.health.bootCount = 42;
+    data.health.lastAckRssi = -68;
+    data.health.lastAckLqi = 45;
 
     uint8_t wire[weather::kMaxWirePayload];
     ASSERT_TRUE(weather::packWeatherData(data, wire, sizeof(wire)));
@@ -76,6 +85,11 @@ TEST(Weather, PackAndUnpackRoundTrip) {
     EXPECT_EQ(out.airQualityData.pm2_5, data.airQualityData.pm2_5);
     EXPECT_EQ(out.windData.anemometerMagnetStatus.status,
               data.windData.anemometerMagnetStatus.status);
+    EXPECT_EQ(out.health.flags, data.health.flags);
+    EXPECT_EQ(out.health.resetReason, data.health.resetReason);
+    EXPECT_EQ(out.health.bootCount, data.health.bootCount);
+    EXPECT_EQ(out.health.lastAckRssi, data.health.lastAckRssi);
+    EXPECT_EQ(out.health.lastAckLqi, data.health.lastAckLqi);
 }
 
 TEST(Weather, PackRejectsSmallBuffer) {
@@ -95,4 +109,39 @@ TEST(Weather, UnpackRejectsShortFrame) {
     EXPECT_FALSE(weather::unpackWeatherData(wire, sizeof(wire), out));
     EXPECT_EQ(out.airData.temperature, 123);
     EXPECT_FALSE(weather::unpackWeatherData(nullptr, sizeof(WeatherData), out));
+}
+
+TEST(Weather, EncodeRejectsNonFiniteFloats) {
+    float const nan = std::numeric_limits<float>::quiet_NaN();
+    float const posInf = std::numeric_limits<float>::infinity();
+    float const negInf = -std::numeric_limits<float>::infinity();
+
+    EXPECT_EQ(weather::encodeTemperature(nan), weather::kInvalidTemperature);
+    EXPECT_EQ(weather::encodeTemperature(posInf), weather::kInvalidTemperature);
+    EXPECT_EQ(weather::encodeTemperature(negInf), weather::kInvalidTemperature);
+
+    EXPECT_EQ(weather::encodeHumidity(nan), weather::kInvalidUint16);
+    EXPECT_EQ(weather::encodeHumidity(posInf), weather::kInvalidUint16);
+    EXPECT_EQ(weather::encodeHumidity(negInf), weather::kInvalidUint16);
+
+    EXPECT_EQ(weather::encodePressure(nan), weather::kInvalidUint16);
+    EXPECT_EQ(weather::encodeWindSpeed(posInf), weather::kInvalidUint16);
+    EXPECT_EQ(weather::encodeWindAngle(negInf), weather::kInvalidUint16);
+    EXPECT_EQ(weather::encodeRainAccumulation(nan), weather::kInvalidUint16);
+    EXPECT_EQ(weather::encodeRainRate(posInf), weather::kInvalidUint16);
+}
+
+TEST(Weather, RainEncodeRoundTripAndClamp) {
+    EXPECT_EQ(weather::encodeRainAccumulation(3.21f), 321);
+    EXPECT_NEAR(weather::decodeRainAccumulation(weather::encodeRainAccumulation(3.21f)), 3.21f,
+                0.001f);
+    EXPECT_EQ(weather::encodeRainAccumulation(-1.0f), 0);
+    EXPECT_EQ(weather::encodeRainAccumulation(9000.0f), weather::kInvalidUint16 - 1);
+    EXPECT_NE(weather::encodeRainAccumulation(9000.0f), weather::kInvalidUint16);
+
+    EXPECT_EQ(weather::encodeRainRate(12.5f), 125);
+    EXPECT_NEAR(weather::decodeRainRate(weather::encodeRainRate(12.5f)), 12.5f, 0.001f);
+    EXPECT_EQ(weather::encodeRainRate(-1.0f), 0);
+    EXPECT_EQ(weather::encodeRainRate(9000.0f), weather::kInvalidUint16 - 1);
+    EXPECT_NE(weather::encodeRainRate(9000.0f), weather::kInvalidUint16);
 }
